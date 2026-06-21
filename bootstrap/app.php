@@ -25,6 +25,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->everyFifteenMinutes()
             ->withoutOverlapping(5)
             ->appendOutputTo(storage_path('logs/email-send.log'));
+
+        // Notify Telegram of pending approvals — every 30 minutes
+        $schedule->command('emails:notify-telegram --limit=15')
+            ->everyThirtyMinutes()
+            ->withoutOverlapping(10)
+            ->appendOutputTo(storage_path('logs/telegram-approval.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);

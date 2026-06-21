@@ -7,11 +7,15 @@ use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\SuppressionController;
 use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\ActivityEventController;
+use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Middleware\ApiTokenAuth;
 use Illuminate\Support\Facades\Route;
 
 // Webhooks (no Bearer token — use their own auth)
 Route::post('webhooks/smtp2go', [WebhookController::class, 'smtp2go']);
+
+// Telegram webhook — receives approval replies (no Bearer token, uses webhook_secret)
+Route::post('webhooks/telegram', [TelegramWebhookController::class, 'handle']);
 
 Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
 

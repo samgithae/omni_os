@@ -1178,7 +1178,7 @@ This is the core work. The strategy brief says: "Marketing execution is the prio
   - Business-hours-only sending (respect recipient timezone)
   - Bounce tracking → automatic suppression on hard bounce
   - Domain warming (don't raise volume faster than reputation)
-- [ ] **Telegram approval gate integration**:
+- [x] **Telegram approval gate integration**:
   - Before ANY email is sent, draft goes to Telegram for human approval
   - Detailed per-company breakdown: email ID, subject, body summary
   - Requires explicit "APPROVED" before queueing for send
@@ -1486,6 +1486,18 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 - [x] SMTP2GO webhook: bounce/complaint/unsubscribe now auto-create suppression records via `firstOrCreate` (prevents re-sending to problematic addresses)
 - [x] Scheduler: `emails:send-batch --limit=20` runs every 15min, `withoutOverlapping(5)`, logs to `storage/logs/email-send.log`
 - [x] PROJECT.md updated: 1.3 SMTP2GO, Idempotency, Safe-send marked done
+
+### 2026-06-21 — Telegram Approval Gate (Phase 1.3)
+
+- [x] `config/services.php` — added `telegram` section with bot_token, chat_id, webhook_secret
+- [x] `.env.example` — added TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_WEBHOOK_SECRET
+- [x] `TelegramService` — sends messages + structured approval requests with inline keyboards
+- [x] `NotifyTelegram` listener — now sends activity events to Telegram when `notify_telegram=true`
+- [x] `emails:notify-telegram` command — batches pending emails by brand, sends formatted approval requests with inline Approve/Reject buttons
+- [x] `POST /webhooks/telegram` — receives telegram replies: `APPROVE 123`, `REJECT 123`, `APPROVE ALL`, `REJECT ALL`, and inline callback data
+- [x] ActivityLogger integrated — approval/rejection events appear in the Activity Feed
+- [x] Scheduler: `emails:notify-telegram --limit=15` runs every 30min
+- [x] Need Sam to set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID in production .env before the gate activates
 
 ### 2026-06-21 — Activity Feed (Command Center)
 
