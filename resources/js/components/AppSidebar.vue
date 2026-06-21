@@ -30,7 +30,7 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Email Sequences',
-        href: '/admin/email-messages',
+        href: '/email-sequences',
         icon: Mail,
     },
     {

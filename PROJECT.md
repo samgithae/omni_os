@@ -488,7 +488,7 @@ These are hard-won fixes. If you break them, things crash:
 
 - Dashboard (Inertia route)
 - Leads (links to `/admin/leads` via `<a>` tag, NOT Inertia `<Link>`)
-- Email Sequences (links to `/admin/email-messages`)
+- Email Sequences (Inertia route at `/email-sequences` — purpose-built Vue page for sequence review)
 - Brands (links to `/admin/brands`)
 - Suppressions (links to `/admin/suppressions`)
 - Mining Targets (links to `/admin/mining-targets`)
@@ -791,6 +791,11 @@ GET  /admin/brands             → Brand CRUD
 GET  /admin/leads              → Lead CRUD + view
 GET  /admin/suppressions       → Suppression CRUD
 GET  /admin/mining-targets     → Mining target CRUD
+GET  /email-sequences           → EmailSequenceController@index (Vue page, auth required)
+GET  /email-sequences/approve   → EmailSequenceController@bulkApprove (POST, auth)
+GET  /email-sequences/reject    → EmailSequenceController@bulkReject (POST, auth)
+GET  /email-sequences/{id}/approve → EmailSequenceController@approve (POST, auth)
+GET  /email-sequences/{id}/reject  → EmailSequenceController@reject (POST, auth)
 GET  /login                    → Fortify login
 POST /login                    → Fortify authenticate
 POST /logout                   → Fortify logout
@@ -869,6 +874,7 @@ omni_os/
 │   │   └── Controllers/
 │   │       ├── Controller.php
 │   │       ├── DashboardController.php    # Vue dashboard data provider
+│   │       ├── EmailSequenceController.php # Email sequences Vue page (index, approve, reject)
 │   │       └── Settings/
 │   │           ├── ProfileController.php
 │   │           └── SecurityController.php
@@ -909,6 +915,16 @@ omni_os/
 │   │   ├── pages/
 │   │   │   ├── Dashboard.vue              # Real dashboard with stats + charts
 │   │   │   ├── Welcome.vue                # Landing page
+│   │   │   ├── EmailSequences/             # Email sequence review workspace
+│   │   │   │   ├── Index.vue              # Main page (stats, filters, lead list, bulk actions)
+│   │   │   │   └── components/
+│   │   │   │       ├── StatsBar.vue        # Aggregate stats with click-to-filter
+│   │   │   │       ├── FilterBar.vue       # Brand/segment/approval/progress/search
+│   │   │   │       ├── LeadSequenceRow.vue  # Compact lead row with brand accent + expand
+│   │   │   │       ├── SequenceTimeline.vue # 5-step horizontal progress indicator (signature component)
+│   │   │   │       ├── ExpandedSequence.vue # Vertical email list with approve/reject/preview
+│   │   │   │       ├── EmailPreview.vue    # Sandboxed HTML email body preview
+│   │   │   │       └── BulkActionBar.vue   # Sticky bottom bar for batch approve/reject
 │   │   │   ├── auth/                       # Login, register, forgot password
 │   │   │   └── settings/                   # User settings (profile, security, appearance)
 │   │   ├── components/
@@ -984,6 +1000,21 @@ omni_os/
 - [x] Sidebar navigation with Email Sequences link
 - [x] Quick links to all admin sections including Email Sequences
 - [x] Fixed Inertia `<Link>` vs `<a>` tag issue for Filament admin routes
+
+### Email Sequences Redesign (Phase 1 — UI/UX Enhancement)
+
+- [x] **New Vue/Inertia page at `/email-sequences`** — purpose-built sequence review workspace replacing the flat Filament table as primary operator tool
+- [x] **Stats bar** — inline aggregate stats (total, pending, approved, rejected, sent, opened, clicked) with stat-click filtering
+- [x] **Filter bar** — brand, segment, approval, progress, and search filters with instant Inertia partial reload
+- [x] **LeadSequenceRow** — compact lead rows with 5-step horizontal timeline (SequenceTimeline), brand color accent, expand/collapse
+- [x] **SequenceTimeline** — the signature visual: 5 color-coded circles (sent+opened=green, sent=blue, pending=amber, rejected=red, draft=gray, empty=outline/dashed) connected by lines, with step labels and status icons
+- [x] **ExpandedSequence** — vertical timeline showing all emails per lead with subjects, timestamps, status badges, single approve/reject, and inline preview toggle
+- [x] **EmailPreview** — sandboxed read-only HTML email body render (max-height scroll, gray background)
+- [x] **BulkActionBar** — sticky bottom bar for batch approve/reject across selected leads
+- [x] **Subject mismatch detection** — warns (⚠️) when subject doesn't contain the lead's company name words
+- [x] **Backend** — `EmailSequenceController` with index (paginated, filtered), bulkApprove, bulkReject, approve, reject endpoints
+- [x] **Sidebar + Dashboard links updated** — both now point to `/email-sequences`
+- [x] **Existing Filament EmailMessageResource untouched** — coexists as individual record editor
 
 ### Data Import
 
