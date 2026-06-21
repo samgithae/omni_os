@@ -559,7 +559,8 @@ Leads:          24 sample-only records
 Suppressions:   4 sample-only records
 Lead Events:    44 sample-only records
 Email Messages: 12 sample-only records
-Mining Targets: 8 sample-only records
+Mining Targets: 4,666 fully-seeded records (UjuziPlus + Hudutech)
+Activity Events: 20 records (10 seeded + 10 activity log entries)
 ```
 
 The Mac dev database now seeds fake/anonymized local data only via `database/seeders/SampleLeadSeeder.php`.
@@ -1079,6 +1080,16 @@ omni_os/
 - [x] Strategy brief written (`Omni-OS-Strategy-Brief.md`)
 - [x] This PROJECT.md written
 
+### Mining Targets Configuration (Phase 1.1)
+
+- [x] **`mining:seed-targets` artisan command** — seeds geo config for both UjuziPlus and Hudutech with --append and --brand options
+- [x] **4 geo priority tiers**: Kenya (daily cadence), East Africa (weekly), English-speaking Africa (weekly), Global (monthly)
+- [x] **UjuziPlus**: 1,998 targets — corporate training/LMS categories (training providers, SACCOs, universities, NGOs, government agencies, etc.) across 4 tiers
+- [x] **Hudutech**: 2,664 targets — ERP/automation categories (retail, manufacturing, schools, NGOs, logistics, real estate, etc.) across 4 tiers
+- [x] Country-level targets for all tiers; city-level targets for tiers 1-3
+- [x] Each target has: brand, country, city (nullable), category, search template, segment (rabbit/deer), cadence (daily/weekly/monthly), is_active
+- [x] `Activity::log()` called after seeding — event appears in the Activity Feed
+
 ---
 
 ## 13. What's Remaining — Full Roadmap
@@ -1105,13 +1116,16 @@ This is the core work. The strategy brief says: "Marketing execution is the prio
 
 #### 1.1 Mining Targets Configuration
 
-- [ ] **Seed `mining_targets` table** with initial geo config:
+- [x] **Seed `mining_targets` table** with initial geo config:
   - Kenya cities × categories (Nairobi, Mombasa, Kisumu, Nakuru, Eldoret, Thika, etc.)
   - Segments: rabbit (private training providers) + deer (SACCOs, larger institutions)
   - Search templates per category
   - Cadence: daily for rabbits, weekly for deer
   - This replaces hardcoded "Nairobi"/"Kenya" in mining scripts
   - Expanding to new countries/cities = inserting config rows (no code changes)
+- 4,666 total targets seeded across UjuziPlus (1,998) and Hudutech (2,664)
+- 4 geo priority tiers: Kenya (daily), East Africa (weekly), English-speaking Africa (weekly), Global (monthly)
+- Country-level targets for all tiers; city-level targets for tiers 1-3
 
 #### 1.2 Enrichment Pipeline (339 leads need email enrichment)
 
@@ -1437,6 +1451,16 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 ---
 
 ## 16. Changelog
+
+### 2026-06-21 — Mining Targets Configuration (Phase 1.1)
+
+- [x] Built `mining:seed-targets` artisan command — seeds geo config for UjuziPlus and Hudutech with --append and --brand options
+- [x] 4 geo priority tiers: Kenya (daily cadence, 25 cities), East Africa (weekly, 4 countries), English-speaking Africa (weekly, 5 countries), Global (monthly, 6 countries)
+- [x] UjuziPlus: 1,998 targets across 27 categories (training providers, SACCOs, universities, NGOs, etc.)
+- [x] Hudutech: 2,664 targets across 29 categories (retail, manufacturing, schools, logistics, etc.)
+- [x] Country-level targets for all tiers; city-level targets for tiers 1-3
+- [x] Activity::log() integrated — seeding appears in the Activity Feed
+- [x] PROJECT.md updated: What's Done (Phase 1.1), Current Data State, Changelog
 
 ### 2026-06-21 — Activity Feed (Command Center)
 
