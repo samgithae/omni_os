@@ -3,9 +3,8 @@
 namespace App\Filament\Resources;
 
 use BackedEnum;
-
+use App\Enums\LeadStatus;
 use App\Filament\Resources\LeadResource\Pages;
-use App\Models\Brand;
 use App\Models\Lead;
 use Filament\Forms;
 use Filament\Schemas\Components\Section;
@@ -75,14 +74,9 @@ class LeadResource extends Resource
                 Section::make('Status & Enrichment')
                     ->schema([
                         Forms\Components\Select::make('status')
-                            ->options([
-                                'new' => 'New',
-                                'enriching' => 'Enriching',
-                                'enriched' => 'Enriched',
-                                'no_email_found' => 'No Email Found',
-                            ])
+                            ->options(Lead::statusOptions())
                             ->required()
-                            ->default('new'),
+                            ->default(LeadStatus::New->value),
                         Forms\Components\TextInput::make('enrichment_attempts')
                             ->numeric()
                             ->default(0),
@@ -152,12 +146,8 @@ class LeadResource extends Resource
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'new' => 'info',
-                        'enriching' => 'warning',
-                        'enriched' => 'success',
-                        'no_email_found' => 'danger',
-                    })
+                    ->formatStateUsing(fn (string $state): string => LeadStatus::fromValue($state)->label())
+                    ->color(fn (string $state): string => LeadStatus::fromValue($state)->filamentColor())
                     ->sortable(),
                 Tables\Columns\TextColumn::make('score')
                     ->sortable()
@@ -181,16 +171,11 @@ class LeadResource extends Resource
                         'elephant' => 'Elephant',
                     ]),
                 Tables\Filters\SelectFilter::make('status')
-                    ->options([
-                        'new' => 'New',
-                        'enriching' => 'Enriching',
-                        'enriched' => 'Enriched',
-                        'no_email_found' => 'No Email Found',
-                    ]),
+                    ->options(Lead::statusOptions()),
                 Tables\Filters\SelectFilter::make('country')
-                    ->options(fn () => Lead::whereNotNull('country')->distinct()->pluck('country', 'country')->filter()->toArray()),
+                    ->options(fn () => Lead::query()->select('country')->distinct()->orderBy('country', 'asc')->pluck('country', 'country')->filter()->toArray()),
                 Tables\Filters\SelectFilter::make('city')
-                    ->options(fn () => Lead::whereNotNull('city')->distinct()->pluck('city', 'city')->filter()->toArray()),
+                    ->options(fn () => Lead::query()->select('city')->distinct()->orderBy('city', 'asc')->pluck('city', 'city')->filter()->toArray()),
             ])
             ->actions([
                 Actions\EditAction::make(),

@@ -1,0 +1,9 @@
+tunnel: ${CLOUDFLARE_TUNNEL_ID}
+credentials-file: ${CLOUDFLARE_TUNNEL_CREDENTIALS_FILE}
+
+ingress:
+  - hostname: ${CLOUDFLARE_DASHBOARD_HOSTNAME}
+    service: http://127.0.0.1:8000
+  - hostname: ${CLOUDFLARE_ADMIN_HOSTNAME}
+    service: http://127.0.0.1:8000
+  - service: http_status:404

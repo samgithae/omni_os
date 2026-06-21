@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\LeadStatus;
 use Database\Factories\LeadFactory;
+use DomainException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -34,6 +36,12 @@ class Lead extends Model
 {
     /** @use HasFactory<LeadFactory> */
     use HasFactory;
+
+    protected ?array $pendingStatusTransition = null;
+
+    protected ?string $statusTransitionSource = null;
+
+    protected array $statusTransitionContext = [];
 
     protected $fillable = [
         'brand_id',
@@ -67,6 +75,48 @@ class Lead extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::creating(function (Lead $lead): void {
+            $lead->status ??= LeadStatus::New->value;
+
+            LeadStatus::fromValue($lead->status);
+        });
+
+        static::saving(function (Lead $lead): void {
+            if (! $lead->exists || ! $lead->isDirty('status')) {
+                return;
+            }
+
+            $lead->prepareStatusTransition(
+                LeadStatus::fromValue((string) $lead->getOriginal('status')),
+                LeadStatus::fromValue((string) $lead->status),
+            );
+        });
+
+        static::saved(function (Lead $lead): void {
+            if (! $lead->pendingStatusTransition) {
+                return;
+            }
+
+            LeadEvent::create([
+                'lead_id' => $lead->id,
+                'brand_id' => $lead->brand_id,
+                'event_type' => 'status_changed',
+                'payload' => [
+                    'from' => $lead->pendingStatusTransition['from']->value,
+                    'to' => $lead->pendingStatusTransition['to']->value,
+                    ...$lead->statusTransitionContext,
+                ],
+                'source' => $lead->statusTransitionSource ?? 'lead_model',
+            ]);
+
+            $lead->pendingStatusTransition = null;
+            $lead->statusTransitionSource = null;
+            $lead->statusTransitionContext = [];
+        });
+    }
+
     public function brand(): BelongsTo
     {
         return $this->belongsTo(Brand::class);
@@ -96,7 +146,7 @@ class Lead extends Model
 
     public function scopeByStatus($query, string $status)
     {
-        return $query->where('status', $status);
+        return $query->where('status', LeadStatus::fromValue($status)->value);
     }
 
     public function scopeByCountry($query, string $country)
@@ -121,15 +171,35 @@ class Lead extends Model
 
     public function scopeEnriched($query)
     {
-        return $query->where('status', 'enriched');
+        return $query->where('status', LeadStatus::Enriched->value);
     }
 
     public function scopeNew($query)
     {
-        return $query->where('status', 'new');
+        return $query->where('status', LeadStatus::New->value);
     }
 
     // --- Status helpers ---
+
+    public static function statusOptions(): array
+    {
+        return LeadStatus::options();
+    }
+
+    public function statusEnum(): LeadStatus
+    {
+        return LeadStatus::fromValue($this->status);
+    }
+
+    public function transitionTo(LeadStatus|string $target, ?string $source = null, array $context = []): void
+    {
+        $targetStatus = $target instanceof LeadStatus ? $target : LeadStatus::fromValue($target);
+
+        $this->statusTransitionSource = $source ?? 'lead.transition';
+        $this->statusTransitionContext = $context;
+        $this->status = $targetStatus->value;
+        $this->save();
+    }
 
     public function isSuppressed(): bool
     {
@@ -137,8 +207,25 @@ class Lead extends Model
             return false;
         }
 
-        return Suppression::where('brand_id', $this->brand_id)
+        return Suppression::query()
+            ->where('brand_id', $this->brand_id)
             ->where('email', $this->email)
             ->exists();
+    }
+
+    protected function prepareStatusTransition(LeadStatus $from, LeadStatus $to): void
+    {
+        if ($from === $to) {
+            throw new DomainException("Lead is already in status [{$to->value}].");
+        }
+
+        if (! $from->canTransitionTo($to)) {
+            throw new DomainException("Invalid lead status transition [{$from->value} -> {$to->value}].");
+        }
+
+        $this->pendingStatusTransition = [
+            'from' => $from,
+            'to' => $to,
+        ];
     }
 }

@@ -27,3 +27,15 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# CSV data files (never commit real customer data)
+/storage/app/private/*.csv
+
+# Log files
+/storage/logs/*.log
+
+# Python virtual environments
+.venv/
+
+# Python bytecode
+*.pyc

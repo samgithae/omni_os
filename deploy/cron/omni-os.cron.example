@@ -1,0 +1,2 @@
+* * * * * cd /srv/omni_os && php artisan schedule:run >> /dev/null 2>&1
+15 2 * * * cd /srv/omni_os && /usr/bin/env bash scripts/backup-postgres.sh >> storage/logs/backup-postgres.log 2>&1

@@ -74,7 +74,13 @@ const statusColors: Record<string, string> = {
     new: '#3b82f6',
     enriching: '#f59e0b',
     enriched: '#10b981',
+    emailed: '#6366f1',
+    replied: '#8b5cf6',
+    interested: '#059669',
+    not_interested: '#dc2626',
     no_email_found: '#ef4444',
+    suppressed: '#7f1d1d',
+    closed: '#6b7280',
 };
 
 const segmentLabels: Record<string, string> = {
@@ -88,7 +94,13 @@ const statusLabels: Record<string, string> = {
     new: 'New',
     enriching: 'Enriching',
     enriched: 'Enriched',
+    emailed: 'Emailed',
+    replied: 'Replied',
+    interested: 'Interested',
+    not_interested: 'Not Interested',
     no_email_found: 'No Email Found',
+    suppressed: 'Suppressed',
+    closed: 'Closed',
 };
 
 function maxCityCount(): number {

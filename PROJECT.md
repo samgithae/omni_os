@@ -168,8 +168,8 @@ Per brand: `icp/`, `competitors/`, `positioning/`, `messaging/`, `brand/` (tone 
 
 | Component | Status | Purpose |
 |-----------|--------|---------|
-| Cloudflare Tunnel + Access | NOT YET SET UP | Public access with Zero Trust security |
-| SMTP2GO | PLANNED | Email sending + open/click tracking |
+| Cloudflare Tunnel + Access | CONFIG PREPARED | Manual Linux setup only; Access must be created before routing any hostname |
+| SMTP2GO | CONFIG DOCUMENTED | Credentials and env keys documented; send/webhook integration still pending |
 | Hermes Agent | EXTERNAL | AI brain for mining/enrichment/drafting (separate from this codebase) |
 | Metabase | PLANNED | Analytics dashboards (swappable with Vue dashboards later) |
 
@@ -539,28 +539,30 @@ The controller (`app/Http/Controllers/DashboardController.php`) queries:
 
 ## 8. Current Data State
 
-### Database Counts (as of 2026-06-20)
+### Canonical Production Dataset (Linux target after restore)
 
 ```
-Users:          1 (see database seeder for credentials)
-Brands:         4 (all active)
 Leads:          608 total
-  Rabbits:      199 (private training providers)
-  Deer:         409 (SACCOs + larger institutions)
-  Enriched:     269 (have email)
-  New:          339 (need enrichment)
+  Rabbits:      199
+  Deer:         409
 Suppressions:   265
-Lead Events:    608 (all "imported" events)
-Email Messages: 259 (imported from Google Sheets email_1 through email_5 columns)
-  Pending Approval: 259
-  Approved:     0
-  Rejected:     0
-  Sent:         0
-  Draft:        259
-Mining Targets: 0 (not yet configured)
-Leads with email sequences: 140
-Leads with 3+ sequence emails: 29
 ```
+
+Linux Postgres is the canonical system of record going forward. Move the real Mac dataset with `pg_dump` -> `pg_restore`, then keep customer PII on Linux only.
+
+### Local Mac Dev Dataset (sample-only after reset)
+
+```
+Users:          1 (dev-admin@example.test)
+Brands:         4
+Leads:          24 sample-only records
+Suppressions:   4 sample-only records
+Lead Events:    44 sample-only records
+Email Messages: 12 sample-only records
+Mining Targets: 8 sample-only records
+```
+
+The Mac dev database now seeds fake/anonymized local data only via `database/seeders/SampleLeadSeeder.php`.
 
 ### Email Sequence Data (imported from Google Sheets)
 
@@ -570,6 +572,13 @@ Leads with 3+ sequence emails: 29
 - Non-email entries skipped (enrichment markers like "Enriched: 18 Jun 2026", "skipped: no website URL")
 - All 259 emails have `approval_status=pending` — awaiting review
 - Imported via `php artisan emails:import-sequences`
+
+### Data Canonicalization
+
+- Canonical move procedure: see `docs/data-canonicalization.md`
+- Recommended transfer path: `pg_dump` on Mac -> restore into Linux Postgres
+- Fallback path: `php artisan leads:import-ujuziplus` and `php artisan emails:import-sequences` on Linux against the CSV exports
+- Temporary caution: if a local dump or CSV export still exists on the Mac, it is still customer data until removed after Linux restore verification
 
 ### Lead Sources
 
@@ -596,6 +605,7 @@ The `ImportUjuziPlusLeads` command (`app/Console/Commands/ImportUjuziPlusLeads.p
   - Truncates `company_name` to 255 chars max
   - Nulls `email` if > 255 chars (misaligned data)
   - Truncates `phone` to 50 chars max
+- Deer sanity check result: the current null-email Deer population is not caused by the `>255` email branch in the source CSV; see `docs/data-canonicalization.md`
 - Extracts city from raw data or infers from company name (checks against known Kenyan cities)
 - Calculates score: email(+30) + phone(+15) + website(+15) + business_insight(+20) + concrete_fact(+10) + deer(+10)
 - Checks suppression column for "yes/true/1" values
@@ -615,9 +625,9 @@ The `ImportUjuziPlusLeads` command (`app/Console/Commands/ImportUjuziPlusLeads.p
 | `php artisan emails:import-sequences` | Import email sequences (email_1..email_5) from CSV into email_messages table |
 | `php artisan emails:import-sequences --dry-run` | Preview email import without writing |
 | `php artisan emails:import-sequences --file=path/to/csv` | Import from specific CSV file |
-| `php artisan migrate:fresh --seed` | Reset DB + seed brands + user |
+| `php artisan migrate:fresh --seed` | Reset DB + seed brands + sample-only local dev data |
 | `php artisan serve` | Start Laravel dev server (port 8000) |
-| `php artisan queue:work` | Start queue worker (Redis) — NOT YET IN USE |
+| `php artisan queue:work redis` | Start queue worker manually (production uses Supervisor config) |
 | `php artisan tinker` | Interactive REPL |
 
 ---
@@ -664,7 +674,8 @@ If you only run `php artisan serve` without `npm run dev`, the page at http://12
 ### Login
 
 - URL: http://127.0.0.1:8000/login
-- Credentials: configured in the database seeder (`database/seeders/DatabaseSeeder.php`). Check the seeder or use `php artisan tinker` to find the user email. **Rotate the seeded password immediately after first login** — do not use phone numbers or any personally identifiable string as a password. Use a strong, unique password from a password manager.
+- Local dev user: `dev-admin@example.test`
+- Password: configured in `database/seeders/DatabaseSeeder.php` for local development only
 
 ### Key URLs
 
@@ -673,25 +684,101 @@ If you only run `php artisan serve` without `npm run dev`, the page at http://12
 | http://127.0.0.1:8000/ | Welcome page |
 | http://127.0.0.1:8000/dashboard | Vue dashboard with stats + charts + email sequence stats |
 | http://127.0.0.1:8000/admin | Filament admin panel |
-| http://127.0.0.1:8000/admin/leads | Lead management (608 leads, with email sequence tab on view) |
-| http://127.0.0.1:8000/admin/email-messages | Email sequence management (259 emails, approve/reject) |
+| http://127.0.0.1:8000/admin/leads | Lead management (sample local data by default; canonical data lives on Linux) |
+| http://127.0.0.1:8000/admin/email-messages | Email sequence management |
 | http://127.0.0.1:8000/admin/brands | Brand management (4 brands) |
-| http://127.0.0.1:8000/admin/suppressions | Suppression list (265 entries) |
-| http://127.0.0.1:8000/admin/mining-targets | Mining target config (empty — needs seeding) |
+| http://127.0.0.1:8000/admin/suppressions | Suppression list |
+| http://127.0.0.1:8000/admin/mining-targets | Mining target config |
 
 ### Environment (.env key settings)
 
+Use `.env.example` as the full blank checklist for required keys.
+
+Production rules:
+- real production `.env` lives only on Linux and is never committed
+- `APP_ENV=production`
+- `APP_DEBUG=false`
+- `REDIS_CLIENT=predis`
+- `QUEUE_CONNECTION=redis`
+- `CACHE_STORE=redis`
+
+### Manual Linux Deploy
+
+Deployment is manual only. Do not auto-deploy on push.
+
+Trigger:
+
+```bash
+# SSH or Tailscale into the Linux box
+cd /srv/omni_os
+bash scripts/deploy.sh
 ```
-DB_CONNECTION=pgsql
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_DATABASE=omni_os
-DB_USERNAME=im
-REDIS_CLIENT=predis    # NOT phpredis (extension not installed on Mac)
-QUEUE_CONNECTION=redis
-CACHE_STORE=redis
-MAIL_MAILER=log        # Dev mode (change to smtp2go for production)
+
+Committed deploy script:
+
+- `scripts/deploy.sh`
+- runs `git pull`, `composer install --no-dev --optimize-autoloader`, `npm ci`, `npm run build`, migrations, caches, Filament assets, storage link, and `queue:restart`
+
+Artifact policy:
+
+- `vendor/`, `node_modules/`, and `public/build/` are gitignored and must be rebuilt on Linux
+- never copy built binaries from Mac to Linux; Mac is ARM and Linux is x86
+- Redis stays on `predis` on both Mac and Linux
+- Git remote points at `git@github.com:samgithae/omni_os.git`; verify the repository visibility is private in GitHub settings
+
+### Linux Queue / Scheduler / Backup
+
+Queue worker:
+
+- Supervisor config is committed at `deploy/supervisor/omni-os-queue-worker.conf`
+- start/update commands:
+
+```bash
+sudo cp deploy/supervisor/omni-os-queue-worker.conf /etc/supervisor/conf.d/
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start omni-os-queue-worker:*
+sudo supervisorctl status omni-os-queue-worker:*
 ```
+
+- stop/restart commands:
+
+```bash
+sudo supervisorctl stop omni-os-queue-worker:*
+sudo supervisorctl restart omni-os-queue-worker:*
+```
+
+Scheduler:
+
+- app scheduler hook is wired in `bootstrap/app.php`
+- install Linux cron:
+
+```bash
+* * * * * cd /srv/omni_os && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Backups:
+
+- backup script: `scripts/backup-postgres.sh`
+- cron example: `deploy/cron/omni-os.cron.example`
+- backup retention rotates old dumps with `find ... -mtime`
+- set `BACKUP_ROOT` to storage outside the database disk and optionally set `BACKUP_REMOTE_TARGET` for rsync to external/private backup storage
+
+### Cloudflare Tunnel + Access
+
+Committed template:
+
+- `deploy/cloudflare/cloudflared-config.example.yml`
+
+Policy:
+
+- expose only the Laravel web UI hostnames
+- dashboard hostname: `CLOUDFLARE_DASHBOARD_HOSTNAME`
+- admin hostname: `CLOUDFLARE_ADMIN_HOSTNAME`
+- create the Cloudflare Access application before routing the tunnel
+- deny by default
+- allow only Sam's Google identity via `CLOUDFLARE_ACCESS_ALLOWED_EMAIL`
+- never expose Postgres through Cloudflare Tunnel
 
 ### Route List (67 routes total)
 
@@ -923,14 +1010,15 @@ omni_os/
 
 These are infrastructure items that are not blocking development but need to be done before production:
 
-- [ ] **Cloudflare Tunnel + Access setup** — Public access with Zero Trust security. The tunnel exposes laptop-hosted services to the web; Cloudflare Access (free tier) gates every hostname behind Google login. Never route Postgres through the tunnel.
-- [ ] **Queue workers running** — `php artisan queue:work` for Redis queue. Needed for background jobs (enrichment, email sending, mining). Configure supervisor or Laravel Horizon for production.
-- [ ] **Laravel scheduler configured** — For automated tasks (scheduled mining, daily reports, drip sequences). Add to system cron: `* * * * * cd /path && php artisan schedule:run >> /dev/null 2>&1`
+- [x] **Manual Linux deployment script committed** — `scripts/deploy.sh` is the only supported trigger path for production deploys. Run it manually over SSH/Tailscale. No auto-deploy-on-push.
+- [x] **Queue worker config committed** — Supervisor config for `php artisan queue:work redis` is committed with auto-restart and logging.
+- [x] **Laravel scheduler hook wired** — App schedule is defined in `bootstrap/app.php`; install the provided Linux cron entry.
+- [x] **Backup strategy committed** — `scripts/backup-postgres.sh` plus daily cron example with retention.
+- [ ] **Cloudflare Tunnel + Access setup applied on Linux** — Config template and policy are documented; live Cloudflare-side creation still requires operator action.
 - [ ] **Per-brand Hermes profiles + context spine** — External to this codebase. Per brand: `icp/`, `competitors/`, `positioning/`, `messaging/`, `brand/` files. Hermes reads these to draft emails and mine leads with brand-specific voice.
 - [ ] **Model routing config in Hermes** — GLM 5.2 for bulk drafting/mining; Qwen for research-heavy tasks; DeepSeek for coding; frontier model only where ROI is obvious.
-- [ ] **Backup strategy** — GitHub repo for code + context spine. Postgres backup plan (pg_dump cron or WAL archiving).
-- [ ] **`.env` production config** — Mail (SMTP2GO credentials), queue, Redis password, APP_ENV=production, APP_DEBUG=false.
-- [ ] **Production deployment script** — Docker with memory limits for 16GB laptop. PHP-FPM + Nginx + Postgres + Redis + cloudflared. Put a UPS on the laptop.
+- [x] **`.env.example` expanded** — Includes application, DB, Redis, SMTP2GO, Cloudflare, queue, cache, and backup keys with blank values only.
+- [ ] **Linux production `.env` populated privately** — Real SMTP2GO, Redis password, APP_ENV, APP_DEBUG, and tunnel secrets live only on Linux.
 - [ ] **Metabase setup** — Connect to Postgres for analytics dashboards (swappable with Vue dashboards later).
 
 ### Phase 1 — UjuziPlus Full Loop (NEXT — THIS IS THE PRIORITY)
@@ -1234,7 +1322,7 @@ Google Sheets (legacy)
     ↓ (one-time import via leads:import-ujuziplus)
 Postgres leads table (608 leads: 199 rabbits, 409 deer)
     ↓
-Hermes enrichment (find emails for 339 "new" leads)
+Hermes enrichment (runs only for leads still in `new`)
     ↓ (per-lead, idempotent, max N attempts)
 Postgres leads table (status: enriched | no_email_found)
     ↓
@@ -1260,40 +1348,49 @@ Win-loss data feeds back into context spine → next batch sharper
 ### Lead State Machine
 
 ```
-                    ┌─────────────┐
-                    │    new      │ ← imported, no email
-                    └──────┬──────┘
-                           │ enrichment starts
-                           ↓
-                    ┌─────────────┐
-                    │ enriching   │
-                    └──────┬──────┘
-                           │
-                    ┌──────┴──────┐
-                    │             │
-                    ↓             ↓
-            ┌─────────────┐ ┌──────────────────┐
-            │  enriched    │ │ no_email_found   │ ← terminal
-            │ (has email)  │ │ (max attempts)   │
-            └──────┬──────┘ └──────────────────┘
-                   │
-                   │ email sent + replied
-                   ↓
-            ┌─────────────┐
-            │  replied     │
-            └──────┬──────┘
-                   │
-            ┌──────┴──────┐
-            │             │
-            ↓             ↓
-     ┌──────────┐  ┌─────────────┐
-     │ interested│  │not_interested│
-     └──────────┘  └─────────────┘
+new -> enriching -> enriched -> emailed -> replied -> interested -> closed
+                    \                          \-> not_interested
+                     \-> no_email_found
+
+suppressed is a terminal state allowed from any active outreach stage:
+new, enriching, enriched, emailed, replied, interested -> suppressed
 ```
 
 ---
 
 ## 16. Changelog
+
+### 2026-06-20 — Deployment, Ops Foundation, And State Enforcement
+
+**Deployment & Build:**
+- Added committed Linux deploy script at `scripts/deploy.sh`
+- Kept build artifacts out of git: `vendor/`, `node_modules/`, and `public/build/` stay rebuild-only on Linux
+- Documented manual deploy trigger via SSH/Tailscale; no auto-deploy-on-push
+- Confirmed Redis stays on `predis` in config defaults and environment guidance
+
+**Environment & Config Hygiene:**
+- Replaced `.env.example` with a complete blank-value checklist for app, DB, Redis, queue, cache, SMTP2GO, Cloudflare, and backup settings
+- Added config entries for SMTP2GO, Cloudflare, backup, and GitHub backup settings in `config/services.php`
+- Scanned the PHP codebase for `env()` outside `config/`; no non-config usages were found, so no code moves were required for `config:cache`
+
+**Operational Foundation:**
+- Added Supervisor worker config at `deploy/supervisor/omni-os-queue-worker.conf`
+- Wired the Laravel scheduler in `bootstrap/app.php` and documented the Linux cron entry
+- Added Postgres backup script at `scripts/backup-postgres.sh` with retention and optional rsync off-host replication
+- Added cron example at `deploy/cron/omni-os.cron.example`
+- Added Cloudflare tunnel template at `deploy/cloudflare/cloudflared-config.example.yml` and documented the deny-by-default Access policy
+
+**Data Canonicalization:**
+- Documented Linux Postgres as canonical and the one-time Mac -> Linux `pg_dump`/restore procedure
+- Reset Mac local development to sample-only seeded data via `SampleLeadSeeder`
+- Recorded the Deer null-email sanity check: 191 Deer rows lack email, but 0 are recoverable from the current imported payload
+
+**Lead State Machine:**
+- Added `App\Enums\LeadStatus` as the canonical lead status definition
+- Enforced guarded status transitions in `App\Models\Lead`
+- Rejected invalid transitions and logged every valid transition as a `lead_events` record
+- Updated the importer to mark missing-email imports as `no_email_found` instead of leaving them in `new`
+- Added automated coverage for valid/invalid transition behavior
 
 ### 2026-06-20 — Email Sequence Import + Approval Workflow
 

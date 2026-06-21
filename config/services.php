@@ -35,4 +35,31 @@ return [
         ],
     ],
 
+    'smtp2go' => [
+        'api_key' => env('SMTP2GO_API_KEY'),
+        'api_endpoint' => env('SMTP2GO_API_ENDPOINT'),
+    ],
+
+    'cloudflare' => [
+        'account_id' => env('CLOUDFLARE_ACCOUNT_ID'),
+        'zone_id' => env('CLOUDFLARE_ZONE_ID'),
+        'tunnel_id' => env('CLOUDFLARE_TUNNEL_ID'),
+        'tunnel_credentials_file' => env('CLOUDFLARE_TUNNEL_CREDENTIALS_FILE'),
+        'dashboard_hostname' => env('CLOUDFLARE_DASHBOARD_HOSTNAME'),
+        'admin_hostname' => env('CLOUDFLARE_ADMIN_HOSTNAME'),
+        'access_application_name' => env('CLOUDFLARE_ACCESS_APPLICATION_NAME'),
+        'access_allowed_email' => env('CLOUDFLARE_ACCESS_ALLOWED_EMAIL'),
+    ],
+
+    'backup' => [
+        'root' => env('BACKUP_ROOT'),
+        'retention_days' => (int) env('BACKUP_RETENTION_DAYS', 14),
+        'remote_target' => env('BACKUP_REMOTE_TARGET'),
+    ],
+
+    'github' => [
+        'backup_repository' => env('GITHUB_BACKUP_REPOSITORY'),
+        'backup_token' => env('GITHUB_BACKUP_TOKEN'),
+    ],
+
 ];

@@ -2,12 +2,12 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\LeadStatus;
 use App\Models\Brand;
 use App\Models\Lead;
 use App\Models\LeadEvent;
 use App\Models\Suppression;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use League\Csv\Reader;
 
 class ImportUjuziPlusLeads extends Command
@@ -25,7 +25,7 @@ class ImportUjuziPlusLeads extends Command
         $this->info('=== UjuziPlus Lead Import ===');
 
         // Find UjuziPlus brand
-        $brand = Brand::where('slug', 'ujuziplus')->first();
+        $brand = Brand::query()->where('slug', 'ujuziplus')->first();
         if (!$brand) {
             $this->error('UjuziPlus brand not found. Run the seeder first.');
             return self::FAILURE;
@@ -99,7 +99,7 @@ class ImportUjuziPlusLeads extends Command
 
                 // Check for existing lead (dedup invariant — only on non-null emails)
                 if ($lead['email']) {
-                    $existing = Lead::where('brand_id', $this->ujuziplusBrandId)
+                    $existing = Lead::query()->where('brand_id', $this->ujuziplusBrandId)
                         ->where('email', $lead['email'])
                         ->first();
 
@@ -122,7 +122,7 @@ class ImportUjuziPlusLeads extends Command
                     'category' => $lead['category'],
                     'country' => 'Kenya',
                     'city' => $lead['city'],
-                    'status' => $lead['email'] ? 'enriched' : 'new',
+                    'status' => $lead['email'] ? LeadStatus::Enriched->value : LeadStatus::NoEmailFound->value,
                     'email_verified' => (bool) $lead['email'],
                     'score' => $lead['score'],
                     'source' => 'google_sheets',
@@ -188,9 +188,6 @@ class ImportUjuziPlusLeads extends Command
         $website = $get('website');
         $category = $get('category');
         $contactName = $get('first_name') ?: $get('contact_name');
-
-        // Deer sheet has role column
-        $role = $get('role');
 
         // Truncate contact_name if it's clearly a misaligned long text (Deer sheet issue)
         if (strlen($contactName) > 100) {
