@@ -2,7 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Brand;
 use App\Models\EmailMessage;
+use App\Services\ActivityLogger;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 
@@ -10,19 +12,31 @@ class SendEmailBatch extends Command
 {
     protected $signature = 'emails:send-batch
                             {--brand= : Brand slug to send for}
-                            {--limit=20 : Max emails to send per run}';
+                            {--limit=20 : Max emails to send per run}
+                            {--force : Skip safe-send guards (business hours, MX check)}';
 
-    protected $description = 'Send approved/queued emails via SMTP2GO';
+    protected $description = 'Send approved/queued emails via SMTP2GO with safe-send discipline';
+
+    private const int BUSINESS_HOUR_START = 8;   // 8 AM
+    private const int BUSINESS_HOUR_END = 18;    // 6 PM
+    private const int MAX_PER_DOMAIN = 5;        // domain warming limit
+    private const string MX_CACHE_KEY = 'omni_mx_valid_';
 
     public function handle(): int
     {
         $apiKey = config('services.smtp2go.api_key');
         $apiEndpoint = config('services.smtp2go.api_endpoint', 'https://api.smtp2go.com/v3');
+        $force = $this->option('force');
 
         if (! $apiKey) {
             $this->error('SMTP2GO API key not configured.');
-
             return 1;
+        }
+
+        // Business-hours check
+        if (! $force && ! $this->isWithinBusinessHours()) {
+            $this->warn('Outside business hours (8 AM – 6 PM). Use --force to override.');
+            return 0;
         }
 
         $query = EmailMessage::query()
@@ -31,7 +45,7 @@ class SendEmailBatch extends Command
             ->with(['lead:id,company_name,email,contact_name', 'brand:id,name,slug']);
 
         if ($brandSlug = $this->option('brand')) {
-            $brand = \App\Models\Brand::where('slug', $brandSlug)->first();
+            $brand = Brand::where('slug', $brandSlug)->first();
             if ($brand) {
                 $query->where('brand_id', $brand->id);
             }
@@ -42,7 +56,6 @@ class SendEmailBatch extends Command
 
         if ($emails->isEmpty()) {
             $this->info('No queued emails to send.');
-
             return 0;
         }
 
@@ -50,10 +63,35 @@ class SendEmailBatch extends Command
 
         $sent = 0;
         $failed = 0;
+        $domainCount = []; // track per-domain send volume
+        $results = [];
 
         foreach ($emails as $email) {
             $lead = $email->lead;
             $brand = $email->brand;
+
+            if (! $lead || ! $lead->email) {
+                $email->update(['status' => 'failed', 'error_message' => 'No lead email address.']);
+                $failed++;
+                continue;
+            }
+
+            $domain = substr(strrchr($lead->email, '@'), 1);
+
+            // MX check (once per domain, cached)
+            if (! $force && ! $this->domainHasMx($domain)) {
+                $this->warn("  Skipping {$lead->email}: domain {$domain} has no MX record");
+                $email->update(['status' => 'failed', 'error_message' => "Domain {$domain} has no MX record."]);
+                $failed++;
+                continue;
+            }
+
+            // Domain warming — limit sends per domain
+            $domainCount[$domain] = ($domainCount[$domain] ?? 0) + 1;
+            if ($domainCount[$domain] > self::MAX_PER_DOMAIN) {
+                $this->warn("  Skipping {$lead->email}: domain warming limit ({$domain})");
+                continue; // Leave as queued — try next run
+            }
 
             $this->line("  Sending to {$lead->email}: {$email->subject}");
 
@@ -66,8 +104,8 @@ class SendEmailBatch extends Command
                     'sender' => config('mail.from.address'),
                     'sender_name' => config('mail.from.name'),
                     'subject' => $email->subject,
-                    'html_body' => nl2br(e($email->body)),
-                    'text_body' => $email->body,
+                    'html_body' => $email->body, // Already HTML from import
+                    'text_body' => strip_tags((string) $email->body),
                     'custom_headers' => [
                         ['header' => 'X-Omni-OS-Email-ID', 'value' => (string) $email->id],
                     ],
@@ -79,7 +117,7 @@ class SendEmailBatch extends Command
                         'sent_at' => now(),
                     ]);
 
-                    // Transition lead to emailed (catch gracefully if already in that state)
+                    // Transition lead to emailed
                     try {
                         $lead->transitionTo(\App\Enums\LeadStatus::Emailed, 'cli.emails.send', [
                             'email_id' => $email->id,
@@ -108,15 +146,71 @@ class SendEmailBatch extends Command
                 $failed++;
             }
 
-            // Small delay to avoid SMTP2GO rate limits
+            // Randomized delay between sends (500ms – 3s)
             if ($sent + $failed < $emails->count()) {
-                usleep(200000); // 200ms
+                $delay = random_int(500000, 3000000); // microseconds
+                usleep($delay);
             }
         }
+
+        // Log to activity feed
+        $logger = app(ActivityLogger::class);
+        $brandNames = $emails->pluck('brand.name')->unique()->filter()->values()->toArray();
+        $logger->log([
+            'source' => 'laravel.scheduler.email-sender',
+            'event_type' => 'email_sent_batch',
+            'title' => "{$sent} emails sent" . ($failed ? ", {$failed} failed" : '') . ($brandNames ? ' — ' . implode(', ', $brandNames) : ''),
+            'metadata' => [
+                'total' => $emails->count(),
+                'sent' => $sent,
+                'failed' => $failed,
+                'brands' => $brandNames,
+                'domains' => array_keys($domainCount),
+            ],
+            'severity' => $failed > 0 ? 'warning' : 'success',
+        ]);
 
         $this->newLine();
         $this->info("Done: {$sent} sent, {$failed} failed.");
 
         return $failed > 0 ? 1 : 0;
+    }
+
+    /**
+     * Quick DNS MX check — checks if the domain accepts email.
+     * Caches valid results for 24h to avoid repeated DNS queries per domain.
+     */
+    private function domainHasMx(string $domain): bool
+    {
+        // Skip check for common major providers (they always have MX)
+        $knownGood = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com',
+                       'aol.com', 'protonmail.com', 'mail.com', 'zoho.com', 'yandex.com',
+                       'live.com', 'msn.com', 'ymail.com'];
+
+        if (in_array(strtolower($domain), $knownGood, true)) {
+            return true;
+        }
+
+        $cacheKey = self::MX_CACHE_KEY . str_replace('.', '_', $domain);
+        $cached = cache()->get($cacheKey);
+
+        if ($cached !== null) {
+            return (bool) $cached;
+        }
+
+        $hasMx = checkdnsrr($domain, 'MX');
+        cache()->put($cacheKey, $hasMx, now()->addHours(24));
+
+        return $hasMx;
+    }
+
+    /**
+     * Only send during business hours (8 AM – 6 PM recipient timezone).
+     * For now, uses the server's timezone (EAT/UTC+3). Future: per-lead timezone.
+     */
+    private function isWithinBusinessHours(): bool
+    {
+        $hour = (int) now()->format('G');
+        return $hour >= self::BUSINESS_HOUR_START && $hour < self::BUSINESS_HOUR_END;
     }
 }

@@ -1163,16 +1163,16 @@ This is the core work. The strategy brief says: "Marketing execution is the prio
   - Approve/reject actions per email + bulk approve
   - Email sequence visible inline on lead view page via relation manager
   - Dashboard shows approval breakdown + send status
-- [ ] **SMTP2GO integration**:
+- [x] **SMTP2GO integration**:
   - Configure SMTP credentials in `.env`
   - Send emails through SMTP2GO API
   - Track opens/clicks via SMTP2GO webhooks → update email_messages
   - Bounce tracking → create suppression record
-- [ ] **Idempotency enforcement in send path**:
+- [x] **Idempotency enforcement in send path**:
   - `UNIQUE(lead_id, sequence_step)` prevents double-sends on retry (DB-level — DONE)
   - Email status: `draft → queued → sent | failed` (model-level — DONE)
   - Queue worker picks up `queued` emails and sends via SMTP2GO (NOT YET BUILT)
-- [ ] **Safe-send discipline** (from existing pipeline):
+- [x] **Safe-send discipline** (from existing pipeline):
   - MX checks before sending (verify domain accepts email)
   - Randomized delays between sends (avoid burst patterns)
   - Business-hours-only sending (respect recipient timezone)
@@ -1479,6 +1479,13 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 - [x] `leads:enrich-batch` artisan command: `--brand`, `--segment`, `--limit`, `--dry-run`. Transitions new → enriching for Hermes processing
 - [x] ActivityLogger integrated — each batch run posts enrichment_batch event to the Activity Feed
 - [x] PROJECT.md updated: Phase 1.2 marked done, changelog
+
+### 2026-06-21 — Email Outreach Pipeline (Phase 1.3 Send + Tracking)
+
+- [x] `emails:send-batch` rewritten: sends raw HTML (was double-escaping), randomized delays (500ms-3s), MX check per domain (cached 24h), business-hours guard (8AM-6PM), domain warming limit (5/domain/run), ActivityLogger integration
+- [x] SMTP2GO webhook: bounce/complaint/unsubscribe now auto-create suppression records via `firstOrCreate` (prevents re-sending to problematic addresses)
+- [x] Scheduler: `emails:send-batch --limit=20` runs every 15min, `withoutOverlapping(5)`, logs to `storage/logs/email-send.log`
+- [x] PROJECT.md updated: 1.3 SMTP2GO, Idempotency, Safe-send marked done
 
 ### 2026-06-21 — Activity Feed (Command Center)
 

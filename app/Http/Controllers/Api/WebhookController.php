@@ -67,18 +67,9 @@ class WebhookController extends Controller
             match ($eventType) {
                 'open', 'opened' => $email->update(['opened_at' => now()]),
                 'click', 'clicked' => $email->update(['clicked_at' => now()]),
-                'bounce', 'bounced', 'hard_bounce' => $email->update([
-                    'status' => 'failed',
-                    'error_message' => 'Bounced: '.($event['reason'] ?? 'unknown'),
-                ]),
-                'complaint', 'spam' => $email->update([
-                    'status' => 'failed',
-                    'error_message' => 'Spam complaint',
-                ]),
-                'unsubscribe' => $email->update([
-                    'status' => 'failed',
-                    'error_message' => 'Unsubscribed',
-                ]),
+                'bounce', 'bounced', 'hard_bounce' => $this->handleBounce($email, $event),
+                'complaint', 'spam' => $this->handleComplaint($email, $event),
+                'unsubscribe' => $this->handleUnsubscribe($email, $event),
                 default => null,
             };
 
@@ -90,5 +81,58 @@ class WebhookController extends Controller
             'events_received' => count($events),
             'events_processed' => $processed,
         ]);
+    }
+
+    protected function handleBounce(EmailMessage $email, array $event): void
+    {
+        $reason = $event['reason'] ?? 'unknown';
+        $recipient = $event['recipient'] ?? $email->lead?->email;
+
+        $email->update([
+            'status' => 'failed',
+            'error_message' => 'Bounced: ' . $reason,
+        ]);
+
+        // Create suppression record if we know the email
+        if ($recipient && $email->lead) {
+            \App\Models\Suppression::firstOrCreate(
+                ['brand_id' => $email->brand_id, 'email' => $recipient],
+                ['reason' => 'hard_bounce', 'notes' => 'Bounced via SMTP2GO webhook: ' . $reason],
+            );
+        }
+    }
+
+    protected function handleComplaint(EmailMessage $email, array $event): void
+    {
+        $recipient = $event['recipient'] ?? $email->lead?->email;
+
+        $email->update([
+            'status' => 'failed',
+            'error_message' => 'Spam complaint',
+        ]);
+
+        if ($recipient && $email->lead) {
+            \App\Models\Suppression::firstOrCreate(
+                ['brand_id' => $email->brand_id, 'email' => $recipient],
+                ['reason' => 'spam_complaint', 'notes' => 'Spam complaint via SMTP2GO'],
+            );
+        }
+    }
+
+    protected function handleUnsubscribe(EmailMessage $email, array $event): void
+    {
+        $recipient = $event['recipient'] ?? $email->lead?->email;
+
+        $email->update([
+            'status' => 'failed',
+            'error_message' => 'Unsubscribed',
+        ]);
+
+        if ($recipient && $email->lead) {
+            \App\Models\Suppression::firstOrCreate(
+                ['brand_id' => $email->brand_id, 'email' => $recipient],
+                ['reason' => 'unsubscribe', 'notes' => 'Unsubscribed via SMTP2GO list-unsubscribe'],
+            );
+        }
     }
 }

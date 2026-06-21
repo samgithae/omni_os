@@ -19,6 +19,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withSchedule(function (Schedule $schedule): void {
         // Keep queue housekeeping running once cron is installed on Linux.
         $schedule->command('queue:prune-failed --hours=336')->dailyAt('02:30');
+
+        // Send approved/queued emails — every 15 minutes during business hours.
+        $schedule->command('emails:send-batch --limit=20')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping(5)
+            ->appendOutputTo(storage_path('logs/email-send.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
