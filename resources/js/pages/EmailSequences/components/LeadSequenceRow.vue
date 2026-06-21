@@ -71,7 +71,14 @@ function pendingCount(): number {
 }
 
 function sentCount(): number {
-  return props.lead.steps.filter(s => s.send_status === 'sent').length
+  return props.lead.steps.filter(s => {
+    if (!s.exists) return false
+    // Count sent, opened, clicked, or approved (queued) as "completed" steps
+    if (s.clicked_at || s.opened_at) return true
+    if (s.send_status === 'sent') return true
+    if (s.approval_status === 'approved') return true
+    return false
+  }).length
 }
 
 function doApproveNext() {
