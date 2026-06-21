@@ -185,7 +185,7 @@ class EmailController extends Controller
 
                 $response = \Illuminate\Support\Facades\Http::withHeaders([
                     'Content-Type' => 'application/json',
-                    'X-API-Key' => $apiKey,
+                    'X-Smtp2go-Api-Key' => $apiKey,
                 ])->post(rtrim($apiEndpoint, '/').'/email/send', [
                     'to' => [['address' => $lead->email, 'name' => $lead->contact_name ?? $lead->company_name]],
                     'sender' => config('mail.from.address'),

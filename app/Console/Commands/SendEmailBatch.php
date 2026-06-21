@@ -60,7 +60,7 @@ class SendEmailBatch extends Command
             try {
                 $response = Http::withHeaders([
                     'Content-Type' => 'application/json',
-                    'X-API-Key' => $apiKey,
+                    'X-Smtp2go-Api-Key' => $apiKey,
                 ])->post(rtrim($apiEndpoint, '/').'/email/send', [
                     'to' => [[
                         'address' => $lead->email,
