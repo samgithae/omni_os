@@ -123,4 +123,16 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Omni OS API Token
+    |--------------------------------------------------------------------------
+    |
+    | Bearer token used by Hermes Agent to authenticate with the API.
+    | Must match the OMNI_API_TOKEN value in .env.
+    |
+    */
+
+    'omni_api_token' => env('OMNI_API_TOKEN'),
+
 ];
