@@ -145,7 +145,7 @@ function doApproveNext() {
 
       <!-- Progress summary -->
       <div class="shrink-0 text-right text-[10px] leading-tight text-gray-500">
-        <div>{{ sentCount }} of 5 sent</div>
+        <div>{{ sentCount() }} of 5 sent</div>
         <div v-if="pendingCount() > 0" class="font-medium text-amber-600">
           {{ pendingCount() }} pending
         </div>
