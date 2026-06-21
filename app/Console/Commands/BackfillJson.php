@@ -229,7 +229,7 @@ class BackfillJson extends Command
 
         // Case 5: Object with numeric keys
         $values = array_values($data);
-        if (isset($values[0]) && is_array($values[0]) && isset($values[0]['company_name'] ?? $values[0]['name'] ?? null)) {
+        if (isset($values[0]) && is_array($values[0]) && (($values[0]['company_name'] ?? null) !== null || ($values[0]['name'] ?? null) !== null)) {
             return $values;
         }
 
