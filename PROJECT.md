@@ -1,7 +1,7 @@
 # Omni OS — Project Status, Architecture & Developer Guide
 
 > **Living document.** Updated every time a feature is completed.
-> Last updated: 2026-06-20
+> Last updated: 2026-06-21
 > Strategy source of truth: `Omni-OS-Strategy-Brief.md` (v1)
 > This document: technical state of the build, what exists, what's next, and how to continue.
 
@@ -1014,7 +1014,8 @@ These are infrastructure items that are not blocking development but need to be 
 - [x] **Queue worker config committed** — Supervisor config for `php artisan queue:work redis` is committed with auto-restart and logging.
 - [x] **Laravel scheduler hook wired** — App schedule is defined in `bootstrap/app.php`; install the provided Linux cron entry.
 - [x] **Backup strategy committed** — `scripts/backup-postgres.sh` plus daily cron example with retention.
-- [ ] **Cloudflare Tunnel + Access setup applied on Linux** — Config template and policy are documented; live Cloudflare-side creation still requires operator action.
+- [x] **Cloudflare Tunnel + Access setup applied on Linux** — `omni.hudutech.co.ke` routed through existing tunnel to port 80, DNS routed, tunnel restarted, APP_URL set, trusted proxies configured for Cloudflare SSL
+- [x] **Linux production `.env` populated privately** — App, DB, Redis, SMTP2GO, backup settings configured on Linux
 - [ ] **Per-brand Hermes profiles + context spine** — External to this codebase. Per brand: `icp/`, `competitors/`, `positioning/`, `messaging/`, `brand/` files. Hermes reads these to draft emails and mine leads with brand-specific voice.
 - [ ] **Model routing config in Hermes** — GLM 5.2 for bulk drafting/mining; Qwen for research-heavy tasks; DeepSeek for coding; frontier model only where ROI is obvious.
 - [x] **`.env.example` expanded** — Includes application, DB, Redis, SMTP2GO, Cloudflare, queue, cache, and backup keys with blank values only.
@@ -1359,6 +1360,37 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 ---
 
 ## 16. Changelog
+
+### 2026-06-21 — Production Deployment LIVE (Phase 0 Deployment Complete)
+
+**Nginx & Laravel:**
+- Configured Nginx on Linux with `/srv/omni_os/public` root and PHP 8.4 FPM
+- Enabled Omni OS site, removed default, nginx config test PASS
+- Verified app responds HTTP 200 on localhost port 80 with title "Omni OS"
+- Set `APP_URL=https://omni.hudutech.co.ke` to fix mixed-content SSL preload issue
+- Added `trustProxies(at: '*')` for Cloudflare SSL termination
+
+**Queue Workers:**
+- Installed Supervisor config for 2 queue workers (`php artisan queue:work redis`)
+- Both workers RUNNING, auto-restart enabled, running as `www-data`
+
+**Scheduler & Backups:**
+- Added Laravel scheduler cron (`* * * * *`)
+- Added Postgres backup cron (daily 3 AM) with 14-day retention
+- Tested backup: 103K `.dump` created successfully
+
+**Cloudflare Tunnel:**
+- Updated existing `huris-laptop` tunnel config: added `omni.hudutech.co.ke → localhost:80`
+- DNS routed via `cloudflared tunnel route dns`
+- Tunnel restarted, 4 active connections
+- Cloudflare Access policy configured for Sam's email
+- App reachable at https://omni.hudutech.co.ke (HTTP 200)
+
+**Security:**
+- Postgres listening on 127.0.0.1:5432 only (not exposed through tunnel)
+- No secrets in tracked git files
+- Temp files cleaned up (create-admin.php removed)
+- Queue workers run as `www-data` (not root)
 
 ### 2026-06-20 — Deployment, Ops Foundation, And State Enforcement
 
