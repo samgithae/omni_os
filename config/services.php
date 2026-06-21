@@ -38,6 +38,7 @@ return [
     'smtp2go' => [
         'api_key' => env('SMTP2GO_API_KEY'),
         'api_endpoint' => env('SMTP2GO_API_ENDPOINT'),
+        'webhook_key' => env('SMTP2GO_WEBHOOK_KEY'),
     ],
 
     'cloudflare' => [
