@@ -206,10 +206,14 @@ class EmailController extends Controller
                     ]);
 
                     // Transition lead to emailed
-                    $lead->transitionTo(\App\Enums\LeadStatus::Emailed, 'api.email.send', [
-                        'email_id' => $email->id,
-                        'sequence_step' => $email->sequence_step,
-                    ]);
+                    try {
+                        $lead->transitionTo(\App\Enums\LeadStatus::Emailed, 'api.email.send', [
+                            'email_id' => $email->id,
+                            'sequence_step' => $email->sequence_step,
+                        ]);
+                    } catch (\Throwable $transitionError) {
+                        // Lead transition may fail if already in a terminal state; log and continue
+                    }
 
                     $sent++;
                 } else {

@@ -79,10 +79,15 @@ class SendEmailBatch extends Command
                         'sent_at' => now(),
                     ]);
 
-                    $lead->transitionTo(\App\Enums\LeadStatus::Emailed, 'cli.emails.send', [
-                        'email_id' => $email->id,
-                        'sequence_step' => $email->sequence_step,
-                    ]);
+                    // Transition lead to emailed (catch gracefully if already in that state)
+                    try {
+                        $lead->transitionTo(\App\Enums\LeadStatus::Emailed, 'cli.emails.send', [
+                            'email_id' => $email->id,
+                            'sequence_step' => $email->sequence_step,
+                        ]);
+                    } catch (\Throwable $transitionError) {
+                        $this->warn("    Lead transition skipped: {$transitionError->getMessage()}");
+                    }
 
                     $this->info("    ✅ Sent (ID: {$email->id})");
                     $sent++;
