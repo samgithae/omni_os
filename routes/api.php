@@ -7,7 +7,7 @@ use App\Http\Controllers\Api\SuppressionController;
 use App\Http\Middleware\ApiTokenAuth;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('api/v1')->middleware(ApiTokenAuth::class)->group(function () {
+Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
 
     // Stats
     Route::get('stats', [StatsController::class, 'index']);
