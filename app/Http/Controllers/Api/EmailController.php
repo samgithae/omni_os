@@ -224,7 +224,7 @@ class EmailController extends Controller
             } catch (\Throwable $e) {
                 $email->update([
                     'status' => 'failed',
-                    'error_message' substr($e->getMessage(), 0, 500),
+                    'error_message' => substr($e->getMessage(), 0, 500),
                 ]);
                 $errors[] = ['email_id' => $email->id, 'error' => $e->getMessage()];
                 $failed++;
