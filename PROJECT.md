@@ -870,11 +870,34 @@ omni_os/
 │   │       ├── LeadsBySegmentChart.php    # Doughnut chart widget
 │   │       └── LeadsByCityChart.php       # Top 10 cities widget
 │   │
+│   ├── Enums/
+│   │   ├── LeadStatus.php           # Lead state machine
+│   │   ├── ActivityEventType.php    # Controlled vocabulary for activity feed
+│   │   └── ActivitySeverity.php     # info/success/warning/error
+│   │
+│   ├── Events/
+│   │   └── ActivityEventCreated.php # Fired when notify_telegram=true
+│   │
+│   ├── Listeners/
+│   │   └── NotifyTelegram.php       # Stub — future Telegram delivery
+│   │
+│   ├── Services/
+│   │   └── ActivityLogger.php       # Activity::log() — posts to feed
+│   │
 │   ├── Http/
 │   │   └── Controllers/
 │   │       ├── Controller.php
 │   │       ├── DashboardController.php    # Vue dashboard data provider
+│   │       ├── ActivityController.php     # Activity feed (index, poll, loadMore)
 │   │       ├── EmailSequenceController.php # Email sequences Vue page (index, approve, reject)
+│   │       ├── Api/                       # API controllers
+│   │       │   ├── EmailController.php
+│   │       │   ├── LeadController.php
+│   │       │   ├── MiningTargetController.php
+│   │       │   ├── StatsController.php
+│   │       │   ├── SuppressionController.php
+│   │       │   ├── WebhookController.php
+│   │       │   └── ActivityEventController.php  # POST /api/v1/events
 │   │       └── Settings/
 │   │           ├── ProfileController.php
 │   │           └── SecurityController.php
@@ -886,6 +909,7 @@ omni_os/
 │   │   ├── EmailMessage.php
 │   │   ├── LeadEvent.php
 │   │   ├── MiningTarget.php
+│   │   ├── ActivityEvent.php         # Activity feed model
 │   │   └── User.php
 │   │
 │   └── Providers/
@@ -905,7 +929,8 @@ omni_os/
 │   │   ├── 2026_06_20_092932_create_email_messages_table.php
 │   │   ├── 2026_06_20_092933_create_lead_events_table.php
 │   │   ├── 2026_06_20_092934_create_mining_targets_table.php
-│   │   └── 2026_06_20_175321_add_approval_workflow_to_email_messages.php
+│   │   ├── 2026_06_20_175321_add_approval_workflow_to_email_messages.php
+│   │   └── 2026_06_21_171104_create_activity_events_table.php  # Activity feed
 │   └── seeders/
 │       ├── DatabaseSeeder.php             # Orchestrates all seeders
 │       └── BrandSeeder.php               # Seeds 4 brands with full metadata
@@ -914,6 +939,7 @@ omni_os/
 │   ├── js/
 │   │   ├── pages/
 │   │   │   ├── Dashboard.vue              # Real dashboard with stats + charts
+│   │   │   ├── Activity.vue               # Twitter-style activity feed
 │   │   │   ├── Welcome.vue                # Landing page
 │   │   │   ├── EmailSequences/             # Email sequence review workspace
 │   │   │   │   ├── Index.vue              # Main page (stats, filters, lead list, bulk actions)
@@ -936,7 +962,8 @@ omni_os/
 │   └── ...
 │
 ├── routes/
-│   ├── web.php                             # Home + dashboard route
+│   ├── web.php                             # Home + dashboard + email-sequences + activity routes
+│   ├── api.php                             # API v1 (leads, emails, mining, events, webhooks)
 │   └── settings.php                        # Settings routes (profile, security)
 │
 ├── config/                                 # Laravel config files (14 files)
@@ -997,7 +1024,7 @@ omni_os/
 - [x] Top 10 cities bar chart
 - [x] Recent activity feed (last 20 events)
 - [x] Email sequence stats section (total emails, pending/approved/rejected/sent, by step, approval breakdown, send status badges)
-- [x] Sidebar navigation with Email Sequences link
+- [x] Sidebar navigation with Activity Feed and Email Sequences links
 - [x] Quick links to all admin sections including Email Sequences
 - [x] Fixed Inertia `<Link>` vs `<a>` tag issue for Filament admin routes
 
@@ -1015,6 +1042,25 @@ omni_os/
 - [x] **Backend** — `EmailSequenceController` with index (paginated, filtered), bulkApprove, bulkReject, approve, reject endpoints
 - [x] **Sidebar + Dashboard links updated** — both now point to `/email-sequences`
 - [x] **Existing Filament EmailMessageResource untouched** — coexists as individual record editor
+
+### Activity Feed (Command Center)
+
+- [x] **Database** — `activity_events` table with brand_id, source, event_type, title, body, metadata (JSONB), severity, timestamps. Indexed on (brand_id, created_at), (event_type, created_at), and severity.
+- [x] **Enums** — `ActivityEventType` (mining_run, enrichment_batch, email_sent_batch, email_approved, email_rejected, reply_classified, suppression_added, daily_brief, system, deployment) and `ActivitySeverity` (info, success, warning, error)
+- [x] **ActivityLogger service** — `Activity::log()` facade, callable from any Laravel job/command without API round-trip
+- [x] **API endpoint** — `POST /api/v1/events` behind existing `ApiTokenAuth` middleware, accepts brand_slug, source, event_type (validated), title, body, metadata, severity, notify_telegram
+- [x] **Event + Listener stub** — `ActivityEventCreated` event fires on notify_telegram=true; `NotifyTelegram` listener is a no-op stub ready for future Telegram integration
+- [x] **Vue/Inertia page at `/activity`** — reverse-chronological, day-grouped Twitter-style timeline feed
+- [x] **Brand filter pills** — All / Hudutech / UjuziPlus / Phantomflix / Phantom Tutors with brand colors
+- [x] **Daily brief pinned/expanded** — `daily_brief` events render as distinct pre-expanded cards at top of their day group
+- [x] **Polling endpoint** — lightweight `GET /activity/poll?since={id}` returns new event count; 25s client-side poll shows "X new events" banner without scroll-jump
+- [x] **Load more** — `GET /activity/load-more?before={id}` cursor pagination with button, not infinite scroll
+- [x] **Severity visual cues** — info (neutral), success (green left-border), warning (amber), error (red); color-coded dots and badges
+- [x] **Expand/collapse** — click any event card to reveal body, metadata, and source details
+- [x] **Empty state** — "All quiet — no activity in the last 24h" instead of blank page
+- [x] **Sidebar navigation** — "Activity Feed" link added to AppSidebar.vue with Activity icon
+- [x] **No per-record logging** — batch operations produce exactly one activity_events row
+- [x] **No dedup logic** — telemetry table, not business state
 
 ### Data Import
 
@@ -1391,6 +1437,23 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 ---
 
 ## 16. Changelog
+
+### 2026-06-21 — Activity Feed (Command Center)
+
+- [x] Created `activity_events` table with brand_id, source, event_type, title, body, metadata (JSONB), severity, timestamps. Indexed for fast filtering.
+- [x] Added `ActivityEventType` and `ActivitySeverity` backed enums with controlled vocabulary (10 event types, 4 severity levels)
+- [x] Built `ActivityLogger` service — callable from any job/command as `Activity::log()`, no API round-trip needed for internal callers
+- [x] Added `POST /api/v1/events` endpoint behind existing `ApiTokenAuth` middleware for Hermes to post events remotely
+- [x] Added `ActivityEventCreated` event + `NotifyTelegram` listener stub (ready for future Telegram integration)
+- [x] Built `ActivityController` with 3 endpoints: index (Inertia page), poll (lightweight new-event count), loadMore (cursor pagination)
+- [x] Built `Activity.vue` — day-grouped, brand-filterable, reverse-chronological Twitter-style timeline feed
+- [x] Brand filter pills with brand colors, daily brief pinned/expanded cards, severity visual cues, expand/collapse on event cards
+- [x] 25s polling — "X new events" banner loads new content without scroll-jump
+- [x] "Load more" button at bottom (no infinite-scroll observer)
+- [x] Empty state: "All quiet — no activity in the last 24h"
+- [x] Sidebar navigation updated with "Activity Feed" link
+- [x] Seeded 10 realistic test events across brands + cross-brand system events
+- [x] PROJECT.md updated: What's Done, File Structure, Routes, Changelog
 
 ### 2026-06-21 — Production Deployment LIVE (Phase 0 Deployment Complete)
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\EmailSequenceController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,6 +21,10 @@ Route::middleware(['auth'])->group(function () {
         ->name('email-sequences.approve');
     Route::post('/email-sequences/{emailMessage}/reject', [EmailSequenceController::class, 'reject'])
         ->name('email-sequences.reject');
+    // Activity feed — system-wide narration
+    Route::get('/activity', [ActivityController::class, 'index'])->name('activity.index');
+    Route::get('/activity/poll', [ActivityController::class, 'poll'])->name('activity.poll');
+    Route::get('/activity/load-more', [ActivityController::class, 'loadMore'])->name('activity.load-more');
 });
 
 require __DIR__.'/settings.php';
