@@ -62,15 +62,12 @@ class SendEmailBatch extends Command
                     'Content-Type' => 'application/json',
                     'X-Smtp2go-Api-Key' => $apiKey,
                 ])->post(rtrim($apiEndpoint, '/').'/email/send', [
-                    'to' => [[
-                        'address' => $lead->email,
-                        'name' => $lead->contact_name ?? $lead->company_name,
-                    ]],
+                    'to' => [$lead->email],
                     'sender' => config('mail.from.address'),
                     'sender_name' => config('mail.from.name'),
                     'subject' => $email->subject,
-                    'html' => nl2br(e($email->body)),
-                    'text' => $email->body,
+                    'html_body' => nl2br(e($email->body)),
+                    'text_body' => $email->body,
                     'custom_headers' => [
                         ['header' => 'X-Omni-OS-Email-ID', 'value' => (string) $email->id],
                     ],
