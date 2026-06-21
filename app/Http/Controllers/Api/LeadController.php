@@ -157,6 +157,7 @@ class LeadController extends Controller
         $validated = $request->validate([
             'email' => ['nullable', 'email', 'max:255'],
             'email_verified' => ['nullable', 'boolean'],
+            'email_confidence' => ['nullable', 'string', 'in:verified,inferred,estimated,unavailable'],
             'phone' => ['nullable', 'string', 'max:60'],
             'contact_name' => ['nullable', 'string', 'max:255'],
             'confidence' => ['nullable', 'array'],
@@ -166,26 +167,41 @@ class LeadController extends Controller
 
         if (isset($validated['email']) && $validated['email'] === null) {
             // No email found — increment attempts
-            $lead->increment('enrichment_attempts');
-            $lead->update(['enrichment_notes' => $validated['enrichment_notes'] ?? null]);
-
-            if ($lead->enrichment_attempts >= 3) {
-                $lead->transitionTo(LeadStatus::NoEmailFound, 'api.enrich');
-            }
+            $lead->enrichNoEmail(
+                maxAttempts: 3,
+                source: 'api.enrich',
+                notes: $validated['enrichment_notes'] ?? null,
+            );
 
             return response()->json([
                 'message' => 'No email found. Attempt ' . $lead->enrichment_attempts . ' recorded.',
                 'lead_id' => $lead->id,
                 'enrichment_attempts' => $lead->enrichment_attempts,
+                'status' => $lead->status,
             ]);
         }
 
-        $updateData = [];
-
         if (isset($validated['email'])) {
-            $updateData['email'] = $validated['email'];
-            $updateData['email_verified'] = $validated['email_verified'] ?? false;
+            $lead->enrichFound(
+                email: $validated['email'],
+                confidence: $validated['email_confidence'] ?? 'inferred',
+                verified: $validated['email_verified'] ?? false,
+                source: 'api.enrich',
+                notes: $validated['enrichment_notes'] ?? null,
+            );
+
+            return response()->json([
+                'message' => 'Lead enriched successfully.',
+                'lead_id' => $lead->id,
+                'status' => $lead->status,
+                'email' => $lead->email,
+                'email_verified' => $lead->email_verified,
+                'email_confidence' => $lead->email_confidence,
+            ]);
         }
+
+        // Only phone/contact_name/notes were provided — partial enrichment
+        $updateData = [];
 
         if (isset($validated['phone'])) {
             $updateData['phone'] = $validated['phone'];
@@ -210,7 +226,6 @@ class LeadController extends Controller
 
         $lead->update($updateData);
 
-        // Transition to enriched
         $lead->transitionTo(LeadStatus::Enriched, 'api.enrich');
 
         return response()->json([
@@ -219,6 +234,7 @@ class LeadController extends Controller
             'status' => $lead->status,
             'email' => $lead->email,
             'email_verified' => $lead->email_verified,
+            'email_confidence' => $lead->email_confidence,
         ]);
     }
 }

@@ -1129,18 +1129,26 @@ This is the core work. The strategy brief says: "Marketing execution is the prio
 
 #### 1.2 Enrichment Pipeline (339 leads need email enrichment)
 
-- [ ] **Per-lead idempotent enrichment** with hard `no_email_found` exit after N attempts:
+- [x] **Per-lead idempotent enrichment** with hard `no_email_found` exit after N attempts:
   - Lead status transitions: `new → enriching → enriched | no_email_found`
   - `enrichment_attempts` counter incremented each attempt
   - After max attempts (configurable, e.g. 3), set status to `no_email_found` (terminal)
   - One bad lead can't stall the batch (this is why Deer enrichment is stuck)
   - Hermes calls Laravel API or artisan commands instead of writing to Sheets
-- [ ] **Enrichment job** (queued via Redis):
+- [x] **Enrichment job** (queued via Redis):
   - Hermes mines website, social profiles, directories for email
   - Anti-hallucination: tag confidence (verified/inferred/estimated/unavailable)
   - Write "not available" instead of inventing
   - Update lead status + email_verified + score after enrichment
   - Log enrichment event in lead_events
+- **Implementation details:**
+  - `EmailConfidence` enum: `verified` (score 100, deliverable), `inferred` (75, deliverable), `estimated` (40), `unavailable` (0)
+  - `email_confidence`, `enriched_at`, `enrichment_notes` columns added to leads table via migration
+  - Lead model: `enrichFound()`, `enrichNoEmail()`, `startEnrichment()` helper methods
+  - `PATCH /api/v1/leads/{lead}/enrich` updated: accepts `email_confidence`, uses model helpers for state transitions
+  - `leads:enrich-batch` artisan command: `--brand`, `--segment`, `--limit`, `--dry-run` options. Transitions `new` leads to `enriching` for processing
+  - ActivityLogger integrated — each batch run posts an `enrichment_batch` event to the Activity Feed
+  - `enrichment_notes` stored on the lead for debugging failed attempts
 
 #### 1.3 Email Outreach Pipeline
 
@@ -1461,6 +1469,16 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 - [x] Country-level targets for all tiers; city-level targets for tiers 1-3
 - [x] Activity::log() integrated — seeding appears in the Activity Feed
 - [x] PROJECT.md updated: What's Done (Phase 1.1), Current Data State, Changelog
+
+### 2026-06-21 — Enrichment Pipeline (Phase 1.2)
+
+- [x] `EmailConfidence` enum: verified (score 100, deliverable), inferred (75, deliverable), estimated (40), unavailable (0)
+- [x] Migration: added `email_confidence`, `enriched_at`, `enrichment_notes` columns to leads table
+- [x] Lead model: `enrichFound()`, `enrichNoEmail()`, `startEnrichment()` helper methods with state transitions
+- [x] `PATCH /api/v1/leads/{lead}/enrich` updated: accepts `email_confidence`, uses model helpers, returns status + confidence
+- [x] `leads:enrich-batch` artisan command: `--brand`, `--segment`, `--limit`, `--dry-run`. Transitions new → enriching for Hermes processing
+- [x] ActivityLogger integrated — each batch run posts enrichment_batch event to the Activity Feed
+- [x] PROJECT.md updated: Phase 1.2 marked done, changelog
 
 ### 2026-06-21 — Activity Feed (Command Center)
 

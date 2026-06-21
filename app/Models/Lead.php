@@ -27,6 +27,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $status
  * @property int $enrichment_attempts
  * @property bool $email_verified
+ * @property string|null $email_confidence
+ * @property string|null $enriched_at
+ * @property string|null $enrichment_notes
  * @property int $score
  * @property string|null $source
  * @property string|null $source_url
@@ -59,6 +62,9 @@ class Lead extends Model
         'status',
         'enrichment_attempts',
         'email_verified',
+        'email_confidence',
+        'enriched_at',
+        'enrichment_notes',
         'score',
         'source',
         'source_url',
@@ -71,6 +77,7 @@ class Lead extends Model
             'raw_data' => 'array',
             'email_verified' => 'boolean',
             'enrichment_attempts' => 'integer',
+            'enriched_at' => 'datetime',
             'score' => 'integer',
         ];
     }
@@ -211,6 +218,61 @@ class Lead extends Model
             ->where('brand_id', $this->brand_id)
             ->where('email', $this->email)
             ->exists();
+    }
+
+    // --- Enrichment helpers ---
+
+    /**
+     * Mark this lead as ready for enrichment — transition to enriching status.
+     */
+    public function startEnrichment(?string $source = null): void
+    {
+        if ($this->status !== LeadStatus::New->value) {
+            return;
+        }
+
+        $this->transitionTo(LeadStatus::Enriching, $source ?? 'lead.enrichment');
+    }
+
+    /**
+     * Record an enrichment attempt that found an email.
+     */
+    public function enrichFound(string $email, string $confidence = 'inferred', bool $verified = false, ?string $source = null, ?string $notes = null): void
+    {
+        $this->email = $email;
+        $this->email_verified = $verified;
+        $this->email_confidence = $confidence;
+        $this->enriched_at = now();
+        $this->enrichment_attempts = ($this->enrichment_attempts ?? 0) + 1;
+        $this->enrichment_notes = $notes;
+
+        $this->transitionTo(LeadStatus::Enriched, $source ?? 'lead.enrichment', [
+            'email_found' => true,
+            'confidence' => $confidence,
+            'attempts' => $this->enrichment_attempts,
+        ]);
+    }
+
+    /**
+     * Record an enrichment attempt that found no email.
+     * After max_attempts (default 3), transitions to no_email_found (terminal).
+     */
+    public function enrichNoEmail(int $maxAttempts = 3, ?string $source = null, ?string $notes = null): void
+    {
+        $this->enrichment_attempts = ($this->enrichment_attempts ?? 0) + 1;
+        $this->enriched_at = now();
+        $this->enrichment_notes = $notes;
+
+        if ($this->enrichment_attempts >= $maxAttempts) {
+            $this->email_confidence = 'unavailable';
+            $this->transitionTo(LeadStatus::NoEmailFound, $source ?? 'lead.enrichment', [
+                'email_found' => false,
+                'attempts' => $this->enrichment_attempts,
+                'max_attempts' => $maxAttempts,
+            ]);
+        } else {
+            $this->save();
+        }
     }
 
     protected function prepareStatusTransition(LeadStatus $from, LeadStatus $to): void
