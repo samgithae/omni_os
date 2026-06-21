@@ -17,7 +17,53 @@ class BackfillJson extends Command
                             {--dry-run : Preview only, do not insert}
                             {--brand=ujuziplus : Brand slug to assign leads to}';
 
-    protected $description = 'Backfill leads from old agent JSON files into Postgres';
+    protected $description = 'Backfill leads from old agent JSON files into Postgres, filtered by ICP (training-related only)';
+
+    // ICP inclusion keywords — company must match at least one to be imported
+    protected array $icpIncludePatterns = [
+        '/training/i', '/consult/i', '/coach/i', '/hr\b/i', '/human resource/i',
+        '/recruit/i', '/career/i', '/skills/i', '/learning/i', '/institute/i',
+        '/professional.?studies/i', '/education.?consult/i', '/education.?agency/i',
+        '/study.?abroad/i', '/leadership/i', '/management/i',
+        '/development.?centre/i', '/development.?center/i',
+        '/capacity.?building/i', '/talent/i', '/staffing/i',
+        '/sacco\b/i', '/sacco\./i',
+        '/digital.?market/i', '/software/i', '/technolog/i', '/IT\b/i',
+        '/academy/i', '/mentor/i', '/facilita/i',
+        '/employment/i', '/placement/i', '/outsourc/i',
+        '/corporate.?service/i', '/business.?solution/i',
+        '/research/i', '/innovation/i', '/startup/i',
+        '/financial.?literacy/i', '/life.?skill/i',
+    ];
+
+    // ICP exclusion keywords — if company matches any of these, skip (even if inclusion matches)
+    protected array $icpExcludePatterns = [
+        '/university/i', '/college\b/i', '/polytechnic/i', '/tvet/i',
+        '/secondary.?school/i', '/primary.?school/i', '/high.?school/i',
+        '/seminary/i', '/teachers.?college/i', '/college.?of.?education/i',
+        '/bank\b/i', '/co-op.?bank/i', '/kcb\b/i', '/equity.?bank/i',
+        '/atm\b/i', '/supermarket/i', '/naivas/i', '/tuskys/i',
+        '/county.?government/i', '/county.?assembly/i', '/ministry.?of/i',
+        '/state.?department/i', '/kra\b/i', '/nhif\b/i', '/nssf\b/i',
+        '/kenya.?power/i', '/kenya.?railways/i',
+        '/kws\b/i', '/nys\b/i',
+        '/parastatal/i', '/government/i',
+        '/hospital/i', '/clinic\b/i', '/pharmacy/i',
+        '/hotel\b/i', '/resort\b/i', '/lodge\b/i', '/restaurant/i',
+        '/supermarket/i', '/retail/i',
+        '/real.?estate/i', '/developer\b/i', '/construction/i',
+        '/advocates?\b/i', '/llp\b/i', '/cpa\b/i', '/auditors/i', '/accountant/i',
+        '/church\b/i', '/mosque\b/i', '/faith/i', '/ministry\b(?!.?of)/i',
+        '/estate\b/i', '/plaza\b/i', '/property/i',
+        '/entertainment/i', '/events\b/i', '/sports.?club/i',
+        '/transport/i', '/logistics/i', '/courier/i',
+        '/insurance/i', '/broker/i',
+        '/ngo\b/i', '/cbo\b/i', '/faith.?based/i',
+        '/farm\b/i', '/agricultur/i', '/ranch\b/i',
+        '/water.?and.?sanitation/i',
+        '/manufactur/i', '/factory/i',
+        '/safari/i', '/tour/i', '/travel/i',
+    ];
 
     public function handle(): int
     {
@@ -84,6 +130,7 @@ class BackfillJson extends Command
         $totalDuplicates = 0;
         $totalSuppressed = 0;
         $totalSkipped = 0;
+        $totalFiltered = 0;
 
         foreach ($leadFiles as $file) {
             $this->line("Scanning: {$file}");
@@ -107,6 +154,12 @@ class BackfillJson extends Command
                 $email = $leadData['email'] ?? null;
 
                 if (! $companyName) {
+                    continue;
+                }
+
+                // ICP filter — skip non-training companies
+                if (! $this->passesIcpFilter($companyName)) {
+                    $totalFiltered++;
                     continue;
                 }
 
@@ -183,6 +236,7 @@ class BackfillJson extends Command
                 ['Files scanned', count($leadFiles)],
                 ['Leads parsed', $totalParsed],
                 ['Created', $totalCreated],
+                ['Filtered (non-ICP)', $totalFiltered],
                 ['Duplicates', $totalDuplicates],
                 ['Suppressed', $totalSuppressed],
                 ['Skipped (parse errors)', $totalSkipped],
@@ -234,5 +288,28 @@ class BackfillJson extends Command
         }
 
         return [];
+    }
+
+    /**
+     * Check if a company name passes ICP filtering.
+     * Must match at least one inclusion pattern AND not match any exclusion pattern.
+     */
+    private function passesIcpFilter(string $companyName): bool
+    {
+        // Check exclusion patterns first (blocklisted)
+        foreach ($this->icpExcludePatterns as $pattern) {
+            if (preg_match($pattern, $companyName)) {
+                return false;
+            }
+        }
+
+        // Check inclusion patterns (must match at least one)
+        foreach ($this->icpIncludePatterns as $pattern) {
+            if (preg_match($pattern, $companyName)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
