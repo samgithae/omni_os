@@ -1530,6 +1530,42 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 - [x] Activity::log() integrated — seeding appears in the Activity Feed
 - [x] PROJECT.md updated: What's Done (Phase 1.1), Current Data State, Changelog
 
+### 2026-06-22 — Pipeline Unblock + Webhook Persistence + Reply Inbox (Parts 1-3)
+
+**Part 1 — Send pipeline unblocked:**
+- [x] Business-hours guard fixed: now evaluates `now()->setTimezone('Africa/Nairobi')` instead of UTC
+- [x] Config-driven: `BUSINESS_TIMEZONE`, `SEND_START_HOUR`, `SEND_END_HOUR` in `config/services.php`
+- [x] `.env.example` updated with business hours config keys
+- [x] Email 90 (2NK Sacco, info@2nksacco.co.ke) sent successfully via SMTP2GO API during EAT business hours
+- [x] TODO comment: per-brand/per-lead timezone when Phantom Tutors (US/UK) goes live
+
+**Part 2 — Webhook persistence:**
+- [x] `webhook_events` table: source, event_type, recipient_email, smtp2go_id, email_message_id, lead_id, payload (JSONB), processed, processing_notes, received_at
+- [x] `WebhookEvent` model with relationships + scopes (unprocessed, byEventType)
+- [x] `WebhookController` rewritten: persists every event BEFORE processing, wraps processing in try/catch, always returns 200, failed processing recorded in processing_notes
+- [x] Filament `WebhookEventResource` at `/admin/webhook-events` — read-only list with filters (event_type, processed)
+- [x] Verified: simulated open event persisted (ID 1), matched to email 90 + lead 205, processed=true, opened_at set on email
+
+**Part 3 — Reply inbox + compose:**
+- [x] `replies` table: lead_id, brand_id, email_message_id, from_email, subject, body, body_html, classification, classification_confidence, classification_summary, direction (inbound/outbound), read, received_at
+- [x] `Reply` model with relationships (lead, brand, emailMessage) + scopes (unread, inbound, outbound, byClassification, byBrand, forLead)
+- [x] Webhook reply handler creates Reply records (visible in inbox, not buried in raw_data)
+- [x] `POST /api/v1/replies` creates/updates Reply records alongside ReplyService routing
+- [x] `InboxController`: index (paginated, filtered), conversation (JSON thread), reply (send)
+- [x] Vue Inbox page at `/inbox` — two-pane: left = reply list with filters + unread indicators, right = conversation thread (replies + sent emails interleaved) + compose box
+- [x] `SendLeadReply` job: sends via SMTP2GO API with X-Omni-OS-Reply-ID header for tracking, In-Reply-To threading
+- [x] Suppression check: blocks replies to suppressed leads
+- [x] Sidebar: "Inbox" link with unread badge (via shared Inertia prop `unreadReplyCount`)
+- [x] Verified: simulated reply event created Reply record (ID 1), unread=true, classification=unclassified, body readable
+- [x] Reply-source dependency documented below
+
+**Reply source dependency:** Replies arrive via SMTP2GO's inbound/reply webhook. This requires SMTP2GO to be configured to forward replies (reply-tracking or inbound parsing, depending on plan). If SMTP2GO does NOT forward replies on the current plan, a fallback IMAP poller on the samuel@ujuziplus.com mailbox will be needed (separate work order). Verify SMTP2GO reply forwarding before relying on the inbox.
+
+**Manual checks needed from Sam:**
+- Is the SMTP2GO webhook configured in the dashboard? (Settings > Webhooks > POST to https://omni.hudutech.co.ke/api/webhooks/smtp2go with api_key in the body)
+- Is open/click tracking enabled on the SMTP2GO SMTP user?
+- Does SMTP2GO forward replies to the webhook?
+
 ### 2026-06-22 — Win-Loss Loop + Analytics Dashboard (Phase 1.6 + 1.7)
 
 - [x] `WinLossService` — funnel, email rates, by-category/city/segment/step, reply outcomes
