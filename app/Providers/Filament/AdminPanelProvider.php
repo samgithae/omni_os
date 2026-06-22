@@ -6,6 +6,7 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationItem;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -42,6 +43,23 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Widgets\LeadsByBrandChart::class,
                 \App\Filament\Widgets\LeadsBySegmentChart::class,
                 \App\Filament\Widgets\LeadsByCityChart::class,
+            ])
+            ->navigationItems([
+                NavigationItem::make('Dashboard')
+                    ->url('/dashboard', shouldOpenInNewTab: false)
+                    ->icon('heroicon-o-home')
+                    ->group('Overview')
+                    ->sort(0),
+                NavigationItem::make('Email Sequences')
+                    ->url('/email-sequences', shouldOpenInNewTab: false)
+                    ->icon('heroicon-o-mail')
+                    ->group('Email')
+                    ->sort(1),
+                NavigationItem::make('Activity Feed')
+                    ->url('/activity', shouldOpenInNewTab: false)
+                    ->icon('heroicon-o-clock')
+                    ->group('Analytics')
+                    ->sort(1),
             ])
             ->middleware([
                 EncryptCookies::class,

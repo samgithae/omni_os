@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, Building2, Users, Ban, MapPin, LayoutGrid, FolderGit2, Mail, Activity } from '@lucide/vue';
+import { BookOpen, Building2, Users, Ban, MapPin, LayoutGrid, FolderGit2, Mail, Activity, Clock } from '@lucide/vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -37,6 +37,11 @@ const mainNavItems: NavItem[] = [
         title: 'Email Sequences',
         href: '/email-sequences',
         icon: Mail,
+    },
+    {
+        title: 'Sequence Schedules',
+        href: '/admin/sequence-schedules',
+        icon: Clock,
     },
     {
         title: 'Brands',
