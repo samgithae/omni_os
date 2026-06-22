@@ -100,7 +100,7 @@ class JobsController extends Controller
         try {
             $exitCode = Artisan::call($command);
             $output = Artisan::output();
-            $duration = (int) round(now()->diffInMilliseconds($startedAt));
+            $duration = (int) round(abs(now()->diffInMilliseconds($startedAt)));
 
             // Log the run
             CronJobRun::create([

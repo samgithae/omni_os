@@ -59,7 +59,7 @@ class TrackCronJobRuns
         }
 
         $success = $event->task->exitCode === 0;
-        $durationMs = (int) round($event->elapsed * 1000);
+        $durationMs = (int) round(abs($event->elapsed * 1000));
 
         $run->update([
             'status' => $success ? 'success' : 'failed',
