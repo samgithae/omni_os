@@ -37,6 +37,17 @@ return Application::configure(basePath: dirname(__DIR__))
             ->dailyAt('05:00')
             ->withoutOverlapping(60)
             ->appendOutputTo(storage_path('logs/sequence-progression.log'));
+
+        // Poll Telegram for approval replies — every minute (limited by cron frequency)
+        $schedule->command('telegram:poll-approvals')
+            ->everyMinute()
+            ->withoutOverlapping(2)
+            ->appendOutputTo(storage_path('logs/telegram-poll.log'));
+
+        // Daily brief — posted to Activity Feed at 7 AM
+        $schedule->command('activity:daily-brief')
+            ->dailyAt('07:00')
+            ->appendOutputTo(storage_path('logs/daily-brief.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
