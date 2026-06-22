@@ -1,7 +1,7 @@
 # Omni OS — Project Status, Architecture & Developer Guide
 
 > **Living document.** Updated every time a feature is completed.
-> Last updated: 2026-06-21
+> Last updated: 2026-06-22
 > Strategy source of truth: `Omni-OS-Strategy-Brief.md` (v1)
 > This document: technical state of the build, what exists, what's next, and how to continue.
 
@@ -623,6 +623,10 @@ The `ImportUjuziPlusLeads` command (`app/Console/Commands/ImportUjuziPlusLeads.p
 | `php artisan leads:import-ujuziplus` | Import leads from Google Sheets CSV into Postgres |
 | `php artisan leads:import-ujuziplus --dry-run` | Preview import without writing |
 | `php artisan leads:import-ujuziplus --file=path/to/csv` | Import specific CSV file |
+| `php artisan leads:score` | Recalculate all lead scores |
+| `php artisan leads:score --brand=ujuziplus` | Score leads for a specific brand |
+| `php artisan leads:score --segment=deer --limit=50` | Score specific segment, limited |
+| `php artisan leads:score --dry-run` | Preview scoring without writing |
 | `php artisan emails:import-sequences` | Import email sequences (email_1..email_5) from CSV into email_messages table |
 | `php artisan emails:import-sequences --dry-run` | Preview email import without writing |
 | `php artisan emails:import-sequences --file=path/to/csv` | Import from specific CSV file |
@@ -683,7 +687,8 @@ If you only run `php artisan serve` without `npm run dev`, the page at http://12
 | URL | What |
 |-----|------|
 | http://127.0.0.1:8000/ | Welcome page |
-| http://127.0.0.1:8000/dashboard | Vue dashboard with stats + charts + email sequence stats |
+| http://127.0.0.1:8000/dashboard | Vue dashboard with stats + charts + email sequence stats + score distribution |
+| http://127.0.0.1:8000/leads | Vue lead management with score badges, filters, sorting |
 | http://127.0.0.1:8000/admin | Filament admin panel |
 | http://127.0.0.1:8000/admin/leads | Lead management (sample local data by default; canonical data lives on Linux) |
 | http://127.0.0.1:8000/admin/email-messages | Email sequence management |
@@ -1239,14 +1244,31 @@ This is the highest-value missing piece — turns a blast into a pipeline:
 
 #### 1.5 Lead Scoring
 
-- [ ] **Simple per-lead score** based on:
-  - Segment (deer > rabbit for deal size)
-  - Category (some categories convert better)
-  - City (geographic concentration)
-  - Engagement (opens, clicks, replies)
-  - Data completeness (email, phone, website all present)
-- [ ] Score visible in Filament admin and Vue dashboard
-- [ ] Sort/filter by score in lead management
+- [x] **LeadScoringService** — calculates 0-100 score from:
+  - Segment (max 25): elephant=25, deer=20, rabbit=15, mouse=5
+  - Data completeness (max 40): email=20, phone=10, website=7, contact_name=3
+  - Email confidence (max 15): verified=15, inferred=10, estimated=5, unavailable=0
+  - Engagement (max 15): opened=5, clicked=5, replied=5
+  - Status bonus (max 5): interested=5, replied=4, enriched=3, emailed=2, enriching=1
+  - Legacy imports with null email_confidence treated as "inferred" if email exists
+- [x] **Score tiers**: hot (80+), warm (60-79), moderate (40-59), cold (20-39), frigid (<20)
+- [x] **`leads:score` artisan command** — batch recalculate with --brand, --segment, --limit, --dry-run
+- [x] **Lead model scopes**: `byScoreRange()`, `hot()`, `highScore()` + `scoreTier()` helper
+- [x] **Vue Leads page at `/leads`** — modern lead management UI:
+  - Stats bar: total, avg score, tier counts (click-to-filter), with-email, enriched
+  - Filter bar: brand, segment, status, score tier, city, has-email, search
+  - Sortable columns: score, company name, status (click to toggle asc/desc)
+  - Lead rows with color-coded score badge, brand accent bar, expand/collapse detail
+  - Expanded detail: contact info, classification, engagement stats, score breakdown bar
+  - Pagination (25 per page)
+  - "View in admin" link per lead
+- [x] **Dashboard score section**: score distribution chart (5 tiers), top 10 scored leads list
+- [x] **Sidebar updated**: Leads now points to `/leads` (Vue) instead of `/admin/leads` (Filament)
+- [x] **Filament LeadResource**: score column now shows as colored badge
+- [x] **API endpoint**: `PATCH /api/v1/leads/{lead}/score` — recalculate single lead, returns breakdown
+- [x] **Scheduler**: `leads:score` runs daily at 3 AM
+- [x] **ActivityLogger**: scoring batch logs to Activity Feed
+- [x] **608 leads scored**: avg=41.5, 247 warm, 22 moderate, 321 cold, 18 frigid
 
 #### 1.6 Win-Loss Loop (Learning)
 
@@ -1497,6 +1519,21 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 - [x] Activity::log() integrated — seeding appears in the Activity Feed
 - [x] PROJECT.md updated: What's Done (Phase 1.1), Current Data State, Changelog
 
+### 2026-06-22 — Lead Scoring (Phase 1.5)
+
+- [x] `LeadScoringService` — 0-100 score from segment (25) + data completeness (40) + email confidence (15) + engagement (15) + status bonus (5)
+- [x] Score tiers: hot (80+), warm (60-79), moderate (40-59), cold (20-39), frigid (<20) with color coding
+- [x] `leads:score` artisan command: --brand, --segment, --limit, --dry-run, ActivityLogger integration
+- [x] Lead model: `scopeByScoreRange()`, `scopeHot()`, `scopeHighScore()`, `scoreTier()` helper
+- [x] Vue Leads page at `/leads` — StatsBar (total, avg, tier pills, with-email, enriched), FilterBar (brand, segment, status, tier, city, has-email, search), sortable columns, LeadRow with score badge + expand/collapse detail + score breakdown bar, pagination
+- [x] Dashboard: score distribution chart (5 tiers with colors), top 10 scored leads list
+- [x] Sidebar: Leads link updated to `/leads` (Vue) from `/admin/leads` (Filament)
+- [x] Filament LeadResource: score column now shows as colored badge
+- [x] API: `PATCH /api/v1/leads/{lead}/score` — recalculate single lead with breakdown
+- [x] Scheduler: `leads:score` daily at 03:00
+- [x] 608 leads scored: avg=41.5, 247 warm, 22 moderate, 321 cold, 18 frigid
+- [x] PROJECT.md updated: Phase 1.5 marked done, changelog
+
 ### 2026-06-22 — Sequence Scheduling Engine (Email Drip Timing)
 
 - [x] `sequence_schedules` table + model + seeder: 40 rows (4 brands × 5 rabbit + 5 deer)
@@ -1507,6 +1544,16 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 - [x] Filament `SequenceScheduleResource` at `/admin/sequence-schedules` — inline editable day gaps, toggle active
 - [x] Scheduler: `ProcessSequenceProgressions` job daily at 05:00
 - [x] PROJECT.md: Phase 1.3 scheduling engine marked done
+
+### 2026-06-22 — Telegram Polling + Sidebar Unification + Google Sheets Retired
+
+- [x] `telegram:poll-approvals` — polls Telegram API every minute for APPROVE/REJECT replies (bypasses Cloudflare Access)
+- [x] `activity:daily-brief` — generates system overview brief with lead stats, email counts, queue health, posts to Activity Feed at 7 AM
+- [x] Sidebar unified: Vue sidebar (`AppSidebar.vue`) restructured into 5 groups (Overview, CRM, Analytics, Configuration, Email) matching Filament sidebar layout
+- [x] Duplicate Dashboard removed: Filament Dashboard page hidden from sidebar, single Dashboard link to Vue dashboard
+- [x] 11 Google Sheets Hermes cron jobs paused (marked "Replaced by Omni OS pipeline")
+- [x] Mining + enrichment cron prompts updated to POST to Omni OS API instead of Sheets
+- [x] Scheduler: `telegram:poll-approvals` every minute, `activity:daily-brief` at 7 AM
 
 ### 2026-06-21 — Enrichment Pipeline (Phase 1.2)
 

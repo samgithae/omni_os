@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-import { Users, Mail, Ban, Building2, TrendingUp, MapPin, Activity, LayoutGrid } from '@lucide/vue';
+import { Head, Link } from '@inertiajs/vue3';
+import { Users, Mail, Ban, Building2, TrendingUp, MapPin, Activity, LayoutGrid, Star, Award } from '@lucide/vue';
 import { dashboard } from '@/routes';
 
 defineOptions({
@@ -51,6 +51,17 @@ interface EventData {
     created_at: string;
 }
 
+interface TopLead {
+    id: number;
+    company_name: string;
+    email: string | null;
+    segment: string;
+    city: string | null;
+    score: number;
+    status: string;
+    brand: { name: string; slug: string; color: string | null } | null;
+}
+
 const props = defineProps<{
     stats: Stats;
     leadsByBrand: BrandData[];
@@ -61,6 +72,9 @@ const props = defineProps<{
     emailsByStep: Record<string, number>;
     emailApprovalBreakdown: Record<string, number>;
     emailStatusBreakdown: Record<string, number>;
+    avgScore: number;
+    scoreTiers: Record<string, number>;
+    topLeads: TopLead[];
 }>();
 
 const segmentColors: Record<string, string> = {
@@ -109,6 +123,26 @@ function maxCityCount(): number {
 
 function maxBrandCount(): number {
     return Math.max(...props.leadsByBrand.map((b) => b.leads_count), 1);
+}
+
+const tierColors: Record<string, string> = {
+    hot: '#ef4444',
+    warm: '#f97316',
+    moderate: '#f59e0b',
+    cold: '#3b82f6',
+    frigid: '#9ca3af',
+};
+
+const tierLabels: Record<string, string> = {
+    hot: 'Hot (80+)',
+    warm: 'Warm (60-79)',
+    moderate: 'Moderate (40-59)',
+    cold: 'Cold (20-39)',
+    frigid: 'Frigid (<20)',
+};
+
+function maxTierCount(): number {
+    return Math.max(...Object.values(props.scoreTiers), 1);
 }
 </script>
 
@@ -406,10 +440,79 @@ function maxBrandCount(): number {
             </div>
         </div>
 
+        <!-- Lead Scoring Section -->
+        <div class="grid gap-6 lg:grid-cols-2">
+            <!-- Score Distribution -->
+            <div class="rounded-xl border bg-card p-5 shadow-sm">
+                <div class="flex items-center gap-2 mb-4">
+                    <Star class="h-4 w-4 text-indigo-500" />
+                    <h3 class="text-sm font-semibold">Lead Score Distribution</h3>
+                    <span class="ml-auto text-xs text-muted-foreground">Avg: <span class="font-bold text-indigo-600">{{ avgScore }}</span></span>
+                </div>
+                <div class="space-y-3">
+                    <div v-for="(count, tier) in scoreTiers" :key="tier">
+                        <div class="flex items-center justify-between text-sm mb-1">
+                            <span class="font-medium">{{ tierLabels[tier] || tier }}</span>
+                            <span class="text-muted-foreground">{{ count }} leads</span>
+                        </div>
+                        <div class="h-2 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                                class="h-full rounded-full transition-all"
+                                :style="{
+                                    width: (count / maxTierCount() * 100) + '%',
+                                    backgroundColor: tierColors[tier] || '#999',
+                                }"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Scored Leads -->
+            <div class="rounded-xl border bg-card p-5 shadow-sm">
+                <div class="flex items-center gap-2 mb-4">
+                    <Award class="h-4 w-4 text-amber-500" />
+                    <h3 class="text-sm font-semibold">Top Scored Leads</h3>
+                    <a href="/leads" class="ml-auto text-xs text-blue-600 hover:underline">View all →</a>
+                </div>
+                <div class="space-y-2 max-h-80 overflow-y-auto">
+                    <div
+                        v-for="lead in topLeads"
+                        :key="lead.id"
+                        class="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm hover:bg-muted/50"
+                    >
+                        <div
+                            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
+                            :style="{ backgroundColor: tierColors[
+                                lead.score >= 80 ? 'hot' :
+                                lead.score >= 60 ? 'warm' :
+                                lead.score >= 40 ? 'moderate' :
+                                lead.score >= 20 ? 'cold' : 'frigid'
+                            ] }"
+                        >
+                            {{ lead.score }}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium truncate">{{ lead.company_name }}</p>
+                            <p class="text-xs text-muted-foreground truncate">
+                                {{ lead.city || 'Unknown city' }} &middot; {{ lead.segment }}
+                            </p>
+                        </div>
+                        <div
+                            v-if="lead.brand"
+                            class="h-2 w-2 shrink-0 rounded-full"
+                            :style="{ backgroundColor: lead.brand.color || '#ccc' }"
+                            :title="lead.brand.name"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Quick Links -->
         <div class="flex flex-wrap gap-3">
             <a
-                href="/admin/leads"
+                href="/leads"
                 class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
             >
                 <Users class="h-4 w-4" />

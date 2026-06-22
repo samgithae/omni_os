@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Lead;
 use App\Models\Suppression;
+use App\Services\LeadScoringService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -235,6 +236,28 @@ class LeadController extends Controller
             'email' => $lead->email,
             'email_verified' => $lead->email_verified,
             'email_confidence' => $lead->email_confidence,
+        ]);
+    }
+
+    /**
+     * Recalculate the score for a single lead.
+     */
+    public function score(Lead $lead, LeadScoringService $scorer)
+    {
+        $oldScore = $lead->score;
+
+        $lead->load(['emailMessages', 'events']);
+        $result = $scorer->calculate($lead);
+
+        $lead->score = $result['score'];
+        $lead->saveQuietly();
+
+        return response()->json([
+            'message' => 'Lead score recalculated.',
+            'lead_id' => $lead->id,
+            'old_score' => $oldScore,
+            'new_score' => $result['score'],
+            'breakdown' => $result['breakdown'],
         ]);
     }
 }

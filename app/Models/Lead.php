@@ -186,6 +186,34 @@ class Lead extends Model
         return $query->where('status', LeadStatus::New->value);
     }
 
+    // --- Score helpers ---
+
+    public function scopeByScoreRange($query, int $min, int $max)
+    {
+        return $query->whereBetween('score', [$min, $max]);
+    }
+
+    public function scopeHot($query, int $threshold = 80)
+    {
+        return $query->where('score', '>=', $threshold);
+    }
+
+    public function scopeHighScore($query, int $limit = 20)
+    {
+        return $query->orderByDesc('score')->limit($limit);
+    }
+
+    public function scoreTier(): string
+    {
+        return match (true) {
+            $this->score >= 80 => 'hot',
+            $this->score >= 60 => 'warm',
+            $this->score >= 40 => 'moderate',
+            $this->score >= 20 => 'cold',
+            default => 'frigid',
+        };
+    }
+
     // --- Status helpers ---
 
     public static function statusOptions(): array

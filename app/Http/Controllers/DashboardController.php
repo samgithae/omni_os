@@ -108,6 +108,39 @@ class DashboardController extends Controller
                 ];
             });
 
+        // Lead scoring stats
+        $avgScore = $totalLeads > 0 ? round(Lead::avg('score'), 1) : 0;
+        $scoreTiers = [
+            'hot' => Lead::where('score', '>=', 80)->count(),
+            'warm' => Lead::whereBetween('score', [60, 79])->count(),
+            'moderate' => Lead::whereBetween('score', [40, 59])->count(),
+            'cold' => Lead::whereBetween('score', [20, 39])->count(),
+            'frigid' => Lead::where('score', '<', 20)->count(),
+        ];
+
+        // Top scored leads
+        $topLeads = Lead::with('brand:id,name,slug,color')
+            ->select('id', 'company_name', 'email', 'segment', 'city', 'score', 'status', 'brand_id')
+            ->orderByDesc('score')
+            ->limit(10)
+            ->get()
+            ->map(function ($lead) {
+                return [
+                    'id' => $lead->id,
+                    'company_name' => $lead->company_name,
+                    'email' => $lead->email,
+                    'segment' => $lead->segment,
+                    'city' => $lead->city,
+                    'score' => $lead->score,
+                    'status' => $lead->status,
+                    'brand' => $lead->brand ? [
+                        'name' => $lead->brand->name,
+                        'slug' => $lead->brand->slug,
+                        'color' => $lead->brand->color,
+                    ] : null,
+                ];
+            });
+
         return Inertia::render('Dashboard', [
             'stats' => [
                 'total_leads' => $totalLeads,
@@ -140,6 +173,9 @@ class DashboardController extends Controller
             'emailsByStep' => $emailsByStep,
             'emailApprovalBreakdown' => $emailApprovalBreakdown,
             'emailStatusBreakdown' => $emailStatusBreakdown,
+            'avgScore' => $avgScore,
+            'scoreTiers' => $scoreTiers,
+            'topLeads' => $topLeads,
         ]);
     }
 }

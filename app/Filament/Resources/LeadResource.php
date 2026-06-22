@@ -153,7 +153,15 @@ class LeadResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('score')
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable()
+                    ->badge()
+                    ->color(fn (string $state): string => match (true) {
+                        $state >= 80 => 'danger',
+                        $state >= 60 => 'warning',
+                        $state >= 40 => 'gray',
+                        $state >= 20 => 'info',
+                        default => 'gray',
+                    }),
                 Tables\Columns\IconColumn::make('email_verified')
                     ->boolean()
                     ->toggleable(),

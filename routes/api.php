@@ -28,6 +28,7 @@ Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
     Route::get('leads', [LeadController::class, 'index']);
     Route::post('leads/bulk', [LeadController::class, 'bulkCreate']);
     Route::patch('leads/{lead}/enrich', [LeadController::class, 'enrich']);
+    Route::patch('leads/{lead}/score', [LeadController::class, 'score']);
 
     // Mining targets
     Route::get('mining-targets', [MiningTargetController::class, 'index']);

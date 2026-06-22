@@ -3,12 +3,16 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\EmailSequenceController;
+use App\Http\Controllers\LeadController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Leads — Vue page with score, filters, and sorting
+    Route::get('/leads', [LeadController::class, 'index'])->name('leads.index');
 
     // Email sequences — the operator's primary workspace
     Route::get('/email-sequences', [EmailSequenceController::class, 'index'])

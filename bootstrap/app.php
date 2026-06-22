@@ -48,6 +48,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('activity:daily-brief')
             ->dailyAt('07:00')
             ->appendOutputTo(storage_path('logs/daily-brief.log'));
+
+        // Recalculate lead scores — daily at 3 AM (after backup, before daily brief)
+        $schedule->command('leads:score')
+            ->dailyAt('03:00')
+            ->withoutOverlapping(30)
+            ->appendOutputTo(storage_path('logs/lead-scoring.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
