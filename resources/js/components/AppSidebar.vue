@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
-import { BookOpen, Building2, Users, Ban, MapPin, LayoutGrid, FolderGit2, Mail, Activity, Clock, BarChart3 } from '@lucide/vue';
+import { computed } from 'vue';
+import { Link, usePage } from '@inertiajs/vue3';
+import { BookOpen, Building2, Users, Ban, MapPin, LayoutGrid, FolderGit2, Mail, Activity, Clock, BarChart3, Inbox } from '@lucide/vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -24,6 +25,9 @@ interface NavGroup {
     items: NavItem[]
 }
 
+const page = usePage();
+const unreadReplyCount = computed(() => (page.props.unreadReplyCount as number) || 0);
+
 const navGroups: NavGroup[] = [
     {
         label: 'Overview',
@@ -35,6 +39,7 @@ const navGroups: NavGroup[] = [
         label: 'CRM',
         items: [
             { title: 'Leads', href: '/leads', icon: Users },
+            { title: 'Inbox', href: '/inbox', icon: Inbox, badge: unreadReplyCount.value },
         ],
     },
     {
@@ -103,10 +108,12 @@ function isExternal(href: string | { name: string; params?: Record<string, strin
                             <a v-if="isExternal(item.href)" :href="String(item.href)">
                                 <component :is="item.icon" />
                                 <span>{{ item.title }}</span>
+                                <span v-if="item.badge && item.badge > 0" class="ml-auto rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ item.badge }}</span>
                             </a>
                             <Link v-else :href="item.href">
                                 <component :is="item.icon" />
                                 <span>{{ item.title }}</span>
+                                <span v-if="item.badge && item.badge > 0" class="ml-auto rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ item.badge }}</span>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>

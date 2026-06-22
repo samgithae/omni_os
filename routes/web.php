@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\EmailSequenceController;
+use App\Http\Controllers\InboxController;
 use App\Http\Controllers\LeadController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,6 +18,11 @@ Route::middleware(['auth'])->group(function () {
 
     // Analytics — funnel, win-loss, engagement rates
     Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
+
+    // Inbox — reply reading + compose
+    Route::get('/inbox', [InboxController::class, 'index'])->name('inbox.index');
+    Route::get('/inbox/conversation/{lead}', [InboxController::class, 'conversation'])->name('inbox.conversation');
+    Route::post('/inbox/{lead}/reply', [InboxController::class, 'reply'])->name('inbox.reply');
 
     // Email sequences — the operator's primary workspace
     Route::get('/email-sequences', [EmailSequenceController::class, 'index'])
