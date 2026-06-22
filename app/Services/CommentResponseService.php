@@ -96,46 +96,67 @@ class CommentResponseService
 
         $lines = [];
 
+        // Friendly intro with humor
+        $lines[] = "Here's the tea on the latest batch for **{$brandName}** ☕";
+        $lines[] = "";
+
         if ($sentEmails->isNotEmpty()) {
-            $lines[] = "**Sent ({$sentEmails->count()}):**";
-            foreach ($sentEmails as $i => $e) {
-                $lead = $e->lead;
-                $company = $lead?->company_name ?? '?';
-                $email = $lead?->email ?? $e->recipient_email ?? '?';
-                $subject = $e->subject ?? '(no subject)';
-                // Body snippet for "what was the email"
-                $bodySnippet = '';
-                if (str_contains($comment, 'content') || str_contains($comment, 'body') || str_contains($comment, 'what was the email')) {
-                    $body = strip_tags((string) $e->body);
-                    $bodySnippet = ' — "' . substr($body, 0, 120) . (strlen($body) > 120 ? '..."' : '"');
-                }
-                $lines[] = "  {$i}. **{$company}** <{$email}> → \"{$subject}\"{$bodySnippet}";
-                if ($i >= 9) {
-                    $lines[] = "  ... and " . ($sentEmails->count() - 10) . " more.";
+            $count = $sentEmails->count();
+            $lines[] = "**✅ Successfully landed ({$count}):**";
+            $lines[] = "";
+
+            // Group by company for readability
+            $byCompany = $sentEmails->groupBy(fn($e) => $e->lead?->company_name ?? 'Unknown Co.');
+            $displayed = 0;
+            foreach ($byCompany as $company => $companyEmails) {
+                if ($displayed >= 5) {
+                    $remaining = $sentEmails->count() - $displayed;
+                    $lines[] = "  *...plus {$remaining} more brave souls who got their mail.*";
                     break;
                 }
+                $email = $companyEmails->first()->lead?->email ?? '?';
+                $lines[] = "  📬 **{$company}** <{$email}>";
+                foreach ($companyEmails as $e) {
+                    $lines[] = "    → \"{$e->subject}\"";
+                }
+                $lines[] = "";
+                $displayed++;
             }
         }
 
         if ($failedEmails->isNotEmpty()) {
-            $lines[] = '';
-            $lines[] = "**Failed ({$failedEmails->count()}):**";
-            foreach ($failedEmails as $i => $e) {
+            $count = $failedEmails->count();
+            $lines[] = "**❌ Bounced or failed ({$count}):**";
+            foreach ($failedEmails as $e) {
                 $lead = $e->lead;
                 $company = $lead?->company_name ?? '?';
                 $email = $lead?->email ?? $e->recipient_email ?? '?';
-                $subject = $e->subject ?? '(no subject)';
                 $reason = $e->failure_reason ?? $e->error ?? 'unknown';
-                $lines[] = "  {$i}. **{$company}** <{$email}> → \"{$subject}\" — ❌ {$reason}";
+                $lines[] = "  💔 **{$company}** — {$reason}";
             }
+            $lines[] = "";
+        }
+
+        // Short summary with humor
+        if ($sent > 0 && $failed > 0) {
+            $rate = round($sent / ($sent + $failed) * 100);
+            $lines[] = "**Bottom line:** {$sent} got through, {$failed} hit the wall. That's a {$rate}% delivery rate.";
+            if ($rate > 80) {
+                $lines[] = "Not bad! The sender rotation is doing its job. 🚀";
+            } elseif ($rate > 50) {
+                $lines[] = "Room for improvement — I'll tighten up the MX checks before the next round.";
+            } else {
+                $lines[] = "Oof. That's rough. Let me investigate the domains that are causing the most grief.";
+            }
+        } elseif ($failed === 0) {
+            $lines[] = "**Bottom line:** All {$sent} landed safe and sound. The sender rotation is working like a charm. 🎯";
+        } elseif ($sent === 0) {
+            $lines[] = "**Bottom line:** Every single one bounced. That's a problem. Want me to check the MX records? 🔍";
         }
 
         if (empty($lines)) {
             return "I checked the records for {$brandName} but I couldn't find individual email details in this batch's metadata. The pipeline reported {$sent} sent and {$failed} failed. Want me to dig deeper into specific emails or check the send logs?";
         }
-
-        $lines[] = '';
-        $lines[] = "Bottom line: {$sent} sent, {$failed} failed for {$brandName}. Sender pool rotation active.";
 
         return implode("\n", $lines);
     }
