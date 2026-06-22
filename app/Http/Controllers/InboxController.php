@@ -141,9 +141,9 @@ class InboxController extends Controller
                 ];
             });
 
-        // Merge and sort by time
+        // Merge and sort by time (use sent_at for emails, received_at for replies, created_at as fallback)
         $thread = $replies->merge($sentEmails)->sortBy(function ($item) {
-            return $item['sent_at'] ?? $item['received_at'] ?? $item['created_at'];
+            return $item['sent_at'] ?? $item['received_at'] ?? $item['created_at'] ?? now()->toIso8601String();
         })->values();
 
         // Lead context
