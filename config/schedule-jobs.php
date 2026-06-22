@@ -85,6 +85,14 @@ return [
             'group' => 'leads',
         ],
         [
+            'name' => 'leads:monitor-mining',
+            'command' => 'leads:monitor-mining --hours=2',
+            'description' => 'Monitor lead mining pipeline: check Hermes mining crons (Rabbit + Deer, every 2h) are producing leads',
+            'schedule' => '0 */2 * * *',
+            'schedule_label' => 'Every 2 hours (pipeline check)',
+            'group' => 'leads',
+        ],
+        [
             'name' => 'winloss:generate',
             'command' => 'winloss:generate',
             'description' => 'Generate win-loss report from reply outcomes and pipeline metrics',

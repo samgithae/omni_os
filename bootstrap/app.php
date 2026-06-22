@@ -87,6 +87,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('cron:cleanup-runs --older-than=30')
             ->everyThirtyMinutes()
             ->description('Mark stuck running cron job records as failed');
+
+        // Lead mining pipeline monitor — every 2 hours (tracks Hermes mining crons)
+        $schedule->command('leads:monitor-mining --hours=2')
+            ->everyTwoHours()
+            ->withoutOverlapping(30)
+            ->description('Monitor lead mining pipeline: check Hermes mining crons are producing leads');
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
