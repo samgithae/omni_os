@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Building2, Users, Ban, MapPin, LayoutGrid, FolderGit2, Mail, Activity, Clock, BarChart3, Inbox, Settings, Timer, FileText, Shield, Envelope } from '@lucide/vue';
+import { BookOpen, Building2, Users, Ban, MapPin, LayoutGrid, FolderGit2, Mail, Activity, Clock, BarChart3, Inbox, Settings, Timer, FileText, Shield } from '@lucide/vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -62,7 +62,7 @@ const navGroups: NavGroup[] = [
         label: 'Email',
         items: [
             { title: 'Email Sequences', href: '/email-sequences', icon: Mail },
-            { title: 'Email Messages', href: '/admin/email-messages', icon: Envelope },
+            { title: 'Email Messages', href: '/admin/email-messages', icon: Mail },
             { title: 'Sequence Schedules', href: '/admin/sequence-schedules', icon: Clock },
             { title: 'Suppressions', href: '/admin/suppressions', icon: Shield },
             { title: 'Mining Targets', href: '/admin/mining-targets', icon: MapPin },
