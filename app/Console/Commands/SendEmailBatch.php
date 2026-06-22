@@ -17,8 +17,6 @@ class SendEmailBatch extends Command
 
     protected $description = 'Send approved/queued emails via SMTP2GO with safe-send discipline';
 
-    private const int BUSINESS_HOUR_START = 8;   // 8 AM
-    private const int BUSINESS_HOUR_END = 18;    // 6 PM
     private const int MAX_PER_DOMAIN = 5;        // domain warming limit
     private const string MX_CACHE_KEY = 'omni_mx_valid_';
 
@@ -33,9 +31,11 @@ class SendEmailBatch extends Command
             return 1;
         }
 
-        // Business-hours check
+        // Business-hours check (evaluates in configured business timezone, not UTC)
         if (! $force && ! $this->isWithinBusinessHours()) {
-            $this->warn('Outside business hours (8 AM – 6 PM). Use --force to override.');
+            $businessTz = config('services.business.timezone', 'Africa/Nairobi');
+            $nowInBusinessTz = now()->setTimezone($businessTz);
+            $this->warn("Outside business hours ({$nowInBusinessTz->format('H:i')} {$businessTz}). Use --force to override.");
             return 0;
         }
 
@@ -205,12 +205,19 @@ class SendEmailBatch extends Command
     }
 
     /**
-     * Only send during business hours (8 AM – 6 PM recipient timezone).
-     * For now, uses the server's timezone (EAT/UTC+3). Future: per-lead timezone.
+     * Only send during business hours in the configured business timezone.
+     * Defaults to Africa/Nairobi (EAT / UTC+3) for Kenya-based brands.
+     * TODO: per-brand/per-lead timezone when Phantom Tutors (US/UK) goes live.
      */
     private function isWithinBusinessHours(): bool
     {
-        $hour = (int) now()->format('G');
-        return $hour >= self::BUSINESS_HOUR_START && $hour < self::BUSINESS_HOUR_END;
+        $businessTz = config('services.business.timezone', 'Africa/Nairobi');
+        $startHour = (int) config('services.business.send_start_hour', 8);
+        $endHour = (int) config('services.business.send_end_hour', 18);
+
+        $nowInBusinessTz = now()->setTimezone($businessTz);
+        $hour = (int) $nowInBusinessTz->format('G');
+
+        return $hour >= $startHour && $hour < $endHour;
     }
 }

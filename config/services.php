@@ -69,4 +69,10 @@ return [
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
     ],
 
+    'business' => [
+        'timezone' => env('BUSINESS_TIMEZONE', 'Africa/Nairobi'),
+        'send_start_hour' => (int) env('SEND_START_HOUR', 8),
+        'send_end_hour' => (int) env('SEND_END_HOUR', 18),
+    ],
+
 ];
