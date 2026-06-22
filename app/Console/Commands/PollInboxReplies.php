@@ -89,6 +89,7 @@ class PollInboxReplies extends Command
 
             $from = $header->from[0] ?? null;
             $fromEmail = $from ? ($from->mailbox . '@' . $from->host) : '';
+            $fromAddress = $from ? ($from->personal ?? $from->mailbox . '@' . $from->host) : '';
             $subject = $header->subject ?? '(no subject)';
             $date = $header->date ?? date('r');
             $messageNumber = imap_msgno($imap, $uid);
@@ -101,10 +102,11 @@ class PollInboxReplies extends Command
             }
 
             // Check if this is a bounce
-            $isBounce = str_contains(strtolower($subject), 'undelivered') ||
-                       str_contains(strtolower($subject), 'mail delivery failed') ||
-                       str_contains(strtolower($from), 'mailer-daemon') ||
-                       str_contains(strtolower($from), 'postmaster');
+            $fromStr = strtolower($fromEmail . ' ' . $subject . ' ' . $fromAddress);
+            $isBounce = str_contains($fromStr, 'undelivered') ||
+                       str_contains($fromStr, 'mail delivery failed') ||
+                       str_contains($fromStr, 'mailer-daemon') ||
+                       str_contains($fromStr, 'postmaster');
 
             // Get the body
             $body = $this->fetchBody($imap, $messageNumber);
