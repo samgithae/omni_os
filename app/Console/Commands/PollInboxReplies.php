@@ -193,6 +193,19 @@ class PollInboxReplies extends Command
                 );
             }
 
+            // If a lead actively replies, remove any stale "manual" suppression —
+            // a reply is an explicit opt-in signal that overrides the old suppression
+            if ($lead && !$isBounce) {
+                $manualSupp = \App\Models\Suppression::where('brand_id', $lead->brand_id)
+                    ->where('email', $lead->email)
+                    ->where('reason', 'manual')
+                    ->first();
+                if ($manualSupp) {
+                    $manualSupp->delete();
+                    $this->line("    → Removed stale manual suppression for {$lead->company_name} (lead replied)");
+                }
+            }
+
             // Log to activity feed
             if (!$isBounce) {
                 app(ActivityLogger::class)->log([
