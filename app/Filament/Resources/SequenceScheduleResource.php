@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\SequenceScheduleResource\Pages;
 use App\Models\SequenceSchedule;
+use Filament\Actions;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -81,7 +82,7 @@ class SequenceScheduleResource extends Resource
                     ->options(['rabbit' => 'Rabbit', 'deer' => 'Deer']),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Actions\EditAction::make(),
             ])
             ->bulkActions([]);
     }
