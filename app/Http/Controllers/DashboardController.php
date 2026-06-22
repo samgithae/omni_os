@@ -186,18 +186,36 @@ class DashboardController extends Controller
         }
 
         // --- Lead Sources Breakdown ---
-        $sources = Lead::selectRaw('COALESCE(NULLIF(source, \'\'), \'unknown\') as src, COUNT(*) as count')
+        $sources = Lead::selectRaw("COALESCE(NULLIF(source, ''), 'unknown') as src, COUNT(*) as count")
             ->groupBy('src')
             ->orderByDesc('count')
             ->get()
             ->pluck('count', 'src')
             ->toArray();
 
+        // Top 4 sources + Others
+        $totalSources = array_sum($sources);
+        $sourceColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
+        $topSources = [];
+        $otherCount = 0;
+        $idx = 0;
+        foreach ($sources as $src => $count) {
+            if ($idx < 4) {
+                $topSources[$src] = $count;
+            } else {
+                $otherCount += $count;
+            }
+            $idx++;
+        }
+        if ($otherCount > 0) {
+            $topSources['others'] = $otherCount;
+        }
+
         return Inertia::render('Dashboard', array_merge(
             $this->getBaseStats(),
             [
                 'leadsOverTime' => $leadsOverTime,
-                'leadSources' => $sources,
+                'leadSources' => $topSources,
                 'period' => $period,
             ]
         ));

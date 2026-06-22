@@ -188,7 +188,7 @@ function switchPeriod(p: string) {
 }
 
 // --- Lead Sources Pie Chart ---
-const sourceColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#6b7280']
+const sourceColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#9ca3af']
 
 const pieSlices = computed(() => {
     const entries = Object.entries(props.leadSources)
@@ -363,7 +363,7 @@ const pieSlices = computed(() => {
                     <div class="flex flex-wrap justify-center gap-2">
                         <div v-for="(count, src, idx) in leadSources" :key="src" class="flex items-center gap-1 text-xs">
                             <span class="inline-block h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: sourceColors[idx % sourceColors.length] }"></span>
-                            <span class="text-gray-500">{{ src === 'unknown' ? 'Other' : src }}</span>
+                            <span class="text-gray-500">{{ { google_sheets: 'Sheets', google_maps: 'Google Maps', api: 'API', serps: 'SERPS', unknown: 'Other', others: 'Others' }[src] || src }}</span>
                             <span class="font-medium text-gray-800">{{ count }}</span>
                         </div>
                     </div>
