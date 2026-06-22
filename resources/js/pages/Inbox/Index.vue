@@ -146,13 +146,27 @@ async function loadConversation(leadId: number) {
 
     try {
         const response = await fetch(`/inbox/conversation/${leadId}`, {
-            headers: { 'Accept': 'application/json' },
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+            redirect: 'manual', // Don't follow redirects — a 302 means auth expired
         })
+
+        if (response.type === 'opaqueredirect' || response.status === 302 || response.status === 0) {
+            throw new Error('Session expired — please refresh the page')
+        }
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`)
+        }
+
         const data = await response.json()
         conversation.value = data.thread || []
         leadContext.value = data.lead || null
     } catch (e) {
-        replyError.value = 'Failed to load conversation'
+        replyError.value = 'Failed to load conversation: ' + (e instanceof Error ? e.message : 'unknown error')
     } finally {
         loadingConversation.value = false
     }
