@@ -96,6 +96,8 @@ class EmailSequenceController extends Controller
                     ] : null,
                     'steps' => $steps,
                     'has_pending' => $steps->contains(fn ($s) => $s['exists'] && $s['approval_status'] === 'pending'),
+                    'sequence_complete' => $lead->hasCompleteEmailSequence(),
+                    'missing_steps' => $lead->missingEmailSequenceSteps(),
                 ];
             });
 
@@ -128,6 +130,25 @@ class EmailSequenceController extends Controller
             'lead_ids.*' => 'exists:leads,id',
         ]);
 
+        // Completeness gate — check every lead has a complete sequence before approving
+        $incompleteLeads = [];
+        foreach ($request->lead_ids as $leadId) {
+            $lead = Lead::with('emailMessages')->find($leadId);
+            if ($lead) {
+                $complete = $lead->hasCompleteEmailSequence();
+                if ($complete === false) {
+                    $missing = $lead->missingEmailSequenceSteps();
+                    $incompleteLeads[] = "Lead {$leadId} ({$lead->company_name}) — missing steps [" . implode(',', $missing) . ']';
+                }
+            }
+        }
+
+        if (! empty($incompleteLeads)) {
+            return back()->withErrors([
+                'completeness' => 'Cannot approve — incomplete sequences: ' . implode('; ', $incompleteLeads),
+            ]);
+        }
+
         $count = EmailMessage::whereIn('lead_id', $request->lead_ids)
             ->where('approval_status', 'pending')
             ->update([
@@ -158,6 +179,18 @@ class EmailSequenceController extends Controller
 
     public function approve(EmailMessage $emailMessage)
     {
+        // Completeness gate — verify the lead's sequence is complete before approving
+        $lead = $emailMessage->lead()->with('emailMessages')->first();
+        if ($lead) {
+            $complete = $lead->hasCompleteEmailSequence();
+            if ($complete === false) {
+                $missing = $lead->missingEmailSequenceSteps();
+                return back()->withErrors([
+                    'completeness' => "Cannot approve — the lead's email sequence is incomplete. Missing steps: [" . implode(',', $missing) . ']. Wait for Hermes to generate the missing emails.',
+                ]);
+            }
+        }
+
         $emailMessage->approve();
 
         return back()->with('success', 'Email approved.');

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\EmailController;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\MiningTargetController;
 use App\Http\Controllers\Api\StatsController;
+use App\Http\Controllers\Api\SequenceConfigController;
 use App\Http\Controllers\Api\SuppressionController;
 use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\ActivityEventController;
@@ -32,7 +33,10 @@ Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
     Route::get('leads', [LeadController::class, 'index']);
     Route::post('leads/bulk', [LeadController::class, 'bulkCreate']);
     Route::patch('leads/{lead}/enrich', [LeadController::class, 'enrich']);
+    // Lead scoring
     Route::patch('leads/{lead}/score', [LeadController::class, 'score']);
+    Route::get('leads/needs-email-generation', [LeadController::class, 'needsEmailGeneration']);
+    Route::post('leads/{lead}/email-content-batch', [LeadController::class, 'submitEmailContentBatch']);
 
     // Mining targets
     Route::get('mining-targets', [MiningTargetController::class, 'index']);
@@ -65,4 +69,7 @@ Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
     // Instruction queue — Hermes polls before a run
     Route::get('instructions', [InstructionController::class, 'index']);
     Route::patch('instructions/{comment}', [InstructionController::class, 'update']);
+
+    // Sequence configs — Hermes reads to know how to draft
+    Route::get('sequence-configs/{brandSlug}/{segment}', [SequenceConfigController::class, 'show']);
 });

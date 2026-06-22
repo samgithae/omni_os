@@ -6,6 +6,8 @@ import type { StepInfo } from './SequenceTimeline.vue'
 const props = defineProps<{
   steps: StepInfo[]
   companyName: string
+  sequenceComplete: boolean | null
+  missingSteps: number[]
 }>()
 
 const emit = defineEmits<{
@@ -122,9 +124,27 @@ const hasAnyPending = props.steps.some(s => s.exists && s.approval_status === 'p
 
 <template>
   <div class="border-t border-gray-100 bg-gray-50/50 px-6 py-4">
-    <Transition name="expand" mode="out-in">
-      <div class="space-y-4">
-        <!-- Each step as a vertical timeline item -->
+  <Transition name="expand" mode="out-in">
+    <div class="space-y-4">
+      <!-- Incomplete sequence warning -->
+      <div
+        v-if="sequenceComplete === false"
+        class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3"
+      >
+        <div class="flex items-start gap-2">
+          <span class="mt-0.5 text-amber-500">⚠️</span>
+          <div class="text-sm text-amber-800">
+            <p class="font-medium">Incomplete sequence</p>
+            <p>
+              Steps [{{ missingSteps.join(', ') }}] have not been generated yet.
+              Hermes will fill these on the next generation run (every 60 min).
+              Approval is blocked until all steps have content.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Each step as a vertical timeline item -->
         <div
           v-for="step in steps"
           :key="step.step"
@@ -223,14 +243,16 @@ const hasAnyPending = props.steps.some(s => s.exists && s.approval_status === 'p
               </a>
               <button
                 v-if="step.approval_status === 'pending' && step.id"
-                class="rounded bg-blue-600 px-2.5 py-0.5 text-[10px] font-medium text-white hover:bg-blue-700"
+                class="rounded bg-blue-600 px-2.5 py-0.5 text-[10px] font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="sequenceComplete === false"
                 @click="approveSingle(step.id!)"
               >
                 Approve
               </button>
               <button
                 v-if="step.approval_status === 'pending' && step.id"
-                class="rounded bg-white px-2.5 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                class="rounded bg-white px-2.5 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="sequenceComplete === false"
                 @click="rejectSingle(step.id!)"
               >
                 Reject
@@ -256,13 +278,15 @@ const hasAnyPending = props.steps.some(s => s.exists && s.approval_status === 'p
           class="flex items-center gap-2 border-t border-gray-200 pt-3"
         >
           <button
-            class="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+            class="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+            :disabled="sequenceComplete === false"
             @click="approveAllPending"
           >
             Approve All Pending
           </button>
           <button
-            class="rounded bg-white px-3 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+            class="rounded bg-white px-3 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            :disabled="sequenceComplete === false"
             @click="rejectAllPending"
           >
             Reject All Pending

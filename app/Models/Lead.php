@@ -303,6 +303,51 @@ class Lead extends Model
         }
     }
 
+    // --- Sequence completeness helpers ---
+
+    /**
+     * Returns true if all required sequence steps have content (non-empty subject + body).
+     * Required step count comes from the BrandSequenceConfig for this lead's brand+segment.
+     * Returns null if no config is found (can't determine completeness).
+     */
+    public function hasCompleteEmailSequence(): ?bool
+    {
+        $config = \App\Models\BrandSequenceConfig::resolveFor($this->brand_id, $this->segment);
+
+        if (! $config) {
+            return null;
+        }
+
+        $requiredSteps = range(1, $config->sequence_steps);
+
+        $completedSteps = $this->emailMessages
+            ->filter(fn ($m) => ! empty(trim($m->subject ?? '')) && ! empty(trim($m->body ?? '')))
+            ->pluck('sequence_step')
+            ->toArray();
+
+        return empty(array_diff($requiredSteps, $completedSteps));
+    }
+
+    /**
+     * Returns which steps are missing content. Empty array means sequence is complete.
+     */
+    public function missingEmailSequenceSteps(): array
+    {
+        $config = \App\Models\BrandSequenceConfig::resolveFor($this->brand_id, $this->segment);
+
+        if (! $config) {
+            return [];
+        }
+
+        $requiredSteps = range(1, $config->sequence_steps);
+        $completedSteps = $this->emailMessages
+            ->filter(fn ($m) => ! empty(trim($m->subject ?? '')) && ! empty(trim($m->body ?? '')))
+            ->pluck('sequence_step')
+            ->toArray();
+
+        return array_values(array_diff($requiredSteps, $completedSteps));
+    }
+
     protected function prepareStatusTransition(LeadStatus $from, LeadStatus $to): void
     {
         if ($from === $to) {

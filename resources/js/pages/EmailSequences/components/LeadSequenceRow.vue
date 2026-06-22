@@ -23,6 +23,8 @@ interface LeadData {
   brand: BrandInfo | null
   steps: StepInfo[]
   has_pending: boolean
+  sequence_complete: boolean | null
+  missing_steps: number[]
 }
 
 const props = defineProps<{
@@ -176,6 +178,8 @@ function doApproveNext() {
         <ExpandedSequence
           :steps="lead.steps"
           :company-name="lead.company_name"
+          :sequence-complete="lead.sequence_complete"
+          :missing-steps="lead.missing_steps"
           v-model:preview-open="previewState"
           @approved="emit('approved')"
         />

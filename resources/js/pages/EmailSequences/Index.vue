@@ -35,10 +35,13 @@ interface LeadData {
   brand: BrandInfo | null
   steps: StepInfo[]
   has_pending: boolean
+  sequence_complete: boolean | null
+  missing_steps: number[]
 }
 
 interface EmailStats {
   total: number
+  needs_content: number
   pending: number
   approved: number
   rejected: number

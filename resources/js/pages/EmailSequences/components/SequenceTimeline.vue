@@ -4,7 +4,7 @@ export interface StepInfo {
   exists: boolean
   subject: string | null
   body: string | null
-  approval_status: 'pending' | 'approved' | 'rejected' | null
+  approval_status: 'pending' | 'approved' | 'rejected' | 'needs_content' | null
   send_status: 'draft' | 'queued' | 'sent' | 'failed' | null
   sent_at: string | null
   opened_at: string | null
