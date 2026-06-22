@@ -51,6 +51,13 @@ class NotifyTelegramApproval extends Command
 
         $sent = 0;
 
+        // Store the batch of email IDs being sent to Telegram
+        // so "APPROVE ALL" only applies to THIS batch, not all pending emails
+        $allIds = $allEmails->pluck('id')->toArray();
+        cache()->forever('telegram_pending_batch', $allIds);
+        $this->info("Stored batch of " . count($allIds) . " email IDs for scoped approval.");
+        $totalInBatch = count($allIds);
+
         foreach ($byBrand as $brandName => $emails) {
             // Send the summary message first
             $this->sendSummaryMessage($telegram, $brandName, $emails);
@@ -90,8 +97,9 @@ class NotifyTelegramApproval extends Command
 
         $text = "📬 <b>Approval Request — {$brandName}</b>\n";
         $text .= "━━━━━━━━━━━━━━━━━━━━\n\n";
-        $text .= "📊 <b>{$totalEmails}</b> emails pending approval\n";
+        $text .= "📊 <b>{$totalEmails}</b> emails pending approval in THIS batch\n";
         $text .= "🏢 <b>{$uniqueLeads->count()}</b> leads in this batch\n\n";
+        $text .= "⚠️ <code>APPROVE ALL</code> will only approve these {$totalEmails} — not all pending system-wide.\n\n";
 
         // List all leads with their email counts
         $text .= "<b>Leads in this batch:</b>\n";

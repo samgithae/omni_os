@@ -154,13 +154,25 @@ class PollTelegramApprovals extends Command
     {
         $newStatus = $action === 'approve' ? 'approved' : 'rejected';
 
-        $count = EmailMessage::where('approval_status', 'pending')
-            ->where('status', 'draft')
-            ->update([
-                'approval_status' => $newStatus,
-                'status' => $action === 'approve' ? 'queued' : 'draft',
-                ($action === 'approve' ? 'approved_at' : 'rejected_at') => now(),
-            ]);
+        // Only approve/reject the batch that was most recently sent to Telegram
+        $batchIds = cache('telegram_pending_batch', []);
+        if (empty($batchIds)) {
+            // Fallback: no batch stored — approve all pending (legacy behavior with warning)
+            $query = EmailMessage::where('approval_status', 'pending')->where('status', 'draft');
+        } else {
+            $query = EmailMessage::whereIn('id', $batchIds)
+                ->where('approval_status', 'pending')
+                ->where('status', 'draft');
+        }
+
+        $count = $query->update([
+            'approval_status' => $newStatus,
+            'status' => $action === 'approve' ? 'queued' : 'draft',
+            ($action === 'approve' ? 'approved_at' : 'rejected_at') => now(),
+        ]);
+
+        // Clear the batch cache so it can't be re-applied
+        cache()->forget('telegram_pending_batch');
 
         if ($count > 0) {
             $logger = app(ActivityLogger::class);
