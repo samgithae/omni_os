@@ -68,7 +68,10 @@ class TrackCronJobRuns
             'finished_at' => now(),
         ]);
 
-        unset(self::$running[$jobName]);
+        // Only unset if the stack is empty (otherwise overlapping runs still in the stack)
+        if (empty(self::$running[$jobName])) {
+            unset(self::$running[$jobName]);
+        }
 
         // Report to Activity Feed in human-readable format
         $this->logToActivityFeed($run, $success, $durationMs, $task->description ?? $jobName);
