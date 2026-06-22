@@ -18,7 +18,9 @@ class SuppressionResource extends Resource
 {
     protected static ?string $model = Suppression::class;
 
-    protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-no-symbol';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-no-symbol';
+
+    protected static ?string $navigationGroup = 'Email';
 
     protected static ?int $navigationSort = 3;
 

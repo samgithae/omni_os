@@ -31,6 +31,7 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Indigo,
             ])
+            ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
                 Dashboard::class,
@@ -49,41 +50,16 @@ class AdminPanelProvider extends PanelProvider
                     ->icon('heroicon-o-home')
                     ->group('Overview')
                     ->sort(1),
-                NavigationItem::make('Leads')
-                    ->url('/admin/leads', shouldOpenInNewTab: false)
-                    ->icon('heroicon-o-user-group')
-                    ->group('CRM')
-                    ->sort(1),
                 NavigationItem::make('Activity Feed')
                     ->url('/activity', shouldOpenInNewTab: false)
                     ->icon('heroicon-o-arrow-trending-up')
                     ->group('Analytics')
-                    ->sort(1),
-                NavigationItem::make('Brands')
-                    ->url('/admin/brands', shouldOpenInNewTab: false)
-                    ->icon('heroicon-o-building-office-2')
-                    ->group('Configuration')
                     ->sort(1),
                 NavigationItem::make('Email Sequences')
                     ->url('/email-sequences', shouldOpenInNewTab: false)
                     ->icon('heroicon-o-envelope')
                     ->group('Email')
                     ->sort(1),
-                NavigationItem::make('Sequence Schedules')
-                    ->url('/admin/sequence-schedules', shouldOpenInNewTab: false)
-                    ->icon('heroicon-o-clock')
-                    ->group('Email')
-                    ->sort(2),
-                NavigationItem::make('Suppressions')
-                    ->url('/admin/suppressions', shouldOpenInNewTab: false)
-                    ->icon('heroicon-o-no-symbol')
-                    ->group('Email')
-                    ->sort(3),
-                NavigationItem::make('Mining Targets')
-                    ->url('/admin/mining-targets', shouldOpenInNewTab: false)
-                    ->icon('heroicon-o-map-pin')
-                    ->group('Email')
-                    ->sort(4),
             ])
             ->middleware([
                 EncryptCookies::class,

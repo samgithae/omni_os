@@ -18,7 +18,9 @@ class MiningTargetResource extends Resource
 {
     protected static ?string $model = MiningTarget::class;
 
-    protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-map-pin';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-map-pin';
+
+    protected static ?string $navigationGroup = 'Email';
 
     protected static ?int $navigationSort = 4;
 

@@ -17,11 +17,23 @@ class EmailMessageResource extends Resource
 {
     protected static ?string $model = EmailMessage::class;
 
-    protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-envelope';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-envelope';
 
-    protected static ?int $navigationSort = 3;
+    protected static ?string $navigationGroup = 'Email';
 
-    protected static ?string $navigationLabel = 'Email Sequences';
+    protected static ?int $navigationSort = 5;
+
+    public static function getNavigationBadge(): ?string
+    {
+        return null;
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
+    protected static ?string $navigationLabel = 'Email Messages';
 
     public static function form(Schema $schema): Schema
     {
