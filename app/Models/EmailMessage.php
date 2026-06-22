@@ -104,6 +104,11 @@ class EmailMessage extends Model
         return $query->where('approval_status', 'rejected');
     }
 
+    public function scopeNeedsContent($query)
+    {
+        return $query->where('approval_status', 'needs_content');
+    }
+
     // --- Approval helpers ---
 
     public function isPendingApproval(): bool
@@ -124,6 +129,26 @@ class EmailMessage extends Model
     public function isSent(): bool
     {
         return $this->status === 'sent';
+    }
+
+    public function isNeedsContent(): bool
+    {
+        return $this->approval_status === 'needs_content';
+    }
+
+    public function canBeApproved(): bool
+    {
+        return $this->subject !== null
+            && $this->body !== null
+            && $this->approval_status !== 'approved'
+            && $this->approval_status !== 'needs_content';
+    }
+
+    public function markContentReady(): void
+    {
+        if ($this->approval_status === 'needs_content' && $this->subject && $this->body) {
+            $this->update(['approval_status' => 'pending']);
+        }
     }
 
     public function approve(?string $notes = null): void

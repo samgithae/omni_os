@@ -27,6 +27,7 @@ function stepStatusIcon(step: StepInfo): string {
   if (step.opened_at) return '👁'
   if (step.send_status === 'sent') return '✓'
   if (step.approval_status === 'approved' && step.send_status === 'queued') return '✓'
+  if (step.approval_status === 'needs_content') return '✏️'
   if (step.approval_status === 'pending') return '⏳'
   if (step.approval_status === 'rejected') return '✗'
   return '○'
@@ -37,6 +38,7 @@ function stepStatusText(step: StepInfo): string {
   if (step.opened_at) return 'Opened'
   if (step.send_status === 'sent') return 'Sent'
   if (step.approval_status === 'approved') return 'Approved'
+  if (step.approval_status === 'needs_content') return 'Needs Content'
   if (step.approval_status === 'pending') return 'Pending'
   if (step.approval_status === 'rejected') return 'Rejected'
   return 'Draft'
@@ -47,6 +49,7 @@ function stepStatusClass(step: StepInfo): string {
   if (step.opened_at) return 'text-green-600'
   if (step.send_status === 'sent') return 'text-blue-600'
   if (step.approval_status === 'approved') return 'text-blue-600'
+  if (step.approval_status === 'needs_content') return 'text-purple-600'
   if (step.approval_status === 'pending') return 'text-amber-600'
   if (step.approval_status === 'rejected') return 'text-red-600'
   return 'text-gray-400'
@@ -54,6 +57,7 @@ function stepStatusClass(step: StepInfo): string {
 
 function approvalBadge(step: StepInfo): string {
   if (!step.exists) return ''
+  if (step.approval_status === 'needs_content') return 'bg-purple-100 text-purple-700'
   if (step.approval_status === 'pending') return 'bg-amber-100 text-amber-700'
   if (step.approval_status === 'approved') return 'bg-blue-100 text-blue-700'
   if (step.approval_status === 'rejected') return 'bg-red-100 text-red-700'
@@ -137,6 +141,7 @@ const hasAnyPending = props.steps.some(s => s.exists && s.approval_status === 'p
             :class="{
               'border-green-500 bg-green-100': step.clicked_at || step.opened_at || step.send_status === 'sent',
               'border-amber-400 bg-amber-100': step.approval_status === 'pending',
+              'border-purple-400 bg-purple-100': step.approval_status === 'needs_content',
               'border-blue-500 bg-blue-100': step.approval_status === 'approved' && step.send_status !== 'sent',
               'border-red-400 bg-red-100': step.approval_status === 'rejected',
               'border-gray-300 bg-gray-50': !step.exists,

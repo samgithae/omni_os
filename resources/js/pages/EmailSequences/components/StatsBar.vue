@@ -3,6 +3,7 @@ import { router } from '@inertiajs/vue3'
 
 export interface EmailStats {
   total: number
+  needs_content: number
   pending: number
   approved: number
   rejected: number
@@ -30,6 +31,7 @@ interface StatItem {
 
 const statItems: StatItem[] = [
   { label: 'Total', key: 'total', value: props.stats.total, color: 'text-gray-900' },
+  { label: 'Needs Content', key: 'needs_content', value: props.stats.needs_content, color: 'text-purple-600' },
   { label: 'Pending', key: 'pending', value: props.stats.pending, color: 'text-amber-600' },
   { label: 'Approved', key: 'approved', value: props.stats.approved, color: 'text-blue-600' },
   { label: 'Rejected', key: 'rejected', value: props.stats.rejected, color: 'text-red-600' },

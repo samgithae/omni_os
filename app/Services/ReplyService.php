@@ -207,7 +207,7 @@ class ReplyService
         $text .= "Score: {$lead->score}\n";
         $text .= "Reply confidence: {$confidence}%\n";
         $text .= "Segment: {$lead->segment}\n";
-        $text .= "City: {$lead->city ?? '—'}\n";
+        $text .= "City: " . ($lead->city ?? '—') . "\n";
 
         if ($summary) {
             $text .= "\n📝 <b>Summary:</b> {$summary}\n";

@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\ActivityEventController;
 use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\ReplyController;
+use App\Http\Controllers\Api\EmailMessageApiController;
 use App\Http\Middleware\ApiTokenAuth;
 use Illuminate\Support\Facades\Route;
 
@@ -47,5 +48,9 @@ Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
 
     // Classified replies (from Hermes)
     Route::post('replies', [ReplyController::class, 'store']);
+
+    // Email sequence scheduling — Hermes fills drafts
+    Route::get('email-messages/needs-content', [EmailMessageApiController::class, 'needsContent']);
+    Route::patch('email-messages/{emailMessage}/content', [EmailMessageApiController::class, 'updateContent']);
 
 });

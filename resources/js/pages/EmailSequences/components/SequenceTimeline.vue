@@ -20,12 +20,13 @@ const props = defineProps<{
 
 const total = props.totalSteps ?? 5
 
-function stepState(step: StepInfo): 'sent_opened' | 'sent' | 'pending' | 'approved' | 'rejected' | 'draft' | 'empty' {
+function stepState(step: StepInfo): 'sent_opened' | 'sent' | 'pending' | 'approved' | 'rejected' | 'draft' | 'needs_content' | 'empty' {
   if (!step.exists) return 'empty'
   if (step.clicked_at) return 'sent_opened'
   if (step.opened_at) return 'sent_opened'
   if (step.send_status === 'sent') return 'sent'
   if (step.approval_status === 'pending') return 'pending'
+  if (step.approval_status === 'needs_content') return 'needs_content'
   if (step.approval_status === 'rejected') return 'rejected'
   if (step.approval_status === 'approved') return 'approved'
   return 'draft'
@@ -36,6 +37,7 @@ function stateColors(state: string) {
     case 'sent_opened': return 'bg-green-500 border-green-500 ring-green-200'
     case 'sent': return 'bg-blue-500 border-blue-500 ring-blue-200'
     case 'approved': return 'bg-blue-500 border-blue-500 ring-blue-200'
+    case 'needs_content': return 'bg-purple-400 border-purple-400 ring-purple-200'
     case 'pending': return 'bg-amber-400 border-amber-400 ring-amber-200'
     case 'rejected': return 'bg-red-400 border-red-400 ring-red-200'
     case 'draft': return 'bg-gray-200 border-gray-300'
@@ -50,6 +52,7 @@ function stateLabel(step: StepInfo): string {
   if (step.opened_at) return '👁 opened'
   if (step.send_status === 'sent') return '✓ sent'
   if (step.approval_status === 'approved') return '✓ approved'
+  if (step.approval_status === 'needs_content') return '✏️ needs draft'
   if (step.approval_status === 'pending') return '⏳ pending'
   if (step.approval_status === 'rejected') return '✗ rejected'
   return '— draft'
@@ -101,6 +104,7 @@ function findCurrentStepIndex(): number {
             'text-green-600 font-medium': stepState(step) === 'sent_opened',
             'text-blue-600 font-medium': stepState(step) === 'sent',
             'text-amber-600 font-medium': stepState(step) === 'pending',
+            'text-purple-600 font-medium': stepState(step) === 'needs_content',
             'text-red-600 font-medium': stepState(step) === 'rejected',
             'text-gray-500': stepState(step) === 'draft' || stepState(step) === 'empty',
           }"

@@ -1188,6 +1188,33 @@ This is the core work. The strategy brief says: "Marketing execution is the prio
   - Drip sequence with delays between steps (e.g. day 1, day 3, day 7, day 14, day 30)
   - Laravel scheduler dispatches due emails to queue
   - Queue worker sends via SMTP2GO
+- [x] **Sequence Scheduling Engine**:
+  - `sequence_schedules` table: brand, segment, step, days_after_previous, purpose, is_active
+  - 40 schedule rows seeded (4 brands × 5 rabbit + 5 deer steps)
+  - `SequenceSchedule` model with active/forSegment scopes
+  - Seed command: `sequence:seed-schedules` (idempotent via updateOrCreate)
+  - Filament resource: `SequenceScheduleResource` at `/admin/sequence-schedules` — table with inline editing on days_after_previous, toggle columns, brand/segment filters
+  - Rabbits cadence: 0, 2, 4, 7, 8 days
+  - Deer cadence: 0, 3, 6, 9, 12 days
+- [x] **ProcessSequenceProgressions job**:
+  - Runs daily at 5 AM via scheduler
+  - Skips weekends (Saturday/Sunday)
+  - Per lead: finds last sent email, checks schedule, enforces day gap, suppression check, reply check, one-email-per-lead-per-day
+  - Creates draft with `approval_status = needs_content`
+  - Logs lead_events with sequence_step_queued
+  - Sends Telegram summary after run
+  - `withoutOverlapping(60)` prevents concurrent runs
+- [x] **needs_content approval status**:
+  - `EmailMessage::canBeApproved()` — checks subject + body + status
+  - `EmailMessage::markContentReady()` — auto-transitions needs_content → pending
+  - `EmailMessage::isNeedsContent()` helper + scopeNeedsContent scope
+  - Vue `SequenceTimeline`: purple circle + "✏️ needs draft" label
+  - Vue `ExpandedSequence`: purple border + "Needs Content" badge
+  - StatsBar: "Needs Content" stat in purple
+- [x] **API endpoints for Hermes**:
+  - `GET /api/v1/email-messages/needs-content` — returns needs_content messages with previous email context (subject, sent_at) and schedule purpose
+  - `PATCH /api/v1/email-messages/{id}/content` — Hermes fills subject + body → auto-transitions to pending approval
+  - Both behind existing ApiTokenAuth middleware
 
 #### 1.4 Reply Detection + Classification (Hermes)
 
@@ -1469,6 +1496,17 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 - [x] Country-level targets for all tiers; city-level targets for tiers 1-3
 - [x] Activity::log() integrated — seeding appears in the Activity Feed
 - [x] PROJECT.md updated: What's Done (Phase 1.1), Current Data State, Changelog
+
+### 2026-06-22 — Sequence Scheduling Engine (Email Drip Timing)
+
+- [x] `sequence_schedules` table + model + seeder: 40 rows (4 brands × 5 rabbit + 5 deer)
+- [x] `ProcessSequenceProgressions` job: daily 5AM, weekend skip, suppression/reply checks, one-email-per-day, Telegram summary
+- [x] `needs_content` approval status: purple visual in UI, auto-transition to pending when content filled
+- [x] `GET /api/v1/email-messages/needs-content` — Hermes reads what needs drafting with previous email context
+- [x] `PATCH /api/v1/email-messages/{id}/content` — Hermes fills subject+body, auto-transitions to pending
+- [x] Filament `SequenceScheduleResource` at `/admin/sequence-schedules` — inline editable day gaps, toggle active
+- [x] Scheduler: `ProcessSequenceProgressions` job daily at 05:00
+- [x] PROJECT.md: Phase 1.3 scheduling engine marked done
 
 ### 2026-06-21 — Enrichment Pipeline (Phase 1.2)
 

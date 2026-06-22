@@ -102,6 +102,7 @@ class EmailSequenceController extends Controller
         // Aggregate stats
         $stats = [
             'total' => EmailMessage::count(),
+            'needs_content' => EmailMessage::where('approval_status', 'needs_content')->count(),
             'pending' => EmailMessage::where('approval_status', 'pending')->count(),
             'approved' => EmailMessage::where('approval_status', 'approved')->count(),
             'rejected' => EmailMessage::where('approval_status', 'rejected')->count(),

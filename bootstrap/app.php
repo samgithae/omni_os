@@ -31,6 +31,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->everyThirtyMinutes()
             ->withoutOverlapping(10)
             ->appendOutputTo(storage_path('logs/telegram-approval.log'));
+
+        // Sequence progression — daily at 5 AM (before approval batch)
+        $schedule->job(new \App\Jobs\ProcessSequenceProgressions)
+            ->dailyAt('05:00')
+            ->withoutOverlapping(60)
+            ->appendOutputTo(storage_path('logs/sequence-progression.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
