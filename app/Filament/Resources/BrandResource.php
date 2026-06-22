@@ -79,7 +79,11 @@ class BrandResource extends Resource
                 Tables\Filters\TernaryFilter::make('is_active'),
             ])
             ->actions([
-                Actions\EditAction::make(),
+                \Filament\Tables\Actions\Action::make('settings')
+                    ->label('Settings')
+                    ->icon('heroicon-o-cog-6-tooth')
+                    ->url(fn (Brand $record): string => "/brands/{$record->slug}/settings")
+                    ->openUrlInNewTab(false),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
