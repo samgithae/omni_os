@@ -23,6 +23,8 @@ class EmailMessageResource extends Resource
 
     protected static ?int $navigationSort = 5;
 
+    public static function shouldRegisterNavigation(): bool { return false; }
+
     public static function getNavigationBadge(): ?string
     {
         return null;

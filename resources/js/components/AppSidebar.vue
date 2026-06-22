@@ -54,18 +54,18 @@ const navGroups: NavGroup[] = [
         label: 'Configuration',
         items: [
             { title: 'Brand Settings', href: '/brands/ujuziplus/settings', icon: Settings },
-            { title: 'Brands', href: '/admin/brands', icon: Building2 },
-            { title: 'Sequence Configs', href: '/admin/sequence-configs', icon: FileText },
+            { title: 'Brands', href: '/brands', icon: Building2 },
+            { title: 'Sequence Configs', href: '/sequence-configs', icon: FileText },
         ],
     },
     {
         label: 'Email',
         items: [
             { title: 'Email Sequences', href: '/email-sequences', icon: Mail },
-            { title: 'Email Messages', href: '/admin/email-messages', icon: Mail },
-            { title: 'Sequence Schedules', href: '/admin/sequence-schedules', icon: Clock },
-            { title: 'Suppressions', href: '/admin/suppressions', icon: Shield },
-            { title: 'Mining Targets', href: '/admin/mining-targets', icon: MapPin },
+            { title: 'Email Messages', href: '/email-messages', icon: Mail },
+            { title: 'Sequence Schedules', href: '/sequence-schedules', icon: Clock },
+            { title: 'Suppressions', href: '/suppressions', icon: Shield },
+            { title: 'Mining Targets', href: '/mining-targets', icon: MapPin },
         ],
     },
 ];
