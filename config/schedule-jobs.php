@@ -1,0 +1,96 @@
+<?php
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | Scheduled Job Definitions
+    |--------------------------------------------------------------------------
+    |
+    | Each job defined here appears on the /analytics/jobs monitoring page.
+    | When adding a new ->command() or ->job() to bootstrap/app.php, also
+    | add its definition here so it appears on the dashboard.
+    |
+    | Fields:
+    |   name        - unique job identifier (matches what TrackCronJobRuns resolves)
+    |   command     - the artisan command or job class
+    |   description - human-readable description (also set via ->description() in scheduler)
+    |   schedule    - cron expression
+    |   schedule_label - human-readable schedule description
+    |   group       - grouping for the dashboard (email, messaging, leads, analytics, system)
+    |
+    */
+    'jobs' => [
+        [
+            'name' => 'queue:prune-failed',
+            'command' => 'queue:prune-failed --hours=336',
+            'description' => 'Clean up failed queue jobs older than 14 days',
+            'schedule' => '0 2:30 * * *',
+            'schedule_label' => 'Daily at 2:30 AM',
+            'group' => 'system',
+        ],
+        [
+            'name' => 'emails:send-batch',
+            'command' => 'emails:send-batch --limit=20',
+            'description' => 'Send approved emails via SMTP2GO with safe-send (business hours only)',
+            'schedule' => '*/15 * * * *',
+            'schedule_label' => 'Every 15 minutes (8AM-6PM EAT)',
+            'group' => 'email',
+        ],
+        [
+            'name' => 'emails:notify-telegram',
+            'command' => 'emails:notify-telegram --limit=15',
+            'description' => 'Send pending email approval requests to Telegram with content preview',
+            'schedule' => '*/30 * * * *',
+            'schedule_label' => 'Every 30 minutes',
+            'group' => 'email',
+        ],
+        [
+            'name' => 'ProcessSequenceProgressions',
+            'command' => 'ProcessSequenceProgressions (job)',
+            'description' => 'Progress email sequences: schedule next steps for leads (weekdays only)',
+            'schedule' => '0 5:00 * * *',
+            'schedule_label' => 'Daily at 5 AM (weekdays only)',
+            'group' => 'email',
+        ],
+        [
+            'name' => 'telegram:poll-approvals',
+            'command' => 'telegram:poll-approvals',
+            'description' => 'Poll Telegram for approval replies (text commands + inline callbacks)',
+            'schedule' => '* * * * *',
+            'schedule_label' => 'Every minute',
+            'group' => 'messaging',
+        ],
+        [
+            'name' => 'activity:daily-brief',
+            'command' => 'activity:daily-brief',
+            'description' => 'Generate daily system overview brief with funnel metrics',
+            'schedule' => '0 7:00 * * *',
+            'schedule_label' => 'Daily at 7 AM',
+            'group' => 'system',
+        ],
+        [
+            'name' => 'leads:score',
+            'command' => 'leads:score',
+            'description' => 'Recalculate lead scores (segment, completeness, engagement, email confidence)',
+            'schedule' => '0 3:00 * * *',
+            'schedule_label' => 'Daily at 3 AM',
+            'group' => 'leads',
+        ],
+        [
+            'name' => 'winloss:generate',
+            'command' => 'winloss:generate',
+            'description' => 'Generate win-loss report from reply outcomes and pipeline metrics',
+            'schedule' => '0 6:00 * * 1',
+            'schedule_label' => 'Weekly Monday 6 AM',
+            'group' => 'analytics',
+        ],
+        [
+            'name' => 'inbox:poll',
+            'command' => 'inbox:poll --days=3 --limit=30',
+            'description' => 'Poll IMAP inbox for lead replies and create Reply records',
+            'schedule' => '*/10 * * * *',
+            'schedule_label' => 'Every 10 minutes',
+            'group' => 'messaging',
+        ],
+    ],
+];

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\CronJobRun;
-use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -11,35 +10,8 @@ class JobsController extends Controller
 {
     public function index(Request $request)
     {
-        // Dynamically discover all scheduled jobs from the Laravel scheduler
-        $schedule = app(Schedule::class);
-        $events = $schedule->events();
-
-        $jobDefinitions = [];
-        foreach ($events as $event) {
-            $command = $event->command ?? $event->description ?? 'unknown';
-
-            // Parse the command name from the full command string
-            $name = $this->resolveName($event);
-
-            // Human-readable schedule label
-            $scheduleLabel = $this->resolveScheduleLabel($event->expression);
-
-            // Group by domain
-            $group = $this->resolveGroup($name);
-
-            $jobDefinitions[] = [
-                'name' => $name,
-                'command' => $command,
-                'description' => $event->description ?? '',
-                'schedule' => $event->expression,
-                'schedule_label' => $scheduleLabel,
-                'group' => $group,
-            ];
-        }
-
-        // Sort: groups first, then by name
-        usort($jobDefinitions, fn ($a, $b) => [$a['group'], $a['name']] <=> [$b['group'], $b['name']]);
+        // Read job definitions from config
+        $jobDefinitions = config('schedule-jobs.jobs', []);
 
         // Build latest run data for each job
         $jobData = [];
@@ -58,10 +30,10 @@ class JobsController extends Controller
             $jobData[] = [
                 'name' => $def['name'],
                 'command' => $def['command'],
-                'description' => $def['description'],
-                'schedule' => $def['schedule'],
-                'schedule_label' => $def['schedule_label'],
-                'group' => $def['group'],
+                'description' => $def['description'] ?? '',
+                'schedule' => $def['schedule'] ?? '',
+                'schedule_label' => $def['schedule_label'] ?? $def['schedule'] ?? '',
+                'group' => $def['group'] ?? 'other',
                 'last_run' => $lastRun ? [
                     'status' => $lastRun->status,
                     'exit_code' => $lastRun->exit_code,
@@ -138,71 +110,5 @@ class JobsController extends Controller
             'runs' => $runs,
             'total' => $query->count(),
         ]);
-    }
-
-    private function resolveName($event): string
-    {
-        $command = $event->command ?? $event->description ?? '';
-
-        // Jobs dispatched via ->job() use the class name as description
-        if (str_contains($command, 'ProcessSequenceProgressions')) {
-            return 'ProcessSequenceProgressions';
-        }
-
-        // Commands: extract the artisan command name from the full CLI string
-        // e.g. '/usr/bin/php8.4' 'artisan' queue:prune-failed --hours=336
-        $parts = explode(' ', $command);
-        foreach ($parts as $part) {
-            $cleaned = trim($part, "'\"");
-            if (str_contains($cleaned, 'artisan')) continue;
-            if (str_contains($cleaned, 'php')) continue;
-            if (str_starts_with($cleaned, '/')) continue;
-            if ($cleaned === '') continue;
-            return $cleaned;
-        }
-
-        // Fallback: use the description
-        $desc = $event->description ?? '';
-        return $desc ? str_replace(' ', '_', strtolower(substr($desc, 0, 40))) : 'unknown';
-    }
-
-    private function resolveScheduleLabel(string $expression): string
-    {
-        $map = [
-            '* * * * *' => 'Every minute',
-            '*/1 * * * *' => 'Every minute',
-            '*/10 * * * *' => 'Every 10 minutes',
-            '*/15 * * * *' => 'Every 15 minutes',
-            '*/30 * * * *' => 'Every 30 minutes',
-            '0 2:30 * * *' => 'Daily at 2:30 AM',
-            '0 3:00 * * *' => 'Daily at 3 AM',
-            '0 5:00 * * *' => 'Daily at 5 AM',
-            '0 7:00 * * *' => 'Daily at 7 AM',
-            '0 6:00 * * 1' => 'Weekly Monday 6 AM',
-        ];
-
-        return $map[$expression] ?? $expression;
-    }
-
-    private function resolveGroup(string $name): string
-    {
-        $groups = [
-            'queue:' => 'system',
-            'emails:' => 'email',
-            'telegram:' => 'messaging',
-            'inbox:' => 'messaging',
-            'leads:' => 'leads',
-            'winloss:' => 'analytics',
-            'activity:' => 'system',
-            'ProcessSequenceProgressions' => 'email',
-        ];
-
-        foreach ($groups as $prefix => $group) {
-            if (str_starts_with($name, $prefix)) {
-                return $group;
-            }
-        }
-
-        return 'other';
     }
 }
