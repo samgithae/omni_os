@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\CronJobRun;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Inertia\Inertia;
 
 class JobsController extends Controller
@@ -71,6 +73,66 @@ class JobsController extends Controller
                 'overall_health' => $overallHealth,
             ],
         ]);
+    }
+
+    /**
+     * POST /analytics/jobs/{jobName}/run
+     * Trigger a manual run of a scheduled job.
+     */
+    public function run(string $jobName, ActivityLogger $logger): \Illuminate\Http\JsonResponse
+    {
+        $jobDefinitions = config('schedule-jobs.jobs', []);
+        $definition = collect($jobDefinitions)->firstWhere('name', $jobName);
+
+        if (! $definition) {
+            return response()->json(['error' => "Job '{$jobName}' not found."], 404);
+        }
+
+        $command = $definition['command'] ?? '';
+
+        if (str_ends_with($command, ' (job)')) {
+            // Queue jobs can't be run via Artisan::call
+            return response()->json(['error' => 'Queue jobs cannot be run manually from this panel.'], 422);
+        }
+
+        $startedAt = now();
+
+        try {
+            $exitCode = Artisan::call($command);
+            $output = Artisan::output();
+            $duration = now()->diffInMilliseconds($startedAt);
+
+            // Log the run
+            CronJobRun::create([
+                'job_name' => $jobName,
+                'status' => $exitCode === 0 ? 'success' : 'failed',
+                'exit_code' => $exitCode,
+                'started_at' => $startedAt,
+                'finished_at' => now(),
+                'duration_ms' => $duration,
+                'output_summary' => substr($output, 0, 500),
+            ]);
+
+            $logger->log([
+                'brand_id' => null,
+                'source' => 'system:manual_run',
+                'event_type' => 'system',
+                'title' => "Manual run: {$jobName}",
+                'body' => "Manual run triggered from jobs dashboard. Exit code: {$exitCode}. Duration: {$duration}ms.",
+                'severity' => $exitCode === 0 ? 'success' : 'warning',
+            ]);
+
+            return response()->json([
+                'success' => $exitCode === 0,
+                'exit_code' => $exitCode,
+                'duration_ms' => $duration,
+                'output' => substr($output, 0, 1000),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function history(Request $request)

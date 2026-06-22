@@ -73,6 +73,32 @@ const runHistory = ref<any[]>([])
 const loadingHistory = ref(false)
 const customFrom = ref('')
 const customTo = ref('')
+const runningJob = ref<string | null>(null)
+const runResult = ref<string | null>(null)
+
+async function runJob(job: Job) {
+    runningJob.value = job.name
+    runResult.value = null
+    try {
+        const res = await fetch(`/analytics/jobs/${encodeURIComponent(job.name)}/run`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        })
+        const data = await res.json()
+        if (data.success) {
+            runResult.value = `✅ Completed in ${formatDuration(data.duration_ms)}`
+        } else {
+            runResult.value = `❌ Failed (exit code: ${data.exit_code})`
+        }
+        // Refresh the page to update stats
+        setTimeout(() => window.location.reload(), 1500)
+    } catch (e) {
+        runResult.value = '❌ Network error'
+    } finally {
+        runningJob.value = null
+    }
+}
 
 async function fetchHistory(jobName: string) {
     selectedJob.value = jobName
@@ -253,6 +279,14 @@ const groupIcons: Record<string, any> = {
                     >
                         <Clock class="h-3 w-3" /> View history
                     </button>
+                    <button
+                        class="inline-flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                        :disabled="runningJob === job.name"
+                        @click="runJob(job)"
+                    >
+                        <Play class="h-3 w-3" /> {{ runningJob === job.name ? 'Running...' : 'Run Now' }}
+                    </button>
+                    <div v-if="runResult && runningJob !== job.name" class="ml-2 text-xs font-medium" :class="runResult.startsWith('✅') ? 'text-emerald-600' : 'text-red-600'">{{ runResult }}</div>
                 </div>
 
                 <!-- Run history (expanded) -->

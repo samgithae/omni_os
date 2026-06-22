@@ -39,6 +39,7 @@ Route::middleware(['auth'])->group(function () {
     // Cron Jobs — monitoring page
     Route::get('/analytics/jobs', [JobsController::class, 'index'])->name('jobs.index');
     Route::get('/analytics/jobs/history', [JobsController::class, 'history'])->name('jobs.history');
+    Route::post('/analytics/jobs/{jobName}/run', [JobsController::class, 'run'])->name('jobs.run');
 
     // Email sequences — the operator's primary workspace
     Route::get('/email-sequences', [EmailSequenceController::class, 'index'])
