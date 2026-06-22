@@ -143,6 +143,15 @@ class PollInboxReplies extends Command
                 continue;
             }
 
+            // Bounces without a matched lead can't be stored (FK constraint) — skip
+            if (!$lead && $isBounce) {
+                $stats['skipped_no_match']++;
+                if ($stats['skipped_no_match'] <= 10) {
+                    $this->line("  Bounce (no lead match): {$fromEmail} — {$subject}");
+                }
+                continue;
+            }
+
             if ($dryRun) {
                 $this->line("  Would import: {$fromEmail} → " . ($lead ? $lead->company_name : 'bounce') . " — {$subject}");
                 if ($isBounce) {
