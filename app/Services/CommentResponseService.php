@@ -30,26 +30,40 @@ class CommentResponseService
     }
 
     /**
-     * Detect if Sam is asking for specific data (which/what/show/list emails).
+     * Detect if Sam is asking for specific data or confirming an offer to list data.
      */
     private function tryDataQuestion(ActivityEvent $event, string $comment): ?string
     {
         $lower = strtolower($comment);
 
+        // Confirmation words — Sam said "yes" after being asked "Want me to list...?"
+        // This should trigger the data fetcher to actually return the list
+        $isConfirmation = (
+            $lower === 'yes' ||
+            $lower === 'yeah' ||
+            str_contains($lower, 'yes do') ||
+            str_contains($lower, 'do that') ||
+            str_contains($lower, 'go ahead') ||
+            str_contains($lower, 'please') ||
+            str_contains($lower, 'list them') ||
+            str_contains($lower, 'show me')
+        );
+
         // Keywords that signal "show me the actual data"
         $askingForDetails = (
+            $isConfirmation ||
             str_contains($lower, 'which') ||
             str_contains($lower, 'what') ||
             str_contains($lower, 'list') ||
-            str_contains($lower, 'show me') ||
             str_contains($lower, 'tell me') ||
             str_contains($lower, 'who') ||
             str_contains($lower, 'where') ||
-            str_contains($lower, 'details')
+            str_contains($lower, 'details') ||
+            str_contains($lower, 'why')    // "why did X fail?" is also a data question
         );
 
         if (!$askingForDetails) {
-            return null; // Not a data question — let handler deal with it
+            return null;
         }
 
         // Route to event-specific data fetcher
