@@ -54,6 +54,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->dailyAt('03:00')
             ->withoutOverlapping(30)
             ->appendOutputTo(storage_path('logs/lead-scoring.log'));
+
+        // Win-loss report — weekly on Mondays at 6 AM (before daily brief)
+        $schedule->command('winloss:generate')
+            ->weeklyOn(1, '06:00')
+            ->appendOutputTo(storage_path('logs/winloss.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);

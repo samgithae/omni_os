@@ -7,6 +7,7 @@ use App\Models\Brand;
 use App\Models\EmailMessage;
 use App\Models\Lead;
 use App\Services\ActivityLogger;
+use App\Services\WinLossService;
 use Illuminate\Console\Command;
 
 class GenerateDailyBrief extends Command
@@ -39,6 +40,22 @@ class GenerateDailyBrief extends Command
         $lines[] = "System Overview — " . now()->format('M j, Y');
         $lines[] = str_repeat('─', 30);
         $lines[] = "";
+
+        // Funnel summary
+        $winloss = app(WinLossService::class);
+        $funnel = $winloss->funnel();
+        $rates = $winloss->rates();
+
+        $lines[] = "Pipeline Funnel:";
+        $lines[] = "  Leads: {$funnel['leads']} → Email: {$funnel['with_email']} → Emailed: {$funnel['emailed']} → Replied: {$funnel['replied']} → Interested: {$funnel['interested']}";
+        $lines[] = "  Enrichment: {$funnel['enrichment_rate']}% | Reply: {$funnel['reply_rate']}% | Interest: {$funnel['interest_rate']}%";
+        $lines[] = "";
+
+        if ($rates['sent'] > 0) {
+            $lines[] = "Email Engagement:";
+            $lines[] = "  Sent: {$rates['sent']} | Open: {$rates['open_rate']}% | Click: {$rates['click_rate']}% | Reply: {$rates['reply_rate']}%";
+            $lines[] = "";
+        }
 
         foreach ($brands as $brand) {
             $lines[] = "{$brand->name}:";

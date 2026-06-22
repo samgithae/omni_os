@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\ReplyController;
 use App\Http\Controllers\Api\EmailMessageApiController;
 use App\Http\Middleware\ApiTokenAuth;
+use App\Services\WinLossService;
 use Illuminate\Support\Facades\Route;
 
 // Webhooks (no Bearer token — use their own auth)
@@ -23,6 +24,7 @@ Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
 
     // Stats
     Route::get('stats', [StatsController::class, 'index']);
+    Route::get('stats/winloss', fn (WinLossService $service) => response()->json($service->report()));
 
     // Leads
     Route::get('leads', [LeadController::class, 'index']);
