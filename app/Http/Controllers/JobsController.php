@@ -144,22 +144,26 @@ class JobsController extends Controller
     {
         $command = $event->command ?? $event->description ?? '';
 
-        // Jobs dispatched via ->job() use the class name
+        // Jobs dispatched via ->job() use the class name as description
         if (str_contains($command, 'ProcessSequenceProgressions')) {
             return 'ProcessSequenceProgressions';
         }
 
-        // Commands: extract the artisan command name
+        // Commands: extract the artisan command name from the full CLI string
+        // e.g. '/usr/bin/php8.4' 'artisan' queue:prune-failed --hours=336
         $parts = explode(' ', $command);
         foreach ($parts as $part) {
-            if (str_contains($part, 'artisan')) continue;
-            if (str_starts_with($part, '/')) continue;
-            if (str_contains($part, 'php')) continue;
-            if (str_contains($part, "'")) continue;
-            return $part;
+            $cleaned = trim($part, "'\"");
+            if (str_contains($cleaned, 'artisan')) continue;
+            if (str_contains($cleaned, 'php')) continue;
+            if (str_starts_with($cleaned, '/')) continue;
+            if ($cleaned === '') continue;
+            return $cleaned;
         }
 
-        return $parts[0] ?? 'unknown';
+        // Fallback: use the description
+        $desc = $event->description ?? '';
+        return $desc ? str_replace(' ', '_', strtolower(substr($desc, 0, 40))) : 'unknown';
     }
 
     private function resolveScheduleLabel(string $expression): string
