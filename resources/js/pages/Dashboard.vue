@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { Users, Mail, Ban, Building2, TrendingUp, MapPin, Activity, LayoutGrid, Star, Award } from '@lucide/vue';
+import { computed } from 'vue';
 import { dashboard } from '@/routes';
 
 defineOptions({
@@ -75,6 +76,9 @@ const props = defineProps<{
     avgScore: number;
     scoreTiers: Record<string, number>;
     topLeads: TopLead[];
+    leadsOverTime: { label: string; count: number }[];
+    leadSources: Record<string, number>;
+    period: string;
 }>();
 
 const segmentColors: Record<string, string> = {
@@ -144,6 +148,65 @@ const tierLabels: Record<string, string> = {
 function maxTierCount(): number {
     return Math.max(...Object.values(props.scoreTiers), 1);
 }
+
+// --- Leads Over Time Chart ---
+const maxCount = computed(() => Math.max(...props.leadsOverTime.map(p => p.count), 1))
+
+function pointX(idx: number): number {
+    const total = props.leadsOverTime.length
+    if (total <= 1) return 290
+    return 50 + (480 * idx / (total - 1))
+}
+
+function pointY(count: number): number {
+    return 178 - (148 * count / maxCount.value)
+}
+
+const linePoints = computed(() => {
+    return props.leadsOverTime.map((pt, idx) => `${pointX(idx)},${pointY(pt.count)}`).join(' ')
+})
+
+const areaPath = computed(() => {
+    if (props.leadsOverTime.length === 0) return ''
+    const pts = props.leadsOverTime.map((pt, idx) => `${pointX(idx)},${pointY(pt.count)}`)
+    const firstX = pointX(0)
+    const lastX = pointX(props.leadsOverTime.length - 1)
+    return `M${firstX},178 L${pts.join(' L')} L${lastX},178 Z`
+})
+
+const labeledIndices = computed(() => {
+    const data = props.leadsOverTime
+    if (data.length <= 6) return data.map((pt, idx) => ({ idx, label: pt.label }))
+    const step = Math.ceil(data.length / 6)
+    return data
+        .map((pt, idx) => ({ idx, label: pt.label }))
+        .filter((_, i) => i % step === 0 || i === data.length - 1)
+})
+
+function switchPeriod(p: string) {
+    router.get(`/dashboard?period=${p}`, {}, { preserveScroll: true, preserveState: true, replace: true })
+}
+
+// --- Lead Sources Pie Chart ---
+const sourceColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#6b7280']
+
+const pieSlices = computed(() => {
+    const entries = Object.entries(props.leadSources)
+    const total = entries.reduce((sum, [, count]) => sum + count, 0)
+    if (total === 0) return []
+
+    const circumference = 2 * Math.PI * 50
+    let offset = 0
+
+    return entries.map(([, count]) => {
+        const fraction = count / total
+        const length = fraction * circumference
+        const dashArray = `${length} ${circumference - length}`
+        const dashOffset = -offset
+        offset += length
+        return { dashArray, dashOffset }
+    })
+})
 </script>
 
 <template>
@@ -205,6 +268,106 @@ function maxTierCount(): number {
                 </div>
                 <div class="mt-2 text-3xl font-bold">{{ stats.active_brands }}</div>
                 <div class="mt-1 text-xs text-muted-foreground">In portfolio</div>
+            </div>
+        </div>
+
+        <!-- Leads Over Time + Sources Row -->
+        <div class="grid gap-6 lg:grid-cols-3">
+            <!-- Leads Over Time Line Chart -->
+            <div class="rounded-xl border bg-card p-5 shadow-sm lg:col-span-2">
+                <div class="mb-4 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <TrendingUp class="h-4 w-4 text-muted-foreground" />
+                        <h3 class="text-sm font-semibold">Leads Over Time</h3>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button
+                            v-for="p in ['day', 'week', 'month']" :key="p"
+                            class="rounded px-2 py-0.5 text-[10px] font-medium transition-colors"
+                            :class="period === p ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                            @click="switchPeriod(p)"
+                        >{{ { day: 'Day', week: 'Week', month: 'Month' }[p] }}</button>
+                    </div>
+                </div>
+                <div class="relative h-48 w-full">
+                    <svg class="h-full w-full" viewBox="0 0 550 190" preserveAspectRatio="xMidYMid meet">
+                        <!-- Grid lines -->
+                        <line v-for="i in 4" :key="'g'+i" x1="50" :y1="30 + (i-1)*37" x2="530" :y2="30 + (i-1)*37" stroke="#e5e7eb" stroke-width="0.5" />
+                        <!-- Line -->
+                        <polyline
+                            :points="linePoints"
+                            fill="none"
+                            stroke="#3b82f6"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        />
+                        <!-- Area fill -->
+                        <path
+                            :d="areaPath"
+                            fill="url(#leadGradient)"
+                            opacity="0.2"
+                        />
+                        <defs>
+                            <linearGradient id="leadGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#3b82f6" />
+                                <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
+                            </linearGradient>
+                        </defs>
+                        <!-- Dots -->
+                        <circle
+                            v-for="(pt, idx) in leadsOverTime"
+                            :key="'d'+idx"
+                            :cx="pointX(idx)"
+                            :cy="pointY(pt.count)"
+                            r="2.5"
+                            fill="#3b82f6"
+                            class="hover:r-4"
+                        />
+                        <!-- Labels (show some) -->
+                        <text
+                            v-for="(pt, idx) in labeledIndices"
+                            :key="'l'+idx"
+                            :x="pointX(pt.idx)"
+                            y="180"
+                            text-anchor="middle"
+                            class="fill-gray-400"
+                            font-size="8"
+                        >{{ pt.label }}</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Lead Sources Pie Chart -->
+            <div class="rounded-xl border bg-card p-5 shadow-sm">
+                <div class="mb-4 flex items-center gap-2">
+                    <MapPin class="h-4 w-4 text-muted-foreground" />
+                    <h3 class="text-sm font-semibold">Lead Sources</h3>
+                </div>
+                <div class="flex flex-col items-center gap-4">
+                    <svg viewBox="0 0 120 120" class="h-32 w-32">
+                        <circle cx="60" cy="60" r="50" fill="none" stroke="#f3f4f6" stroke-width="20" />
+                        <circle
+                            v-for="(slice, idx) in pieSlices"
+                            :key="idx"
+                            cx="60" cy="60" r="50"
+                            fill="none"
+                            :stroke="sourceColors[idx % sourceColors.length]"
+                            stroke-width="20"
+                            :stroke-dasharray="slice.dashArray"
+                            :stroke-dashoffset="slice.dashOffset"
+                            transform="rotate(-90, 60, 60)"
+                            class="transition-all duration-500"
+                        />
+                    </svg>
+                    <div class="flex flex-wrap justify-center gap-2">
+                        <div v-for="(count, src, idx) in leadSources" :key="src" class="flex items-center gap-1 text-xs">
+                            <span class="inline-block h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: sourceColors[idx % sourceColors.length] }"></span>
+                            <span class="text-gray-500">{{ src === 'unknown' ? 'Other' : src }}</span>
+                            <span class="font-medium text-gray-800">{{ count }}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
