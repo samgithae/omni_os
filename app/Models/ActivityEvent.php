@@ -33,6 +33,11 @@ class ActivityEvent extends Model
         return $this->belongsTo(Brand::class);
     }
 
+    public function comments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ActivityEventComment::class)->orderBy('created_at');
+    }
+
     public function scopeForBrand(Builder $query, ?int $brandId): Builder
     {
         if ($brandId === null) {

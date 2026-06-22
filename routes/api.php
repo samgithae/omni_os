@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\SuppressionController;
 use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\ActivityEventController;
+use App\Http\Controllers\Api\ActivityEventCommentController;
+use App\Http\Controllers\Api\InstructionController;
 use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\ReplyController;
 use App\Http\Controllers\Api\EmailMessageApiController;
@@ -56,4 +58,11 @@ Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
     Route::get('email-messages/needs-content', [EmailMessageApiController::class, 'needsContent']);
     Route::patch('email-messages/{emailMessage}/content', [EmailMessageApiController::class, 'updateContent']);
 
+    // Activity event comments — Hermes/Agent reads and replies
+    Route::get('events/{event}/comments', [ActivityEventCommentController::class, 'index']);
+    Route::post('events/{event}/comments', [ActivityEventCommentController::class, 'store']);
+
+    // Instruction queue — Hermes polls before a run
+    Route::get('instructions', [InstructionController::class, 'index']);
+    Route::patch('instructions/{comment}', [InstructionController::class, 'update']);
 });

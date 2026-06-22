@@ -49,6 +49,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/activity', [ActivityController::class, 'index'])->name('activity.index');
     Route::get('/activity/poll', [ActivityController::class, 'poll'])->name('activity.poll');
     Route::get('/activity/load-more', [ActivityController::class, 'loadMore'])->name('activity.load-more');
+    Route::post('/activity/{event}/comments', [ActivityController::class, 'storeComment'])->name('activity.store-comment');
 });
 
 require __DIR__.'/settings.php';
