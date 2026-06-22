@@ -314,17 +314,26 @@ const pieSlices = computed(() => {
                                 <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
                             </linearGradient>
                         </defs>
-                        <!-- Dots -->
-                        <circle
-                            v-for="(pt, idx) in leadsOverTime"
-                            :key="'d'+idx"
-                            :cx="pointX(idx)"
-                            :cy="pointY(pt.count)"
-                            r="2.5"
-                            fill="#3b82f6"
-                            class="hover:r-4"
-                        />
-                        <!-- Labels (show some) -->
+                        <!-- Dots with count labels -->
+                        <g v-for="(pt, idx) in labeledIndices" :key="'dp'+idx">
+                            <circle
+                                :cx="pointX(pt.idx)"
+                                :cy="pointY(leadsOverTime[pt.idx].count)"
+                                r="3"
+                                fill="#3b82f6"
+                                stroke="white"
+                                stroke-width="1.5"
+                            />
+                            <text
+                                :x="pointX(pt.idx)"
+                                :y="pointY(leadsOverTime[pt.idx].count) - 8"
+                                text-anchor="middle"
+                                fill="#1f2937"
+                                font-size="9"
+                                font-weight="600"
+                            >{{ leadsOverTime[pt.idx].count }}</text>
+                        </g>
+                        <!-- Date labels (show some) -->
                         <text
                             v-for="(pt, idx) in labeledIndices"
                             :key="'l'+idx"
