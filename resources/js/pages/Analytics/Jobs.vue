@@ -88,8 +88,10 @@ async function runJob(job: Job) {
         const data = await res.json()
         if (data.success) {
             runResult.value = `✅ Completed in ${formatDuration(data.duration_ms)}`
+        } else if (data.error) {
+            runResult.value = `❌ ${data.error}`
         } else {
-            runResult.value = `❌ Failed (exit code: ${data.exit_code})`
+            runResult.value = `❌ Failed (exit code: ${data.exit_code ?? '?'})`
         }
         // Refresh the page to update stats
         setTimeout(() => window.location.reload(), 1500)
