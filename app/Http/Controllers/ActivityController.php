@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ActivityEvent;
 use App\Models\ActivityEventComment;
 use App\Models\Brand;
+use App\Jobs\RespondToComment;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -60,6 +61,9 @@ class ActivityController extends Controller
             'is_instruction' => $isInstruction,
             'instruction_status' => $isInstruction ? 'pending' : null,
         ]);
+
+        // Dispatch Hermes response job (runs in queue, posts back as Hermes)
+        RespondToComment::dispatch($event, $comment);
 
         // Log to activity feed if it's an instruction
         if ($isInstruction) {
