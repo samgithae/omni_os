@@ -69,13 +69,13 @@ class CommentResponseService
         $failed = $meta['failed'] ?? $meta['failed_count'] ?? 0;
         $brandName = $event->brand?->name ?? 'this brand';
 
-        // Fetch the actual email records from this batch
-        $emails = EmailMessage::query()
-            ->where('brand_id', $event->brand_id)
-            ->whereNotNull('sent_at')
-            ->latest('sent_at')
-            ->limit(20)
-            ->get();
+        // Fetch the actual email records — brand_id may be null on the event
+        $emailQuery = EmailMessage::query()->whereNotNull('sent_at')->latest('sent_at')->limit(20);
+        if ($event->brand_id) {
+            $emailQuery->where('brand_id', $event->brand_id);
+        }
+
+        $emails = $emailQuery->get();
 
         $sentEmails = $emails->where('status', 'sent');
         $failedEmails = $emails->where('status', 'failed');
