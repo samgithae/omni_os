@@ -3,17 +3,14 @@
 namespace App\Listeners;
 
 use App\Models\CronJobRun;
+use App\Services\ActivityLogger;
 use Illuminate\Console\Events\ScheduledTaskFinished;
 use Illuminate\Console\Events\ScheduledTaskStarting;
-use Illuminate\Support\Facades\Log;
 
 class TrackCronJobRuns
 {
     private static array $running = [];
 
-    /**
-     * Handle the event.
-     */
     public function handle(object $event): void
     {
         if ($event instanceof ScheduledTaskStarting) {
@@ -23,29 +20,15 @@ class TrackCronJobRuns
         }
     }
 
-    public function subscribe(\Illuminate\Events\Dispatcher $events): void
-    {
-        $events->listen(
-            ScheduledTaskStarting::class,
-            [self::class, 'handleStarting']
-        );
-
-        $events->listen(
-            ScheduledTaskFinished::class,
-            [self::class, 'handleFinished']
-        );
-    }
-
     public function handleStarting(ScheduledTaskStarting $event): void
     {
         $task = $event->task;
-
         $jobName = $this->resolveJobName($task);
 
         $run = CronJobRun::create([
             'job_name' => $jobName,
             'command' => $task->command ?? $task->description,
-            'description' => $this->resolveDescription($task, $jobName),
+            'description' => $task->description ?? $jobName,
             'schedule' => $task->expression,
             'status' => 'running',
             'started_at' => now(),
@@ -70,21 +53,60 @@ class TrackCronJobRuns
         }
 
         $success = $event->task->exitCode === 0;
+        $durationMs = (int) ($event->elapsed * 1000);
 
         $run->update([
             'status' => $success ? 'success' : 'failed',
             'exit_code' => $event->task->exitCode,
-            'duration_ms' => (int) ($event->elapsed * 1000),
+            'duration_ms' => $durationMs,
             'finished_at' => now(),
         ]);
 
         unset(self::$running[$jobName]);
+
+        // Report to Activity Feed in human-readable format
+        $this->logToActivityFeed($run, $success, $durationMs, $task->description ?? $jobName);
+    }
+
+    private function logToActivityFeed(CronJobRun $run, bool $success, int $durationMs, string $description): void
+    {
+        $duration = $durationMs < 1000
+            ? $durationMs . 'ms'
+            : number_format($durationMs / 1000, 1) . 's';
+
+        $emoji = $success ? '✅' : '❌';
+        $title = "{$emoji} {$run->job_name} — " . ($success ? 'completed' : 'failed');
+
+        if ($description) {
+            $title .= ': ' . $description;
+        }
+
+        $body = $success
+            ? "Ran successfully in {$duration}."
+            : "Failed with exit code {$run->exit_code} after {$duration}.";
+
+        app(ActivityLogger::class)->log([
+            'brand_id' => null,
+            'source' => 'scheduler.' . $run->job_name,
+            'event_type' => $success ? 'system' : 'system',
+            'title' => $title,
+            'body' => $body,
+            'metadata' => [
+                'job_name' => $run->job_name,
+                'command' => $run->command,
+                'status' => $run->status,
+                'exit_code' => $run->exit_code,
+                'duration_ms' => $durationMs,
+                'started_at' => $run->started_at?->toIso8601String(),
+                'description' => $description,
+            ],
+            'severity' => $success ? 'info' : 'error',
+        ]);
     }
 
     private function resolveJobName($task): string
     {
         if ($task->command) {
-            // Extract the command name from the full command string
             $parts = explode(' ', $task->command);
             foreach ($parts as $part) {
                 if (str_contains($part, 'artisan')) continue;
@@ -100,26 +122,5 @@ class TrackCronJobRuns
         }
 
         return 'unknown';
-    }
-
-    private function resolveDescription($task, string $jobName): string
-    {
-        // Known job descriptions
-        $descriptions = [
-            'queue:prune-failed' => 'Clean up old failed queue jobs',
-            'emails:send-batch' => 'Send approved/queued emails via SMTP2GO with safe-send discipline',
-            'emails:notify-telegram' => 'Send pending email approval requests to Telegram',
-            'ProcessSequenceProgressions' => 'Progress email sequences: schedule next steps for leads',
-            'telegram:poll-approvals' => 'Poll Telegram for approval replies and process them',
-            'activity:daily-brief' => 'Generate daily brief and post to Activity Feed',
-            'leads:score' => 'Recalculate lead scores based on segment, data completeness, email confidence, and engagement',
-            'winloss:generate' => 'Generate win-loss report from reply outcomes and pipeline metrics',
-            'inbox:poll' => 'Poll IMAP inbox for incoming replies and create Reply records',
-        ];
-
-        return $descriptions[$jobName]
-            ?? $task->description
-            ?? $task->command
-            ?? $jobName;
     }
 }

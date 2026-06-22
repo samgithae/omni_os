@@ -18,52 +18,62 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withSchedule(function (Schedule $schedule): void {
         // Keep queue housekeeping running once cron is installed on Linux.
-        $schedule->command('queue:prune-failed --hours=336')->dailyAt('02:30');
+        $schedule->command('queue:prune-failed --hours=336')
+            ->dailyAt('02:30')
+            ->description('Clean up failed queue jobs older than 14 days');
 
         // Send approved/queued emails — every 15 minutes during business hours.
         $schedule->command('emails:send-batch --limit=20')
             ->everyFifteenMinutes()
             ->withoutOverlapping(5)
+            ->description('Send approved emails via SMTP2GO with safe-send (business hours only)')
             ->appendOutputTo(storage_path('logs/email-send.log'));
 
         // Notify Telegram of pending approvals — every 30 minutes
         $schedule->command('emails:notify-telegram --limit=15')
             ->everyThirtyMinutes()
             ->withoutOverlapping(10)
+            ->description('Send pending email approval requests to Telegram with content preview')
             ->appendOutputTo(storage_path('logs/telegram-approval.log'));
 
         // Sequence progression — daily at 5 AM (before approval batch)
         $schedule->job(new \App\Jobs\ProcessSequenceProgressions)
             ->dailyAt('05:00')
             ->withoutOverlapping(60)
+            ->description('Progress email sequences: schedule next steps for leads (weekdays only)')
             ->appendOutputTo(storage_path('logs/sequence-progression.log'));
 
-        // Poll Telegram for approval replies — every minute (limited by cron frequency)
+        // Poll Telegram for approval replies — every minute
         $schedule->command('telegram:poll-approvals')
             ->everyMinute()
             ->withoutOverlapping(2)
+            ->description('Poll Telegram for approval replies (text commands + inline callbacks)')
             ->appendOutputTo(storage_path('logs/telegram-poll.log'));
 
         // Daily brief — posted to Activity Feed at 7 AM
         $schedule->command('activity:daily-brief')
             ->dailyAt('07:00')
+            ->description('Generate daily system overview brief with funnel metrics')
             ->appendOutputTo(storage_path('logs/daily-brief.log'));
 
-        // Recalculate lead scores — daily at 3 AM (after backup, before daily brief)
+        // Recalculate lead scores — daily at 3 AM
         $schedule->command('leads:score')
             ->dailyAt('03:00')
             ->withoutOverlapping(30)
+            ->description('Recalculate lead scores (segment, completeness, engagement, email confidence)')
             ->appendOutputTo(storage_path('logs/lead-scoring.log'));
 
-        // Win-loss report — weekly on Mondays at 6 AM (before daily brief)
+        // Win-loss report — weekly on Mondays at 6 AM
         $schedule->command('winloss:generate')
             ->weeklyOn(1, '06:00')
+            ->description('Generate win-loss report from reply outcomes and pipeline metrics')
             ->appendOutputTo(storage_path('logs/winloss.log'));
 
-        // Poll IMAP inbox for replies — every 10 minutes during business hours
+        // Poll IMAP inbox for replies — every 10 minutes
         $schedule->command('inbox:poll --days=3 --limit=30')
             ->everyTenMinutes()
             ->withoutOverlapping(5)
+            ->description('Poll IMAP inbox for lead replies and create Reply records')
             ->appendOutputTo(storage_path('logs/inbox-poll.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
