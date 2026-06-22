@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\BrandSettingsController;
 use App\Http\Controllers\EmailSequenceController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\LeadController;
@@ -23,6 +24,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/inbox', [InboxController::class, 'index'])->name('inbox.index');
     Route::get('/inbox/conversation/{lead}', [InboxController::class, 'conversation'])->name('inbox.conversation');
     Route::post('/inbox/{lead}/reply', [InboxController::class, 'reply'])->name('inbox.reply');
+
+    // Brand settings — Vue settings page
+    Route::get('/brands/{brand:slug}/settings', [BrandSettingsController::class, 'edit'])->name('brands.settings');
+    Route::put('/brands/{brand:slug}/settings', [BrandSettingsController::class, 'update'])->name('brands.settings.update');
 
     // Email sequences — the operator's primary workspace
     Route::get('/email-sequences', [EmailSequenceController::class, 'index'])

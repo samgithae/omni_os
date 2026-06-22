@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Building2, Users, Ban, MapPin, LayoutGrid, FolderGit2, Mail, Activity, Clock, BarChart3, Inbox } from '@lucide/vue';
+import { BookOpen, Building2, Users, Ban, MapPin, LayoutGrid, FolderGit2, Mail, Activity, Clock, BarChart3, Inbox, Settings } from '@lucide/vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -52,7 +52,7 @@ const navGroups: NavGroup[] = [
     {
         label: 'Configuration',
         items: [
-            { title: 'Brands', href: '/admin/brands', icon: Building2 },
+            { title: 'Brand Settings', href: '/brands/ujuziplus/settings', icon: Settings },
         ],
     },
     {

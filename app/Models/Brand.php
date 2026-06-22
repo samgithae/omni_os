@@ -34,6 +34,7 @@ class Brand extends Model
         'is_active',
         'sender_emails',
         'sender_name',
+        'settings',
     ];
 
     protected function casts(): array
@@ -41,6 +42,7 @@ class Brand extends Model
         return [
             'is_active' => 'boolean',
             'sender_emails' => 'array',
+            'settings' => 'array',
         ];
     }
 
