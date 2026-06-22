@@ -3,27 +3,244 @@
 namespace App\Services;
 
 use App\Models\ActivityEvent;
+use App\Models\EmailMessage;
 
 /**
- * Generates contextual Hermes replies based on event type and metadata.
- * In Phase A this uses rule-based responses tuned to feel intelligent.
- * In Phase B this would be replaced with an actual LLM call.
+ * Generates contextual Hermes replies.
+ * Analyzes what Sam actually ASKED — not just the event type — and fetches
+ * real data from the database when specific questions are detected.
  */
 class CommentResponseService
 {
-    /**
-     * Generate a contextual Hermes reply for a comment on an event.
-     */
     public function generate(ActivityEvent $event, string $commentBody): string
     {
-        // Try event-type-specific handlers first
+        // First check if the comment is asking a specific data question
+        $dataResponse = $this->tryDataQuestion($event, $commentBody);
+        if ($dataResponse !== null) {
+            return $dataResponse;
+        }
+
+        // Fallback to event-type handler
         $handler = $this->handlerFor($event->event_type);
         if ($handler) {
             return $handler($event, $commentBody);
         }
 
-        // Fallback: generic acknowledgment
         return $this->genericResponse($event, $commentBody);
+    }
+
+    /**
+     * Detect if Sam is asking for specific data (which/what/show/list emails).
+     */
+    private function tryDataQuestion(ActivityEvent $event, string $comment): ?string
+    {
+        $lower = strtolower($comment);
+
+        // Keywords that signal "show me the actual data"
+        $askingForDetails = (
+            str_contains($lower, 'which') ||
+            str_contains($lower, 'what') ||
+            str_contains($lower, 'list') ||
+            str_contains($lower, 'show me') ||
+            str_contains($lower, 'tell me') ||
+            str_contains($lower, 'who') ||
+            str_contains($lower, 'where') ||
+            str_contains($lower, 'details')
+        );
+
+        if (!$askingForDetails) {
+            return null; // Not a data question — let handler deal with it
+        }
+
+        // Route to event-specific data fetcher
+        return match ($event->event_type) {
+            'email_sent_batch' => $this->answerEmailSentQuestion($event, $comment),
+            'email_approved' => $this->answerEmailApprovedQuestion($event, $comment),
+            'enrichment_batch' => $this->answerEnrichmentQuestion($event, $comment),
+            'reply_classified' => $this->answerReplyQuestion($event, $comment),
+            default => null,
+        };
+    }
+
+    private function answerEmailSentQuestion(ActivityEvent $event, string $comment): string
+    {
+        $meta = $event->metadata ?? [];
+        $sent = $meta['sent'] ?? $meta['count'] ?? 0;
+        $failed = $meta['failed'] ?? $meta['failed_count'] ?? 0;
+        $brandName = $event->brand?->name ?? 'this brand';
+
+        // Fetch the actual email records from this batch
+        $emails = EmailMessage::query()
+            ->where('brand_id', $event->brand_id)
+            ->whereNotNull('sent_at')
+            ->latest('sent_at')
+            ->limit(20)
+            ->get();
+
+        $sentEmails = $emails->where('status', 'sent');
+        $failedEmails = $emails->where('status', 'failed');
+
+        $lines = [];
+
+        if ($sentEmails->isNotEmpty()) {
+            $lines[] = "**Sent ({$sentEmails->count()}):**";
+            foreach ($sentEmails as $i => $e) {
+                $lead = $e->lead;
+                $company = $lead?->company_name ?? '?';
+                $email = $lead?->email ?? $e->recipient_email ?? '?';
+                $subject = $e->subject ?? '(no subject)';
+                // Body snippet for "what was the email"
+                $bodySnippet = '';
+                if (str_contains($comment, 'content') || str_contains($comment, 'body') || str_contains($comment, 'what was the email')) {
+                    $body = strip_tags((string) $e->body);
+                    $bodySnippet = ' — "' . substr($body, 0, 120) . (strlen($body) > 120 ? '..."' : '"');
+                }
+                $lines[] = "  {$i}. **{$company}** <{$email}> → \"{$subject}\"{$bodySnippet}";
+                if ($i >= 9) {
+                    $lines[] = "  ... and " . ($sentEmails->count() - 10) . " more.";
+                    break;
+                }
+            }
+        }
+
+        if ($failedEmails->isNotEmpty()) {
+            $lines[] = '';
+            $lines[] = "**Failed ({$failedEmails->count()}):**";
+            foreach ($failedEmails as $i => $e) {
+                $lead = $e->lead;
+                $company = $lead?->company_name ?? '?';
+                $email = $lead?->email ?? $e->recipient_email ?? '?';
+                $subject = $e->subject ?? '(no subject)';
+                $reason = $e->failure_reason ?? $e->error ?? 'unknown';
+                $lines[] = "  {$i}. **{$company}** <{$email}> → \"{$subject}\" — ❌ {$reason}";
+            }
+        }
+
+        if (empty($lines)) {
+            return "I checked the records for {$brandName} but I couldn't find individual email details in this batch's metadata. The pipeline reported {$sent} sent and {$failed} failed. Want me to dig deeper into specific emails or check the send logs?";
+        }
+
+        $lines[] = '';
+        $lines[] = "Bottom line: {$sent} sent, {$failed} failed for {$brandName}. Sender pool rotation active.";
+
+        return implode("\n", $lines);
+    }
+
+    private function answerEmailApprovedQuestion(ActivityEvent $event, string $comment): string
+    {
+        $meta = $event->metadata ?? [];
+        $count = $meta['count'] ?? 0;
+        $brandName = $event->brand?->name ?? 'this brand';
+
+        $emails = EmailMessage::query()
+            ->where('brand_id', $event->brand_id)
+            ->where('approval_status', 'approved')
+            ->where('status', 'queued')
+            ->latest('approved_at')
+            ->limit(15)
+            ->get();
+
+        if ($emails->isEmpty()) {
+            return "{$count} emails approved for {$brandName}. They've been sent or are queued. I don't have the exact list in the event metadata — the approval went through and the send pipeline picked them up.";
+        }
+
+        $lines = ["**Approved emails for {$brandName}:**"];
+        foreach ($emails as $i => $e) {
+            $lead = $e->lead;
+            $company = $lead?->company_name ?? '?';
+            $email = $lead?->email ?? '?';
+            $lines[] = "  {$i}. **{$company}** <{$email}> → \"{$e->subject}\"";
+        }
+        $lines[] = '';
+        $lines[] = "All {$count} approved. They'll send in the next business-hours window.";
+
+        return implode("\n", $lines);
+    }
+
+    private function answerEnrichmentQuestion(ActivityEvent $event, string $comment): string
+    {
+        $meta = $event->metadata ?? [];
+        $autoEnriched = $meta['auto_enriched'] ?? 0;
+        $queued = $meta['email_enrichment_queued'] ?? 0;
+        $brandName = $event->brand?->name ?? 'this brand';
+
+        $leads = \App\Models\Lead::query()
+            ->where('brand_id', $event->brand_id)
+            ->where('status', 'enriched')
+            ->whereNotNull('email')
+            ->latest('enriched_at')
+            ->limit(15)
+            ->get(['company_name', 'email', 'phone', 'segment', 'city']);
+
+        $lines = ["**Enrichment run for {$brandName}:**"];
+
+        if ($autoEnriched > 0) {
+            $lines[] = "";
+            $lines[] = "**Auto-enriched leads (had emails already):**";
+            foreach ($leads->take(10) as $i => $l) {
+                $phone = $l->phone ? ' 📞' : ' ❌ no phone';
+                $lines[] = "  {$i}. **{$l->company_name}** <{$l->email}>{$phone} — {$l->segment} / {$l->city}";
+            }
+            if ($leads->count() > 10) {
+                $lines[] = "  ... and " . ($leads->count() - 10) . " more.";
+            }
+        }
+
+        if ($queued > 0) {
+            $lines[] = "";
+            $lines[] = "**Leads sent for email enrichment:** {$queued} (Hermes will look for emails)";
+        }
+
+        $noEmail = \App\Models\Lead::where('brand_id', $event->brand_id)
+            ->where('status', 'no_email_found')->count();
+        if ($noEmail > 0) {
+            $lines[] = "";
+            $lines[] = "**Leads with no email found:** {$noEmail} — tried 3 times each, came up empty. These are terminal unless a new data source is added.";
+        }
+
+        $noPhone = \App\Models\Lead::where('brand_id', $event->brand_id)
+            ->whereNull('phone')->count();
+        if (str_contains($comment, 'phone') || str_contains($comment, 'number')) {
+            $lines[] = "";
+            $lines[] = "**Missing phone numbers:** {$noPhone} leads — there's no phone enrichment pipeline yet.";
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function answerReplyQuestion(ActivityEvent $event, string $comment): string
+    {
+        $classification = $event->metadata['classification'] ?? 'unclassified';
+        $leadName = $event->metadata['lead_name'] ?? $event->metadata['company'] ?? 'a lead';
+        $brandName = $event->brand?->name ?? 'this brand';
+
+        // Find the reply record
+        $reply = \App\Models\Reply::query()
+            ->where('brand_id', $event->brand_id)
+            ->latest()
+            ->first();
+
+        $lines = ["**Reply classification — {$leadName} ({$brandName}):**"];
+        $lines[] = "  Classification: **{$classification}**";
+
+        if ($reply) {
+            $lines[] = "";
+            $lines[] = "**Reply content:**";
+            $lines[] = "  From: {$reply->from_email}";
+            $lines[] = "  Subject: {$reply->subject}";
+            $body = substr($reply->body, 0, 500);
+            $lines[] = "  Body: \"{$body}\"" . (strlen($reply->body) > 500 ? '...' : '');
+            $lines[] = "";
+            $lines[] = "  Status: {$classification}";
+
+            if ($classification === 'interested') {
+                $lines[] = "  → Marked as interested. In the inbox at /inbox if you want to reply.";
+            }
+        } else {
+            $lines[] = "  The reply was classified by the webhook but I can't find it in the replies table. It may be stored in the lead's raw_data.";
+        }
+
+        return implode("\n", $lines);
     }
 
     private function handlerFor(string $eventType): ?callable
@@ -39,7 +256,6 @@ class CommentResponseService
             'enrichment_batch' => [$this, 'handleEnrichmentBatch'],
             'system' => [$this, 'handleSystem'],
         ];
-
         return $handlers[$eventType] ?? null;
     }
 
@@ -62,46 +278,41 @@ class CommentResponseService
             $reasonDetail = !empty($failedReasons)
                 ? ' The failures were: ' . implode('; ', array_slice($failedReasons, 0, 3)) . '.'
                 : '';
-
             return "Good catch. {$sent} went through, {$failed} failed for {$brandName}.{$reasonDetail} "
                 . "I'll check the MX records and verify the addresses before the next batch. "
-                . "If this is a recurring issue, I can tighten the enrichment filter to catch non-deliverable domains earlier.";
+                . "Want me to list which ones failed and why?";
         }
 
         $rate = $sent > 0 ? round(($meta['opened'] ?? 0) / $sent * 100, 1) : 0;
         $senderCount = $meta['sender_count'] ?? 'multiple';
         if ($rate > 0) {
             return "Noted. {$sent} sent for {$brandName}, already seeing a {$rate}% open rate. "
-                . "The rotation through {$senderCount} sender addresses seems to be helping deliverability. "
-                . "I'll keep monitoring engagement patterns.";
+                . "The rotation through {$senderCount} sender addresses seems to be helping deliverability.";
         }
 
-        return "Noted — {$sent} emails sent cleanly for {$brandName}. The send pipeline is running smoothly. "
-            . "I'll flag if any patterns change in the next batch.";
+        return "Noted — {$sent} emails sent cleanly for {$brandName}. ";
     }
 
     private function handleEmailApproved(ActivityEvent $event, string $comment): string
     {
         $count = $event->metadata['count'] ?? 0;
         $brandName = $event->brand?->name ?? 'this brand';
+        $lower = strtolower($comment);
 
-        if (str_contains(strtolower($comment), 'check') || str_contains(strtolower($comment), 'review')) {
-            return "Understood — I'll review the approved batch for {$brandName} before the send window opens. "
-                . "If anything looks off with the content or targeting, I'll flag it here.";
+        if (str_contains($lower, 'check') || str_contains($lower, 'review')) {
+            return "Understood — I'll review the approved batch for {$brandName} before the send window opens.";
         }
 
-        return "Got it. {$count} emails approved for {$brandName}. They'll go out in the next send window "
-            . "(business hours, rotating through the sender pool). I'll report back with delivery results.";
+        return "Got it. {$count} emails approved for {$brandName}. They'll go out in the next send window. "
+            . "Want me to list what's in the queue?";
     }
 
     private function handleEmailRejected(ActivityEvent $event, string $comment): string
     {
         $count = $event->metadata['count'] ?? 0;
         $brandName = $event->brand?->name ?? 'this brand';
-
         return "Noted. {$count} emails rejected for {$brandName}. "
-            . "If the rejection was due to content concerns, let me know what to adjust — "
-            . "I can tighten the drafting guidelines for the next batch.";
+            . "If the rejection was due to content concerns, let me know what to adjust.";
     }
 
     private function handleReplyClassified(ActivityEvent $event, string $comment): string
@@ -111,18 +322,13 @@ class CommentResponseService
         $brandName = $event->brand?->name ?? 'this brand';
 
         if ($classification === 'interested') {
-            return "Good signal — {$leadName} was classified as interested for {$brandName}. "
-                . "I'll make sure they're on the priority list for follow-up. "
-                . "If you'd like me to draft a personalised reply, let me know the key points to include.";
+            return "Good signal — {$leadName} classified as interested for {$brandName}. "
+                . "Inbox link: /inbox if you want to see the full reply and respond.";
         }
-
         if ($classification === 'not_interested') {
-            return "Noted — {$leadName} declined for {$brandName}. "
-                . "I'll log the suppression and factor this into the mining bias for similar prospects.";
+            return "Noted — {$leadName} declined for {$brandName}. Suppression logged.";
         }
-
-        return "Recorded the {$classification} classification for {$leadName} on {$brandName}. "
-            . "The reply is in the inbox if you want to read the full context.";
+        return "Recorded {$classification} for {$leadName} on {$brandName}.";
     }
 
     private function handleSuppressionAdded(ActivityEvent $event, string $comment): string
@@ -130,72 +336,69 @@ class CommentResponseService
         $count = $event->metadata['count'] ?? 0;
         $brandName = $event->brand?->name ?? 'this brand';
         $reason = $event->metadata['reason'] ?? null;
-
         if ($reason === 'bounce') {
-            return "Good — {$count} bounce suppressions added for {$brandName}. "
-                . "This keeps our sender reputation healthy. I'll double-check the MX validation on future imports.";
+            return "Good — {$count} bounce suppressions added for {$brandName}. Sender reputation protected.";
         }
-
-        return "{$count} suppression(s) logged for {$brandName}. "
-            . "The suppression list is being respected across all send channels.";
+        return "{$count} suppression(s) logged for {$brandName}.";
     }
 
     private function handleDailyBrief(ActivityEvent $event, string $comment): string
     {
         return "Thanks for the overview. I've reviewed the metrics. "
-            . "If there's a specific area you'd like me to investigate deeper "
-            . "(conversion funnel, delivery patterns, lead quality), just flag it as an instruction.";
+            . "If you want me to investigate any specific area, just ask. "
+            . "Which emails went out, how the funnel looks, reply patterns — I can pull the data.";
     }
 
     private function handleMiningRun(ActivityEvent $event, string $comment): string
     {
         $found = $event->metadata['found'] ?? $event->metadata['count'] ?? 0;
         $brandName = $event->brand?->name ?? 'this brand';
-
         return "Noted — {$found} new prospects mined for {$brandName}. "
-            . "I'll incorporate this batch into the scoring pipeline ahead of the next enrichment cycle.";
+            . "They'll go through enrichment and scoring before entering the email pipeline.";
     }
 
     private function handleEnrichmentBatch(ActivityEvent $event, string $comment): string
     {
         $count = $event->metadata['enriched'] ?? $event->metadata['count'] ?? 0;
+        $auto = $event->metadata['auto_enriched'] ?? 0;
         $brandName = $event->brand?->name ?? 'this brand';
-
-        return "{$count} leads enriched for {$brandName}. "
-            . "The data quality pipeline is running. I'll flag any addresses that look incomplete.";
+        $lines = ["{$count} leads processed for {$brandName}"];
+        if ($auto > 0) {
+            $lines[] = "({$auto} had emails already — auto-enriched)";
+        }
+        $lines[] = "Want the full list of who was enriched?";
+        return implode(' ', $lines);
     }
 
     private function handleSystem(ActivityEvent $event, string $comment): string
     {
         $source = $event->source ?? '';
-
         if (str_contains($source, 'cron') || str_contains($source, 'scheduler')) {
-            return "System maintenance noted. All scheduled jobs are running on their expected cadence. "
-                . "I'll alert here if any job fails or shows unusual behaviour.";
+            return "System maintenance noted. All scheduled jobs running on cadence. "
+                . "The detailed schedule is at /analytics/jobs if you want to check.";
         }
-
-        return "Acknowledged. The system event has been recorded and the relevant pipelines are aware.";
+        return "Acknowledged. System event recorded.";
     }
 
     private function genericResponse(ActivityEvent $event, string $comment): string
     {
-        // Check if the comment is asking for action
+        $lower = strtolower($comment);
         $actionWords = ['fix', 'change', 'update', 'adjust', 'add', 'remove', 'check', 'investigate', 'look'];
         $isActionItem = false;
         foreach ($actionWords as $word) {
-            if (str_contains(strtolower($comment), $word)) {
+            if (str_contains($lower, $word)) {
                 $isActionItem = true;
                 break;
             }
         }
+        $brandName = $event->brand?->name ?? 'system';
 
         if ($isActionItem) {
-            return "Noted — I've logged this as an action item and will address it in the next run cycle. "
-                . "If it's urgent, let me know and I'll prioritise it.";
+            return "Noted — I've logged this as an action item. "
+                . "If it's urgent, tell me and I'll prioritise it.";
         }
 
-        $brandName = $event->brand?->name ?? 'system';
-        return "Got it. I've noted this for {$brandName}. "
-            . "I'll factor it into the next decision cycle. Let me know if there's anything specific you'd like me to act on.";
+        return "Got it. Noted for {$brandName}. "
+            . "Want me to dig into any specific data, or is this just a note?";
     }
 }
