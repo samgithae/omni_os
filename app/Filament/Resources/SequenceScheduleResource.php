@@ -19,7 +19,7 @@ class SequenceScheduleResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-clock';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Email';
+    protected static \UnitEnum|string|null $navigationGroup = 'Email';
 
     protected static ?int $navigationSort = 3;
 
