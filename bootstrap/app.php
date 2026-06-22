@@ -75,6 +75,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(5)
             ->description('Poll IMAP inbox for lead replies and create Reply records')
             ->appendOutputTo(storage_path('logs/inbox-poll.log'));
+
+        // Clean up orphaned cron job run records — every 30 minutes
+        $schedule->command('cron:cleanup-runs --older-than=30')
+            ->everyThirtyMinutes()
+            ->description('Mark stuck running cron job records as failed');
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);

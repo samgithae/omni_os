@@ -92,5 +92,13 @@ return [
             'schedule_label' => 'Every 10 minutes',
             'group' => 'messaging',
         ],
+        [
+            'name' => 'cron:cleanup-runs',
+            'command' => 'cron:cleanup-runs --older-than=30',
+            'description' => 'Mark stuck running cron job records as failed (older than 30 min)',
+            'schedule' => '*/30 * * * *',
+            'schedule_label' => 'Every 30 minutes',
+            'group' => 'system',
+        ],
     ],
 ];

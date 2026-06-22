@@ -9,6 +9,7 @@ use Illuminate\Console\Events\ScheduledTaskStarting;
 
 class TrackCronJobRuns
 {
+    /** @var array<string, int[]> Stack of run IDs per job (supports overlapping runs) */
     private static array $running = [];
 
     public function handle(object $event): void
@@ -34,7 +35,8 @@ class TrackCronJobRuns
             'started_at' => now(),
         ]);
 
-        self::$running[$jobName] = $run->id;
+        // Use array so overlapping runs don't overwrite each other
+        self::$running[$jobName][] = $run->id;
     }
 
     public function handleFinished(ScheduledTaskFinished $event): void
@@ -42,10 +44,14 @@ class TrackCronJobRuns
         $task = $event->task;
         $jobName = $this->resolveJobName($task);
 
-        $runId = self::$running[$jobName] ?? null;
-        if (!$runId) {
+        $runIds = self::$running[$jobName] ?? [];
+        if (empty($runIds)) {
             return;
         }
+
+        // Pop the oldest run for this job (FIFO)
+        $runId = array_shift($runIds);
+        self::$running[$jobName] = $runIds;
 
         $run = CronJobRun::find($runId);
         if (!$run) {

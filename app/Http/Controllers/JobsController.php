@@ -51,12 +51,14 @@ class JobsController extends Controller
             ];
         }
 
-        // Overall stats
+        // Overall stats — only count completed runs (exclude 'running')
+        $completedRuns = CronJobRun::whereIn('status', ['success', 'failed'])->count();
         $totalRunsAll = CronJobRun::count();
         $successAll = CronJobRun::successful()->count();
         $failedAll = CronJobRun::failed()->count();
-        $overallHealth = $totalRunsAll > 0
-            ? round(($successAll / $totalRunsAll) * 100, 1)
+        $runningCount = CronJobRun::where('status', 'running')->count();
+        $overallHealth = $completedRuns > 0
+            ? round(($successAll / $completedRuns) * 100, 1)
             : 100;
 
         return Inertia::render('Analytics/Jobs', [
