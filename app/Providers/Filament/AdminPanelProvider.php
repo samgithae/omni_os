@@ -52,12 +52,12 @@ class AdminPanelProvider extends PanelProvider
                     ->sort(0),
                 NavigationItem::make('Email Sequences')
                     ->url('/email-sequences', shouldOpenInNewTab: false)
-                    ->icon('heroicon-o-mail')
+                    ->icon('heroicon-o-envelope')
                     ->group('Email')
                     ->sort(1),
                 NavigationItem::make('Activity Feed')
                     ->url('/activity', shouldOpenInNewTab: false)
-                    ->icon('heroicon-o-clock')
+                    ->icon('heroicon-o-arrow-trending-up')
                     ->group('Analytics')
                     ->sort(1),
             ])
