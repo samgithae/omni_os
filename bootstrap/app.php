@@ -59,6 +59,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('winloss:generate')
             ->weeklyOn(1, '06:00')
             ->appendOutputTo(storage_path('logs/winloss.log'));
+
+        // Poll IMAP inbox for replies — every 10 minutes during business hours
+        $schedule->command('inbox:poll --days=3 --limit=30')
+            ->everyTenMinutes()
+            ->withoutOverlapping(5)
+            ->appendOutputTo(storage_path('logs/inbox-poll.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);

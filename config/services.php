@@ -75,4 +75,11 @@ return [
         'send_end_hour' => (int) env('SEND_END_HOUR', 18),
     ],
 
+    'imap' => [
+        'host' => env('IMAP_HOST', 'mail.ujuziplus.com'),
+        'port' => (int) env('IMAP_PORT', 993),
+        'username' => env('IMAP_USERNAME'),
+        'password' => env('IMAP_PASSWORD'),
+    ],
+
 ];
