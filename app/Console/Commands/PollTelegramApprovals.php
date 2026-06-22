@@ -15,7 +15,7 @@ class PollTelegramApprovals extends Command
 
     private ?string $botToken;
     private int $lastUpdateId = 0;
-    private const POLL_FILE = '/tmp/telegram_last_update_id.txt';
+    private const CACHE_KEY = 'telegram_last_update_id';
 
     public function handle(): int
     {
@@ -220,13 +220,14 @@ class PollTelegramApprovals extends Command
 
     private function loadLastUpdateId(): void
     {
-        if (file_exists(self::POLL_FILE)) {
-            $this->lastUpdateId = (int) file_get_contents(self::POLL_FILE);
+        $cached = cache(self::CACHE_KEY);
+        if ($cached !== null) {
+            $this->lastUpdateId = (int) $cached;
         }
     }
 
     private function saveLastUpdateId(): void
     {
-        file_put_contents(self::POLL_FILE, (string) $this->lastUpdateId);
+        cache()->forever(self::CACHE_KEY, (string) $this->lastUpdateId);
     }
 }

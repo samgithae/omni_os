@@ -108,20 +108,22 @@ class NotifyTelegramApproval extends Command
         $text .= "  <code>APPROVE ALL</code> — approve all pending\n";
         $text .= "  <code>REJECT ALL</code> — reject all pending\n";
 
-        // Build inline keyboard
+        // Build inline keyboard — optional, polling also handles text commands
         $keyboard = [];
-        $row = [];
-        foreach ($emails as $i => $e) {
-            $row[] = ['text' => "✅ {$e->id}", 'callback_data' => "approve:{$e->id}"];
-            if (count($row) >= 3 || $i === $emails->count() - 1) {
-                $keyboard[] = $row;
-                $row = [];
+        if ($emails->count() <= 10) {
+            $row = [];
+            foreach ($emails as $i => $e) {
+                $row[] = ['text' => "✅ {$e->id}", 'callback_data' => "approve:{$e->id}"];
+                if (count($row) >= 3 || $i === $emails->count() - 1) {
+                    $keyboard[] = $row;
+                    $row = [];
+                }
             }
+            $keyboard[] = [
+                ['text' => '✅ Approve All', 'callback_data' => 'approve_all'],
+                ['text' => '❌ Reject All', 'callback_data' => 'reject_all'],
+            ];
         }
-        $keyboard[] = [
-            ['text' => '✅ Approve All', 'callback_data' => 'approve_all'],
-            ['text' => '❌ Reject All', 'callback_data' => 'reject_all'],
-        ];
 
         $payload = [
             'chat_id' => config('services.telegram.chat_id'),
