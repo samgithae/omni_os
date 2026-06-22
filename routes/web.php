@@ -6,6 +6,7 @@ use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\BrandSettingsController;
 use App\Http\Controllers\EmailSequenceController;
 use App\Http\Controllers\InboxController;
+use App\Http\Controllers\JobsController;
 use App\Http\Controllers\LeadController;
 use Illuminate\Support\Facades\Route;
 
@@ -28,6 +29,10 @@ Route::middleware(['auth'])->group(function () {
     // Brand settings — Vue settings page
     Route::get('/brands/{brand:slug}/settings', [BrandSettingsController::class, 'edit'])->name('brands.settings');
     Route::put('/brands/{brand:slug}/settings', [BrandSettingsController::class, 'update'])->name('brands.settings.update');
+
+    // Cron Jobs — monitoring page
+    Route::get('/analytics/jobs', [JobsController::class, 'index'])->name('jobs.index');
+    Route::get('/analytics/jobs/history', [JobsController::class, 'history'])->name('jobs.history');
 
     // Email sequences — the operator's primary workspace
     Route::get('/email-sequences', [EmailSequenceController::class, 'index'])

@@ -2,9 +2,13 @@
 
 namespace App\Providers;
 
+use App\Listeners\TrackCronJobRuns;
 use Carbon\CarbonImmutable;
+use Illuminate\Console\Events\ScheduledTaskFinished;
+use Illuminate\Console\Events\ScheduledTaskStarting;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -24,6 +28,16 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // Track cron job runs for the monitoring dashboard
+        Event::listen(
+            ScheduledTaskStarting::class,
+            [TrackCronJobRuns::class, 'handleStarting'],
+        );
+        Event::listen(
+            ScheduledTaskFinished::class,
+            [TrackCronJobRuns::class, 'handleFinished'],
+        );
     }
 
     /**
