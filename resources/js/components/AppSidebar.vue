@@ -13,50 +13,50 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    SidebarGroup,
+    SidebarGroupLabel,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import type { NavItem } from '@/types';
 
-const mainNavItems: NavItem[] = [
+interface NavGroup {
+    label: string
+    items: NavItem[]
+}
+
+const navGroups: NavGroup[] = [
     {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
+        label: 'Overview',
+        items: [
+            { title: 'Dashboard', href: dashboard(), icon: LayoutGrid },
+        ],
     },
     {
-        title: 'Leads',
-        href: '/admin/leads',
-        icon: Users,
+        label: 'CRM',
+        items: [
+            { title: 'Leads', href: '/admin/leads', icon: Users },
+        ],
     },
     {
-        title: 'Activity Feed',
-        href: '/activity',
-        icon: Activity,
+        label: 'Analytics',
+        items: [
+            { title: 'Activity Feed', href: '/activity', icon: Activity },
+        ],
     },
     {
-        title: 'Email Sequences',
-        href: '/email-sequences',
-        icon: Mail,
+        label: 'Configuration',
+        items: [
+            { title: 'Brands', href: '/admin/brands', icon: Building2 },
+        ],
     },
     {
-        title: 'Sequence Schedules',
-        href: '/admin/sequence-schedules',
-        icon: Clock,
-    },
-    {
-        title: 'Brands',
-        href: '/admin/brands',
-        icon: Building2,
-    },
-    {
-        title: 'Suppressions',
-        href: '/admin/suppressions',
-        icon: Ban,
-    },
-    {
-        title: 'Mining Targets',
-        href: '/admin/mining-targets',
-        icon: MapPin,
+        label: 'Email',
+        items: [
+            { title: 'Email Sequences', href: '/email-sequences', icon: Mail },
+            { title: 'Sequence Schedules', href: '/admin/sequence-schedules', icon: Clock },
+            { title: 'Suppressions', href: '/admin/suppressions', icon: Ban },
+            { title: 'Mining Targets', href: '/admin/mining-targets', icon: MapPin },
+        ],
     },
 ];
 
@@ -72,6 +72,11 @@ const footerNavItems: NavItem[] = [
         icon: BookOpen,
     },
 ];
+
+function isExternal(href: string | { name: string; params?: Record<string, string | number> }): boolean {
+    const str = String(href);
+    return str.startsWith('/admin') || str.startsWith('http');
+}
 </script>
 
 <template>
@@ -89,7 +94,23 @@ const footerNavItems: NavItem[] = [
         </SidebarHeader>
 
         <SidebarContent>
-            <NavMain :items="mainNavItems" />
+            <SidebarGroup v-for="group in navGroups" :key="group.label" class="px-2 py-0">
+                <SidebarGroupLabel>{{ group.label }}</SidebarGroupLabel>
+                <SidebarMenu>
+                    <SidebarMenuItem v-for="item in group.items" :key="item.title">
+                        <SidebarMenuButton as-child :tooltip="item.title">
+                            <a v-if="isExternal(item.href)" :href="String(item.href)">
+                                <component :is="item.icon" />
+                                <span>{{ item.title }}</span>
+                            </a>
+                            <Link v-else :href="item.href">
+                                <component :is="item.icon" />
+                                <span>{{ item.title }}</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
+            </SidebarGroup>
         </SidebarContent>
 
         <SidebarFooter>
