@@ -155,10 +155,23 @@ function formatTimestamp(isoStr: string): string {
   const diffMs = now.getTime() - d.getTime()
   const diffMin = Math.floor(diffMs / 60000)
   const diffHrs = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  
   if (diffMin < 1) return 'just now'
-  if (diffMin < 60) return `${diffMin}m`
+  if (diffMin === 1) return '1 Minute Ago'
+  if (diffMin < 60) return `${diffMin} Minutes Ago`
+  if (diffHrs === 1) return '1h'
   if (diffHrs < 24) return `${diffHrs}h`
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays} days ago`
+  
+  // Older: show date
+  const sameYear = d.getFullYear() === now.getFullYear()
+  if (sameYear) {
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+  // Different year: include year
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 const commentCounts = computed(() => {
@@ -369,7 +382,7 @@ onUnmounted(() => {
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
                       <span class="text-xs font-semibold text-blue-800">{{ event.title }}</span>
-                      <span class="text-[10px] text-blue-500">{{ event.relative_time }}</span>
+                      <span class="text-[10px] text-blue-500">{{ formatTimestamp(event.created_at) }}</span>
                     </div>
                     <div v-if="event.body" class="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-gray-700">{{ event.body }}</div>
                   </div>
@@ -388,7 +401,7 @@ onUnmounted(() => {
                     <div class="flex items-center gap-2 text-[10px]">
                       <span class="font-medium text-gray-700">{{ sourceLabel(event.source) }}</span>
                       <span v-if="event.brand" class="text-gray-400">· {{ event.brand.name }}</span>
-                      <span class="text-gray-400">{{ event.relative_time }}</span>
+                      <span class="text-gray-400">{{ formatTimestamp(event.created_at) }}</span>
                       <span
                         class="ml-auto inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium"
                         :class="{
@@ -460,7 +473,7 @@ onUnmounted(() => {
                           <Bot v-if="comment.author === 'hermes' || comment.author === 'agent'" class="h-3 w-3" />
                           {{ comment.author === 'human' ? 'Sam' : comment.author === 'hermes' ? 'Hermes' : 'Agent' }}
                         </span>
-                        <span class="text-[10px] text-gray-400">{{ comment.relative_time }}</span>
+                        <span class="text-[10px] text-gray-400">{{ formatTimestamp(comment.created_at) }}</span>
 
                         <!-- Instruction status pill -->
                         <span v-if="comment.is_instruction" class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium"
