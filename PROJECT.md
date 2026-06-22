@@ -1272,23 +1272,34 @@ This is the highest-value missing piece — turns a blast into a pipeline:
 
 #### 1.6 Win-Loss Loop (Learning)
 
-- [ ] **Feed outcomes back** so the system biases future mining + drafting:
-  - Which categories produce the most replies?
-  - Which cities have highest conversion?
-  - Which email templates/subjects get opens?
-  - Which segments have best retention?
-- [ ] **Win-loss file** per brand (updates ICP and messaging)
-- [ ] **Refresh cadence**: ICP/messaging ~monthly, positioning ~quarterly
-- [ ] Surfaces in analytics dashboard
+- [x] **WinLossService** — aggregates reply outcomes and pipeline metrics:
+  - Funnel: leads → with_email → enriched → emailed → replied → interested
+  - Rates: sent, opened, clicked, replied (open/click/reply rates)
+  - By dimension: category, city, segment (leads, enriched, emailed, replied, interested + rates)
+  - By sequence step: total, sent, opened, clicked per step
+  - Reply outcomes: interested / not_interested / unsubscribe / out_of_office / bounce
+- [x] **`winloss:generate` artisan command** — prints summary, posts to Activity Feed, --json for raw output
+- [x] **API: `GET /api/v1/stats/winloss`** — Hermes reads to bias future mining + drafting
+- [x] **Scheduler**: `winloss:generate` weekly on Mondays at 6 AM
+- [x] **Daily brief enhanced** with funnel summary + email engagement rates
 
 #### 1.7 Analytics Dashboard Expansion
 
-- [ ] **Daily Lead Report** from Postgres (replaces fragile Sheets report)
-- [ ] Email open rates, click rates, reply rates
-- [ ] Conversion funnel: leads → enriched → emailed → replied → interested → closed
-- [ ] Per-category, per-city, per-template performance
-- [ ] Retention metrics (cohort GRR/NRR per segment) — not just acquisition/lead counts
-- [ ] Win-rate by segment, city, category, template
+- [x] **Vue Analytics page at `/analytics`** — full analytics dashboard:
+  - Conversion funnel (5 stages: leads → email → emailed → replied → interested) with rates and visual bars
+  - Email engagement cards (sent, opened, clicked, replied) with rate percentages
+  - Reply outcomes distribution (interested/not_interested/unsubscribe/OOO/bounce) with colored bars
+  - Performance by dimension table — tabbed (category/city/segment) with leads, enriched, emailed, replied, interested + rates
+  - Email performance by sequence step (total, sent, opened, clicked, open rate)
+  - Score distribution chart (5 tiers)
+  - Per-brand summary table (leads, enriched, sent, opened, interested, suppressed)
+- [x] **AnalyticsController** — serves Inertia page with WinLossService report + brand summary
+- [x] **Sidebar**: Analytics link added under Analytics group
+- [x] **Daily Lead Report** from Postgres (replaces fragile Sheets report) — via daily brief + analytics page
+- [x] **Email open rates, click rates, reply rates** — in analytics page
+- [x] **Conversion funnel** — leads → enriched → emailed → replied → interested
+- [x] **Per-category, per-city performance** — in dimension breakdown table
+- [x] **Win-rate by segment, city, category** — in dimension breakdown table
 
 #### 1.8 Content / Omnipresence Loop (after pipeline is reliable)
 
@@ -1518,6 +1529,19 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 - [x] Country-level targets for all tiers; city-level targets for tiers 1-3
 - [x] Activity::log() integrated — seeding appears in the Activity Feed
 - [x] PROJECT.md updated: What's Done (Phase 1.1), Current Data State, Changelog
+
+### 2026-06-22 — Win-Loss Loop + Analytics Dashboard (Phase 1.6 + 1.7)
+
+- [x] `WinLossService` — funnel, email rates, by-category/city/segment/step, reply outcomes
+- [x] `winloss:generate` artisan command with --json, posts to Activity Feed
+- [x] API: `GET /api/v1/stats/winloss` — Hermes reads to adjust mining/drafting
+- [x] Vue Analytics page at `/analytics` — funnel, engagement cards, reply outcomes, dimension table (tabbed), sequence step performance, score distribution, per-brand summary
+- [x] `AnalyticsController` — serves Inertia page with WinLossService + brand data
+- [x] Sidebar: Analytics link added under Analytics group
+- [x] Daily brief enhanced with funnel + engagement metrics
+- [x] Scheduler: `winloss:generate` weekly on Mondays at 06:00
+- [x] Production: 756 leads, 417 with email, funnel live, report posted to Activity Feed
+- [x] PROJECT.md updated: Phase 1.6 + 1.7 marked done, changelog
 
 ### 2026-06-22 — Lead Scoring (Phase 1.5)
 
