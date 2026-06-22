@@ -32,8 +32,9 @@ class SendLeadReply implements ShouldQueue
             return;
         }
 
-        $fromAddress = config('mail.from.address');
-        $fromName = config('mail.from.name', 'Omni OS');
+        $brand = $this->lead->brand;
+        $fromAddress = $brand?->randomSenderEmail() ?? config('mail.from.address');
+        $fromName = $brand?->sender_name ?? config('mail.from.name', 'Omni OS');
 
         // Find the most recent sent email to this lead for threading
         $lastSentEmail = $this->lead->emailMessages()

@@ -32,12 +32,15 @@ class Brand extends Model
         'brand_voice',
         'color',
         'is_active',
+        'sender_emails',
+        'sender_name',
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
+            'sender_emails' => 'array',
         ];
     }
 
@@ -64,5 +67,18 @@ class Brand extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Get a random sender email from this brand's sender pool.
+     * Falls back to config('mail.from.address') if none configured.
+     */
+    public function randomSenderEmail(): string
+    {
+        $emails = $this->sender_emails ?? [];
+        if (empty($emails)) {
+            return config('mail.from.address');
+        }
+        return $emails[array_rand($emails)];
     }
 }

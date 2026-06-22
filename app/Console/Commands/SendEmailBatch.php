@@ -96,13 +96,17 @@ class SendEmailBatch extends Command
             $this->line("  Sending to {$lead->email}: {$email->subject}");
 
             try {
+                // Random sender email from the brand's pool (rotate to avoid spam flags)
+                $senderEmail = $brand?->randomSenderEmail() ?? config('mail.from.address');
+                $senderName = $brand?->sender_name ?? config('mail.from.name', 'Omni OS');
+
                 $response = Http::withHeaders([
                     'Content-Type' => 'application/json',
                     'X-Smtp2go-Api-Key' => $apiKey,
                 ])->post(rtrim($apiEndpoint, '/').'/email/send', [
                     'to' => [$lead->email],
-                    'sender' => config('mail.from.address'),
-                    'sender_name' => config('mail.from.name'),
+                    'sender' => $senderEmail,
+                    'sender_name' => $senderName,
                     'subject' => $email->subject,
                     'html_body' => $email->body, // Already HTML from import
                     'text_body' => strip_tags((string) $email->body),
