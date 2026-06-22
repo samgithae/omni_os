@@ -69,13 +69,14 @@ class GenerateEmailContent extends Command
 
         // Log to Activity Feed so it appears there too
         if (! $this->option('dry-run')) {
-            $logger->log(
-                eventType: 'system',
-                title: 'Email generation pipeline check',
-                body: "Checked {$leads->count()} enriched leads. {$needsGeneration} need generation ({$totalMissingSteps} steps missing). {$noConfig} have no sequence config. Hermes cron (generate-email-sequences) will process the next batch within 60 minutes.",
-                severity: $needsGeneration > 0 ? 'info' : 'success',
-                source: 'hermes:generate_email_sequences',
-            );
+            $logger->log([
+                'brand_id' => null,
+                'source' => 'hermes:generate_email_sequences',
+                'event_type' => 'system',
+                'title' => 'Email generation pipeline check',
+                'body' => "Checked {$leads->count()} enriched leads. {$needsGeneration} need generation ({$totalMissingSteps} steps missing). {$noConfig} have no sequence config. Hermes cron (generate-email-sequences) will process the next batch within 60 minutes.",
+                'severity' => $needsGeneration > 0 ? 'info' : 'success',
+            ]);
         }
 
         if ($needsGeneration > 0) {

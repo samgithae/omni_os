@@ -54,15 +54,16 @@ class MonitorLeadMining extends Command
         }
 
         if (! $this->option('dry-run')) {
-            $logger->log(
-                eventType: 'system',
-                title: $healthy
+            $logger->log([
+                'brand_id' => null,
+                'source' => 'hermes:leads:monitor-mining',
+                'event_type' => 'system',
+                'title' => $healthy
                     ? "Lead mining: {$newLeads} new leads in last {$hours}h"
                     : "Lead mining: no activity in last {$hours}h",
-                body: $body,
-                severity: $severity,
-                source: 'hermes:leads:monitor-mining',
-            );
+                'body' => $body,
+                'severity' => $severity,
+            ]);
 
             $this->line('');
             $this->info('Activity Feed event logged.');
