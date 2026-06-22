@@ -42,7 +42,7 @@ class PollInboxReplies extends Command
             $this->warn('DRY RUN — no data will be written.');
         }
 
-        $mailbox = '{' . $host . ':' . $port . '/ssl/no-validate-cert}INBOX';
+        $mailbox = '{' . $host . ':' . $port . '/ssl}INBOX';
 
         $imap = @imap_open($mailbox, $username, $password, OP_READONLY, 1, []);
 
