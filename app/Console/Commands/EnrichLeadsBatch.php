@@ -24,7 +24,43 @@ class EnrichLeadsBatch extends Command
         $limit = (int) $this->option('limit');
         $dryRun = $this->option('dry-run');
 
-        // Build query for leads that need enrichment
+        // ── Phase 1: Transition new leads that already have emails to enriched ──
+        $alreadyHaveEmail = Lead::query()
+            ->where('status', 'new')
+            ->whereNotNull('email');
+
+        if ($brandSlug) {
+            $brand = Brand::where('slug', $brandSlug)->first();
+            if (!$brand) {
+                $this->error("Brand '{$brandSlug}' not found.");
+                return self::FAILURE;
+            }
+            $alreadyHaveEmail->where('brand_id', $brand->id);
+        }
+
+        $alreadyCount = $alreadyHaveEmail->count();
+        $alreadyTransitioned = 0;
+        if ($alreadyCount > 0 && !$dryRun) {
+            $alreadyHaveEmail->limit($limit)->each(function (Lead $lead) use (&$alreadyTransitioned) {
+                try {
+                    $lead->transitionTo(
+                        \App\Enums\LeadStatus::Enriched,
+                        'cli.enrich-batch.auto',
+                        ['email_found' => true, 'confidence' => 'imported', 'notes' => 'Email already present at import']
+                    );
+                    // Ensure email_confidence is set
+                    if (!$lead->email_confidence) {
+                        $lead->email_confidence = 'imported';
+                        $lead->save();
+                    }
+                    $alreadyTransitioned++;
+                } catch (\Throwable $e) {
+                    $this->warn("Lead #{$lead->id}: could not transition — {$e->getMessage()}");
+                }
+            });
+        }
+
+        // ── Phase 2: Queue leads that need email enrichment ──
         $query = Lead::query()
             ->where('status', 'new')
             ->whereNull('email')
@@ -34,13 +70,7 @@ class EnrichLeadsBatch extends Command
             });
 
         if ($brandSlug) {
-            $brand = Brand::where('slug', $brandSlug)->first();
-            if (! $brand) {
-                $this->error("Brand '{$brandSlug}' not found.");
-                return self::FAILURE;
-            }
             $query->where('brand_id', $brand->id);
-            $this->line("Brand: {$brand->name}");
         } else {
             $query->with('brand');
         }
@@ -51,41 +81,54 @@ class EnrichLeadsBatch extends Command
         }
 
         $total = $query->count();
-        $this->line("Leads needing enrichment: {$total}");
-
-        if ($total === 0) {
-            $this->info('No leads need enrichment right now.');
-            return self::SUCCESS;
-        }
-
-        $leads = $query->limit($limit)->get();
-
-        if ($dryRun) {
-            $this->warn('DRY RUN — no changes made.');
-            $this->table(
-                ['ID', 'Company', 'Segment', 'City', 'Attempts', 'Brand'],
-                $leads->map(fn ($l) => [
-                    $l->id,
-                    $l->company_name,
-                    $l->segment,
-                    $l->city ?? '—',
-                    $l->enrichment_attempts ?? 0,
-                    $l->brand?->name ?? '—',
-                ])->toArray()
-            );
-            return self::SUCCESS;
-        }
+        $this->line("Leads needing email enrichment: {$total}");
 
         $processed = 0;
         $errors = 0;
+        $leads = [];
 
-        foreach ($leads as $lead) {
-            try {
-                $lead->startEnrichment('cli.enrich-batch');
-                $processed++;
-            } catch (\Throwable $e) {
-                $this->error("Lead #{$lead->id}: {$e->getMessage()}");
-                $errors++;
+        if ($total > 0) {
+            $leads = $query->limit($limit)->get();
+
+            if ($dryRun) {
+                $this->warn('DRY RUN — no changes made.');
+                $this->table(
+                    ['ID', 'Company', 'Segment', 'City', 'Attempts', 'Brand'],
+                    $leads->map(fn($l) => [
+                        $l->id,
+                        $l->company_name,
+                        $l->segment,
+                        $l->city ?? '—',
+                        $l->enrichment_attempts ?? 0,
+                        $l->brand?->name ?? '—',
+                    ])->toArray()
+                );
+                return self::SUCCESS;
+            }
+
+            foreach ($leads as $lead) {
+                try {
+                    $lead->startEnrichment('cli.enrich-batch');
+                    $processed++;
+                } catch (\Throwable $e) {
+                    $this->error("Lead #{$lead->id}: {$e->getMessage()}");
+                    $errors++;
+                }
+            }
+        }
+
+        // ── Phase 3: Report ──
+        if ($alreadyTransitioned === 0 && $processed === 0 && $total === 0) {
+            $this->info('No leads need enrichment right now.');
+        } else {
+            if ($alreadyTransitioned > 0) {
+                $this->info("Transitioned {$alreadyTransitioned} leads with existing emails to enriched.");
+            }
+            if ($processed > 0) {
+                $this->info("Queued {$processed} leads for email enrichment.");
+            }
+            if ($errors) {
+                $this->warn("{$errors} leads had errors.");
             }
         }
 
@@ -93,28 +136,26 @@ class EnrichLeadsBatch extends Command
         $logger = app(ActivityLogger::class);
         $brandNames = $brandSlug
             ? [Brand::where('slug', $brandSlug)->value('name')]
-            : $leads->pluck('brand.name')->unique()->values()->toArray();
+            : ($leads ? $leads->pluck('brand.name')->unique()->values()->toArray() : []);
 
         $segmentLabel = $segment ? " ({$segment})" : '';
+        $totalProcessed = $processed + $alreadyTransitioned;
 
         $logger->log([
             'source' => 'laravel.cli.enrich-batch',
             'event_type' => 'enrichment_batch',
-            'title' => "Enrichment batch: {$processed} leads queued{$segmentLabel}" . ($errors ? " — {$errors} failed" : ''),
+            'title' => "Enrichment batch: {$totalProcessed} processed{$segmentLabel}"
+                . ($alreadyTransitioned > 0 ? " ({$alreadyTransitioned} auto-enriched)" : '')
+                . ($errors ? " — {$errors} failed" : ''),
             'metadata' => [
-                'total' => $leads->count(),
-                'processed' => $processed,
+                'auto_enriched' => $alreadyTransitioned,
+                'email_enrichment_queued' => $processed,
                 'errors' => $errors,
                 'brands' => $brandNames,
                 'segment' => $segment,
             ],
             'severity' => $errors > 0 ? 'warning' : 'info',
         ]);
-
-        $this->info("Queued {$processed} leads for enrichment.");
-        if ($errors) {
-            $this->warn("{$errors} leads had errors.");
-        }
 
         return self::SUCCESS;
     }
