@@ -40,24 +40,35 @@ class EnrichLeadsBatch extends Command
 
         $alreadyCount = $alreadyHaveEmail->count();
         $alreadyTransitioned = 0;
+        $samples = [];
         if ($alreadyCount > 0 && !$dryRun) {
-            $alreadyHaveEmail->limit($limit)->each(function (Lead $lead) use (&$alreadyTransitioned) {
+            $alreadyHaveEmail->limit($limit)->each(function (Lead $lead) use (&$alreadyTransitioned, &$samples) {
                 try {
-                    $lead->transitionTo(
-                        \App\Enums\LeadStatus::Enriched,
+                    // Must go through enriching first (state machine: new -> enriching -> enriched)
+                    $lead->startEnrichment('cli.enrich-batch.auto');
+                    $lead->refresh();
+                    // Now transition enriching -> enriched with the existing email
+                    $lead->enrichFound(
+                        $lead->email,
+                        $lead->email_confidence ?? 'imported',
+                        (bool) $lead->email_verified,
                         'cli.enrich-batch.auto',
-                        ['email_found' => true, 'confidence' => 'imported', 'notes' => 'Email already present at import']
+                        'Email already present at import — auto-enriched'
                     );
-                    // Ensure email_confidence is set
-                    if (!$lead->email_confidence) {
-                        $lead->email_confidence = 'imported';
-                        $lead->save();
-                    }
                     $alreadyTransitioned++;
+                    if (count($samples) < 3) {
+                        $samples[] = $lead->company_name . ' (' . $lead->email . ')';
+                    }
                 } catch (\Throwable $e) {
-                    $this->warn("Lead #{$lead->id}: could not transition — {$e->getMessage()}");
+                    $this->warn("Lead #{$lead->id}: could not auto-enrich — {$e->getMessage()}");
                 }
             });
+            if ($alreadyTransitioned > 0) {
+                $this->info("Auto-enriched {$alreadyTransitioned} leads with existing emails.");
+                foreach ($samples as $s) {
+                    $this->line("  ✓ {$s}");
+                }
+            }
         }
 
         // ── Phase 2: Queue leads that need email enrichment ──
