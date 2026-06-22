@@ -19,7 +19,7 @@ class EmailMessageResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-envelope';
 
-    protected static ?string $navigationGroup = 'Email';
+    protected static string|\UnitEnum|null $navigationGroup = 'Email';
 
     protected static ?int $navigationSort = 5;
 

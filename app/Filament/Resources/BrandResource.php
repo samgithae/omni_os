@@ -20,7 +20,7 @@ class BrandResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-building-office-2';
 
-    protected static ?string $navigationGroup = 'Configuration';
+    protected static string|\UnitEnum|null $navigationGroup = 'Configuration';
 
     protected static ?int $navigationSort = 1;
 
