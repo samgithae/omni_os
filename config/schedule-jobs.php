@@ -37,6 +37,14 @@ return [
             'group' => 'email',
         ],
         [
+            'name' => 'emails:generate-content',
+            'command' => 'emails:generate-content --limit=10',
+            'description' => 'Check enriched leads for missing email content and log pipeline status (Hermes cron does the actual LLM generation every 60 min)',
+            'schedule' => '*/30 * * * *',
+            'schedule_label' => 'Every 30 minutes (pipeline check)',
+            'group' => 'email',
+        ],
+        [
             'name' => 'emails:notify-telegram',
             'command' => 'emails:notify-telegram --limit=15',
             'description' => 'Send pending email approval requests to Telegram with content preview',

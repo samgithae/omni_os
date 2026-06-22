@@ -30,10 +30,6 @@ class EmailMessageResource extends Resource
         return null;
     }
 
-    public static function shouldRegisterNavigation(): bool
-    {
-        return false;
-    }
 
     protected static ?string $navigationLabel = 'Email Messages';
 

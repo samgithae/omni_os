@@ -29,6 +29,13 @@ return Application::configure(basePath: dirname(__DIR__))
             ->description('Send approved emails via SMTP2GO with safe-send (business hours only)')
             ->appendOutputTo(storage_path('logs/email-send.log'));
 
+        // Email generation pipeline check — every 60 minutes (tracks Hermes cron)
+        $schedule->command('emails:generate-content --limit=10')
+            ->everyThirtyMinutes()
+            ->withoutOverlapping(10)
+            ->description('Check enriched leads for missing email content and log pipeline status')
+            ->appendOutputTo(storage_path('logs/email-generation.log'));
+
         // Notify Telegram of pending approvals — every 30 minutes
         $schedule->command('emails:notify-telegram --limit=15')
             ->everyThirtyMinutes()
