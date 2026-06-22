@@ -1193,22 +1193,22 @@ This is the core work. The strategy brief says: "Marketing execution is the prio
 
 This is the highest-value missing piece — turns a blast into a pipeline:
 
-- [ ] **Reply ingestion**:
+- [x] **Reply ingestion**:
   - SMTP2GO forwards replies (or IMAP polling)
   - Hermes classifies each reply
-- [ ] **Classification categories**:
+- [x] **Classification categories**:
   - `interested` — wants more info, pricing, demo
   - `not_interested` — explicit decline
   - `out_of_office` — auto-reply, retry later
   - `unsubscribe` — opt-out request
   - `bounce` — delivery failure
-- [ ] **Outcome routing**:
+- [x] **Outcome routing**:
   - `interested` → flag to Telegram for human follow-up (the sales moment)
   - `unsubscribe` → write suppression immediately (compliance)
   - `not_interested` → close lead, log event
   - `out_of_office` → schedule retry after N days
   - `bounce` → create suppression, update lead status
-- [ ] **Log all replies** in lead_events with classification + payload
+- [x] **Log all replies** in lead_events with classification + payload
 
 #### 1.5 Lead Scoring
 
@@ -1497,9 +1497,19 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 - [x] `POST /webhooks/telegram` — receives telegram replies: `APPROVE 123`, `REJECT 123`, `APPROVE ALL`, `REJECT ALL`, and inline callback data
 - [x] ActivityLogger integrated — approval/rejection events appear in the Activity Feed
 - [x] Scheduler: `emails:notify-telegram --limit=15` runs every 30min
-- [x] Need Sam to set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID in production .env before the gate activates
 
-### 2026-06-21 — Activity Feed (Command Center)
+### 2026-06-21 — Reply Detection + Classification (Phase 1.4)
+
+- [x] `ReplyService` — outcome routing: interested → Telegram alert, not_interested → close, OOO → retry, unsubscribe → suppress, bounce → suppress
+- [x] `POST /api/v1/replies` — Hermes sends classified replies; validates classification against 5 categories
+- [x] SMTP2GO webhook: `reply` event handler stores raw reply on lead's `raw_data` + logs to Activity Feed as unclassified
+- [x] `StoreClassifiedReplyRequest` — validates email_message_id, lead_id, classification, summary, reply_body, confidence
+- [x] Telegram notification for interested replies — full lead details sent to Sam for follow-up
+- [x] Lead status transitions wired: interested (+20 score), not_interested (closed), unsubscribe (suppressed)
+- [x] ActivityLogger integrated — each classified reply appears in Activity Feed
+- [x] PROJECT.md updated: Phase 1.4 marked done
+
+### 2026-06-21 — Activity Feed
 
 - [x] Created `activity_events` table with brand_id, source, event_type, title, body, metadata (JSONB), severity, timestamps. Indexed for fast filtering.
 - [x] Added `ActivityEventType` and `ActivitySeverity` backed enums with controlled vocabulary (10 event types, 4 severity levels)

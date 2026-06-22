@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\SuppressionController;
 use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\ActivityEventController;
 use App\Http\Controllers\Api\TelegramWebhookController;
+use App\Http\Controllers\Api\ReplyController;
 use App\Http\Middleware\ApiTokenAuth;
 use Illuminate\Support\Facades\Route;
 
@@ -43,5 +44,8 @@ Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
 
     // Activity events
     Route::post('events', [ActivityEventController::class, 'store']);
+
+    // Classified replies (from Hermes)
+    Route::post('replies', [ReplyController::class, 'store']);
 
 });

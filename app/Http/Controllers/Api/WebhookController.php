@@ -70,6 +70,7 @@ class WebhookController extends Controller
                 'bounce', 'bounced', 'hard_bounce' => $this->handleBounce($email, $event),
                 'complaint', 'spam' => $this->handleComplaint($email, $event),
                 'unsubscribe' => $this->handleUnsubscribe($email, $event),
+                'reply' => $this->handleReply($email, $event),
                 default => null,
             };
 
@@ -134,5 +135,55 @@ class WebhookController extends Controller
                 ['reason' => 'unsubscribe', 'notes' => 'Unsubscribed via SMTP2GO list-unsubscribe'],
             );
         }
+    }
+
+    /**
+     * Handle a reply event from SMTP2GO.
+     * Logs the raw reply and leaves classification to Hermes.
+     * Hermes will call POST /api/v1/replies with the classification.
+     */
+    protected function handleReply(EmailMessage $email, array $event): void
+    {
+        $lead = $email->lead;
+        if (! $lead) {
+            return;
+        }
+
+        $replyText = $event['plain_text_body']
+            ?? $event['text']
+            ?? $event['body']
+            ?? '(no content)';
+
+        $replySubject = $event['subject'] ?? '(no subject)';
+
+        // Store raw reply on the lead for Hermes to classify
+        $raw = $lead->raw_data ?? [];
+        $raw['incoming_replies'] = $raw['incoming_replies'] ?? [];
+        $raw['incoming_replies'][] = [
+            'email_message_id' => $email->id,
+            'subject' => $replySubject,
+            'body' => substr($replyText, 0, 5000),
+            'received_at' => now()->toIso8601String(),
+            'classified' => false,
+        ];
+        $lead->updateQuietly(['raw_data' => $raw]);
+
+        // Log to activity feed as unclassified reply
+        $logger = app(\App\Services\ActivityLogger::class);
+        $logger->log([
+            'brand_id' => $email->brand_id,
+            'source' => 'smtp2go.webhook.reply',
+            'event_type' => 'reply_classified',
+            'title' => "Reply received — {$lead->company_name} (pending classification)",
+            'body' => substr($replyText, 0, 500),
+            'metadata' => [
+                'lead_id' => $lead->id,
+                'lead_name' => $lead->company_name,
+                'email_message_id' => $email->id,
+                'subject' => $replySubject,
+                'classified' => false,
+            ],
+            'severity' => 'info',
+        ]);
     }
 }
