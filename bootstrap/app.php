@@ -22,11 +22,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->dailyAt('02:30')
             ->description('Clean up failed queue jobs older than 14 days');
 
-        // Send approved/queued emails — every 15 minutes during business hours.
+        // Send approved/queued emails — every 15 minutes.
         $schedule->command('emails:send-batch --limit=20')
             ->everyFifteenMinutes()
             ->withoutOverlapping(5)
-            ->description('Send approved emails via SMTP2GO with safe-send (business hours only)')
+            ->description('Send approved emails via SMTP2GO with safe-send discipline')
             ->appendOutputTo(storage_path('logs/email-send.log'));
 
         // Email generation pipeline check — every 60 minutes (tracks Hermes cron)

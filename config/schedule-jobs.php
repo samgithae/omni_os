@@ -31,9 +31,9 @@ return [
         [
             'name' => 'emails:send-batch',
             'command' => 'emails:send-batch --limit=20',
-            'description' => 'Send approved emails via SMTP2GO with safe-send (business hours only)',
+            'description' => 'Send approved emails via SMTP2GO with safe-send discipline',
             'schedule' => '*/15 * * * *',
-            'schedule_label' => 'Every 15 minutes (8AM-6PM EAT)',
+            'schedule_label' => 'Every 15 minutes',
             'group' => 'email',
         ],
         [

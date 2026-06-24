@@ -13,7 +13,7 @@ class SendEmailBatch extends Command
     protected $signature = 'emails:send-batch
                             {--brand= : Brand slug to send for}
                             {--limit=20 : Max emails to send per run}
-                            {--force : Skip safe-send guards (business hours, MX check)}';
+                            {--force : Skip MX check}';
 
     protected $description = 'Send approved/queued emails via SMTP2GO with safe-send discipline';
 
@@ -29,14 +29,6 @@ class SendEmailBatch extends Command
         if (! $apiKey) {
             $this->error('SMTP2GO API key not configured.');
             return 1;
-        }
-
-        // Business-hours check (evaluates in configured business timezone, not UTC)
-        if (! $force && ! $this->isWithinBusinessHours()) {
-            $businessTz = config('services.business.timezone', 'Africa/Nairobi');
-            $nowInBusinessTz = now()->setTimezone($businessTz);
-            $this->warn("Outside business hours ({$nowInBusinessTz->format('H:i')} {$businessTz}). Use --force to override.");
-            return 0;
         }
 
         $query = EmailMessage::query()
@@ -206,22 +198,5 @@ class SendEmailBatch extends Command
         cache()->put($cacheKey, $hasMx, now()->addHours(24));
 
         return $hasMx;
-    }
-
-    /**
-     * Only send during business hours in the configured business timezone.
-     * Defaults to Africa/Nairobi (EAT / UTC+3) for Kenya-based brands.
-     * TODO: per-brand/per-lead timezone when Phantom Tutors (US/UK) goes live.
-     */
-    private function isWithinBusinessHours(): bool
-    {
-        $businessTz = config('services.business.timezone', 'Africa/Nairobi');
-        $startHour = (int) config('services.business.send_start_hour', 8);
-        $endHour = (int) config('services.business.send_end_hour', 18);
-
-        $nowInBusinessTz = now()->setTimezone($businessTz);
-        $hour = (int) $nowInBusinessTz->format('G');
-
-        return $hour >= $startHour && $hour < $endHour;
     }
 }
