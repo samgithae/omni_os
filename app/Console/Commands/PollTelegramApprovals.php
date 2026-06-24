@@ -16,6 +16,7 @@ class PollTelegramApprovals extends Command
     private ?string $botToken;
     private int $lastUpdateId = 0;
     private const CACHE_KEY = 'telegram_last_update_id';
+    private const NOTIFIED_CACHE_KEY = 'telegram_notified_email_ids';
 
     public function handle(): int
     {
@@ -28,6 +29,12 @@ class PollTelegramApprovals extends Command
 
         $this->loadLastUpdateId();
         $updates = $this->getUpdates();
+
+        if ($updates === false) {
+            // Network error — don't advance offset, try again next minute
+            $this->warn('Telegram API unreachable. Will retry on next poll.');
+            return 1;
+        }
 
         if (empty($updates)) {
             return 0;
@@ -69,7 +76,7 @@ class PollTelegramApprovals extends Command
         return 0;
     }
 
-    private function getUpdates(): array
+    private function getUpdates(): array|false
     {
         try {
             $response = Http::timeout(10)->get(
@@ -89,7 +96,7 @@ class PollTelegramApprovals extends Command
             $this->error("Telegram API error: {$e->getMessage()}");
         }
 
-        return [];
+        return false;
     }
 
     private function processCommand(string $command, ?array $callbackQuery = null): array
@@ -140,6 +147,9 @@ class PollTelegramApprovals extends Command
             ]);
         }
 
+        // Remove from notified cache so it won't be re-notified
+        $this->removeFromNotifiedCache($emailId);
+
         $this->logActivity($email, $action);
 
         return [
@@ -173,6 +183,9 @@ class PollTelegramApprovals extends Command
 
         // Clear the batch cache so it can't be re-applied
         cache()->forget('telegram_pending_batch');
+
+        // Clear the notified cache so these emails won't be re-notified
+        cache()->forget(self::NOTIFIED_CACHE_KEY);
 
         if ($count > 0) {
             $logger = app(ActivityLogger::class);
@@ -212,6 +225,15 @@ class PollTelegramApprovals extends Command
             ],
             'severity' => $action === 'approve' ? 'success' : 'info',
         ]);
+    }
+
+    private function removeFromNotifiedCache(int $emailId): void
+    {
+        $notified = cache(self::NOTIFIED_CACHE_KEY, []);
+        $filtered = array_values(array_filter($notified, fn ($id) => (int) $id !== $emailId));
+        if (count($filtered) !== count($notified)) {
+            cache()->forever(self::NOTIFIED_CACHE_KEY, $filtered);
+        }
     }
 
     private function answerCallbackQuery(string $callbackId, string $text): void

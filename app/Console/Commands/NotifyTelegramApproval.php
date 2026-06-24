@@ -17,6 +17,8 @@ class NotifyTelegramApproval extends Command
 
     protected $description = 'Send pending email approval requests to Telegram with detailed content preview';
 
+    private const string NOTIFIED_CACHE_KEY = 'telegram_notified_email_ids';
+
     public function handle(): int
     {
         $telegram = app(TelegramService::class);
@@ -46,14 +48,25 @@ class NotifyTelegramApproval extends Command
             return 0;
         }
 
+        // Filter out emails that were already notified to Telegram
+        $alreadyNotified = cache(self::NOTIFIED_CACHE_KEY, []);
+        $newEmails = $allEmails->reject(fn ($e) => in_array($e->id, $alreadyNotified));
+
+        if ($newEmails->isEmpty()) {
+            $this->info('All pending emails have already been notified. Skipping duplicate notification.');
+            return 0;
+        }
+
+        $this->info('Notifying ' . $newEmails->count() . ' new emails (skipping ' . ($allEmails->count() - $newEmails->count()) . ' already notified).');
+
         // Group by brand
-        $byBrand = $allEmails->groupBy('brand.name');
+        $byBrand = $newEmails->groupBy('brand.name');
 
         $sent = 0;
 
         // Store the batch of email IDs being sent to Telegram
         // so "APPROVE ALL" only applies to THIS batch, not all pending emails
-        $allIds = $allEmails->pluck('id')->toArray();
+        $allIds = $newEmails->pluck('id')->toArray();
         cache()->forever('telegram_pending_batch', $allIds);
         $this->info("Stored batch of " . count($allIds) . " email IDs for scoped approval.");
         $totalInBatch = count($allIds);
@@ -81,6 +94,10 @@ class NotifyTelegramApproval extends Command
             ],
             'severity' => 'info',
         ]);
+
+        // Record notified IDs so we don't re-notify the same emails
+        $alreadyNotified = cache(self::NOTIFIED_CACHE_KEY, []);
+        cache()->forever(self::NOTIFIED_CACHE_KEY, array_unique(array_merge($alreadyNotified, $allIds)));
 
         $this->info("Sent {$sent} email approval requests to Telegram.");
 
