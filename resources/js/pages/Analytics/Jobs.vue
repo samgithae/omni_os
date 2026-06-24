@@ -74,11 +74,11 @@ const loadingHistory = ref(false)
 const customFrom = ref('')
 const customTo = ref('')
 const runningJob = ref<string | null>(null)
-const runResult = ref<string | null>(null)
+const runResults = ref<Record<string, string>>({})
 
 async function runJob(job: Job) {
     runningJob.value = job.name
-    runResult.value = null
+    runResults.value = { ...runResults.value, [job.name]: '' }
     try {
         const res = await fetch(`/analytics/jobs/${encodeURIComponent(job.name)}/run`, {
             method: 'POST',
@@ -86,17 +86,19 @@ async function runJob(job: Job) {
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         })
         const data = await res.json()
+        let result: string
         if (data.success) {
-            runResult.value = `✅ Completed in ${formatDuration(data.duration_ms)}`
+            result = `✅ Completed in ${formatDuration(data.duration_ms)}`
         } else if (data.error) {
-            runResult.value = `❌ ${data.error}`
+            result = `❌ ${data.error}`
         } else {
-            runResult.value = `❌ Failed (exit code: ${data.exit_code ?? '?'})`
+            result = `❌ Failed (exit code: ${data.exit_code ?? '?'})`
         }
+        runResults.value = { ...runResults.value, [job.name]: result }
         // Refresh the page to update stats
         setTimeout(() => window.location.reload(), 1500)
     } catch (e) {
-        runResult.value = '❌ Network error'
+        runResults.value = { ...runResults.value, [job.name]: '❌ Network error' }
     } finally {
         runningJob.value = null
     }
@@ -288,7 +290,7 @@ const groupIcons: Record<string, any> = {
                     >
                         <Play class="h-3 w-3" /> {{ runningJob === job.name ? 'Running...' : 'Run Now' }}
                     </button>
-                    <div v-if="runResult && runningJob !== job.name" class="ml-2 text-xs font-medium" :class="runResult.startsWith('✅') ? 'text-emerald-600' : 'text-red-600'">{{ runResult }}</div>
+                    <div v-if="runResults[job.name] && runningJob !== job.name" class="ml-2 text-xs font-medium" :class="runResults[job.name].startsWith('✅') ? 'text-emerald-600' : 'text-red-600'">{{ runResults[job.name] }}</div>
                 </div>
 
                 <!-- Run history (expanded) -->
