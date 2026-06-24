@@ -92,7 +92,6 @@ function cadenceColor(cad: string): string {
     </div>
 
     <div class="flex items-center gap-2 border-b border-gray-100 px-4 py-2">
-      <select class="rounded border-gray-200 text-xs" :value="filters.brand_id || ''" @change="applyFilter('brand_id', ($event.target as HTMLSelectElement).value)"><option value="">All Brands</option><option v-for="b in brands" :key="b.id" :value="String(b.id)">{{ b.name }}</option></select>
       <select class="rounded border-gray-200 text-xs" :value="filters.segment || ''" @change="applyFilter('segment', ($event.target as HTMLSelectElement).value)"><option value="">All</option><option value="rabbit">Rabbit</option><option value="deer">Deer</option></select>
       <select class="rounded border-gray-200 text-xs" :value="filters.active || ''" @change="applyFilter('active', ($event.target as HTMLSelectElement).value)"><option value="">All Status</option><option value="true">Active</option><option value="false">Inactive</option></select>
     </div>

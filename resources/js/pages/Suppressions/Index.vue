@@ -105,10 +105,6 @@ function reasonBadge(reason: string): string {
 
     <!-- Filters -->
     <div class="flex items-center gap-2 border-b border-gray-100 px-4 py-2">
-      <select class="rounded border-gray-200 text-xs" :value="filters.brand_id || ''" @change="applyFilter('brand_id', ($event.target as HTMLSelectElement).value)">
-        <option value="">All Brands</option>
-        <option v-for="b in brands" :key="b.id" :value="String(b.id)">{{ b.name }}</option>
-      </select>
       <select class="rounded border-gray-200 text-xs" :value="filters.reason || ''" @change="applyFilter('reason', ($event.target as HTMLSelectElement).value)">
         <option value="">All Reasons</option>
         <option value="unsubscribe">Unsubscribe</option>

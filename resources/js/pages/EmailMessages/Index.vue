@@ -65,9 +65,6 @@ function statusColor(st: string): string {
     </div>
 
     <div class="flex items-center gap-2 border-b border-gray-100 px-4 py-2">
-      <select class="rounded border-gray-200 text-xs" :value="filters.brand_id || ''" @change="applyFilter('brand_id', ($event.target as HTMLSelectElement).value)">
-        <option value="">All Brands</option><option v-for="b in brands" :key="b.id" :value="String(b.id)">{{ b.name }}</option>
-      </select>
       <select class="rounded border-gray-200 text-xs" :value="filters.approval_status || ''" @change="applyFilter('approval_status', ($event.target as HTMLSelectElement).value)">
         <option value="">All Approval</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="needs_content">Needs Content</option>
       </select>

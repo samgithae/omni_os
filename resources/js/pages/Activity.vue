@@ -53,7 +53,6 @@ const props = defineProps<{
   latestId: number
 }>()
 
-const activeBrand = ref<string | undefined>(props.filters.brand)
 const newEventCount = ref(0)
 const latestKnownId = ref(props.latestId)
 let pollInterval: ReturnType<typeof setInterval> | null = null
@@ -74,18 +73,6 @@ const dayGroups = computed(() => {
     hasDailyBrief: (events as ActivityEventData[]).some(e => e.event_type === 'daily_brief'),
   }))
 })
-
-function filterByBrand(slug: string | null) {
-  activeBrand.value = slug ?? undefined
-  const params: Record<string, string> = {}
-  if (slug) params.brand = slug
-  router.get('/activity', params, { preserveScroll: true, preserveState: true, replace: true })
-}
-
-function clearFilter() {
-  activeBrand.value = undefined
-  router.get('/activity', {}, { preserveScroll: true, preserveState: true, replace: true })
-}
 
 function toggleEvent(id: number) {
   const newSet = new Set(expandedEvents.value)
@@ -231,7 +218,6 @@ async function postComment(eventId: number) {
 async function checkForNewEvents() {
   try {
     const params = new URLSearchParams({ since: String(latestKnownId.value) })
-    if (activeBrand.value) params.set('brand', activeBrand.value)
     const res = await fetch(`/activity/poll?${params.toString()}`)
     const data = await res.json()
     if (data.new_count > 0) {
@@ -256,7 +242,6 @@ async function loadMore() {
   loadingMore.value = true
   try {
     const params = new URLSearchParams({ before: String(oldest.id) })
-    if (activeBrand.value) params.set('brand', activeBrand.value)
     const res = await fetch(`/activity/load-more?${params.toString()}`)
     const data = await res.json()
 
@@ -316,26 +301,6 @@ onUnmounted(() => {
         <Clock class="mr-1 inline h-3 w-3" />
         Updates every ~25s
       </div>
-    </div>
-
-    <!-- Brand filter pills -->
-    <div class="flex flex-wrap items-center gap-1.5 border-b border-gray-200 px-4 py-2.5">
-      <button
-        class="rounded-full px-3 py-1 text-xs font-medium transition-colors"
-        :class="!activeBrand ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-        @click="clearFilter"
-      >All</button>
-      <button
-        v-for="brand in brands"
-        :key="brand.slug"
-        class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors"
-        :class="activeBrand === brand.slug ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-        :style="activeBrand === brand.slug ? { backgroundColor: brand.color || '#3b82f6' } : {}"
-        @click="filterByBrand(brand.slug)"
-      >
-        <span v-if="brand.color" class="h-2 w-2 rounded-full" :style="{ backgroundColor: activeBrand === brand.slug ? 'white' : brand.color }" />
-        {{ brand.name }}
-      </button>
     </div>
 
     <!-- New events banner -->

@@ -49,16 +49,6 @@ const hasActiveFilters = Object.values(props.currentFilters).some(v => v && v !=
 
 <template>
   <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-2">
-    <!-- Brand dropdown -->
-    <select
-      class="rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
-      :value="currentFilters.brand || ''"
-      @change="applyFilter('brand', ($event.target as HTMLSelectElement).value || null)"
-    >
-      <option value="">All Brands</option>
-      <option v-for="b in brands" :key="b.slug" :value="b.slug">{{ b.name }}</option>
-    </select>
-
     <!-- Segment dropdown -->
     <select
       class="rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-200"

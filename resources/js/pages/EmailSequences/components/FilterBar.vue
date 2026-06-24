@@ -44,10 +44,6 @@ function applyFilter(key: string, value: string | null) {
   router.get(url, {}, { preserveScroll: true, preserveState: true, replace: true })
 }
 
-function selectBrand(slug: string | null) {
-  applyFilter('brand', slug)
-}
-
 function selectSegment(segment: string | null) {
   applyFilter('segment', segment)
 }
@@ -75,24 +71,6 @@ function brandStyle(slug: string): string {
 
 <template>
   <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-2">
-    <!-- Brand dropdown -->
-    <div class="flex items-center gap-1">
-      <select
-        class="rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
-        :value="currentFilters.brand || ''"
-        @change="selectBrand(($event.target as HTMLSelectElement).value || null)"
-      >
-        <option value="">All Brands</option>
-        <option
-          v-for="b in brands"
-          :key="b.slug"
-          :value="b.slug"
-        >
-          {{ b.name }}
-        </option>
-      </select>
-    </div>
-
     <!-- Segment dropdown -->
     <select
       class="rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
