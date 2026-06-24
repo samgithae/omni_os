@@ -26,6 +26,19 @@ class TrackCronJobRuns
         $task = $event->task;
         $jobName = $this->resolveJobName($task);
 
+        // Don't create duplicate running records — if there's already a running
+        // record for this job within the last 5 minutes, skip it. This prevents
+        // the ScheduledTaskStarting event (fired before mutex check) from
+        // creating orphaned records when withoutOverlapping skips execution.
+        $recentRunning = CronJobRun::where('job_name', $jobName)
+            ->where('status', 'running')
+            ->where('started_at', '>=', now()->subMinutes(5))
+            ->exists();
+
+        if ($recentRunning) {
+            return;
+        }
+
         $run = CronJobRun::create([
             'job_name' => $jobName,
             'command' => $task->command ?? $task->description,
