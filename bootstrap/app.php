@@ -53,7 +53,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Poll Telegram for approval replies — every minute
         $schedule->command('telegram:poll-approvals')
             ->everyMinute()
-            ->withoutOverlapping(2)
+            ->withoutOverlapping(5)
             ->description('Poll Telegram for approval replies (text commands + inline callbacks)')
             ->appendOutputTo(storage_path('logs/telegram-poll.log'));
 
