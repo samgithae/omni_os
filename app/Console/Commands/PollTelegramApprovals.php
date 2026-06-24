@@ -79,7 +79,7 @@ class PollTelegramApprovals extends Command
     private function getUpdates(): array|false
     {
         try {
-            $response = Http::timeout(10)->withOptions([
+            $response = Http::timeout(35)->withOptions([
                 'curl' => [
                     CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
                 ],
@@ -87,7 +87,7 @@ class PollTelegramApprovals extends Command
                 "https://api.telegram.org/bot{$this->botToken}/getUpdates",
                 [
                     'offset' => $this->lastUpdateId + 1,
-                    'timeout' => 0,
+                    'timeout' => 30,
                     'allowed_updates' => ['message', 'callback_query'],
                 ]
             );
