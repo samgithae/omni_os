@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { ChevronDown } from '@lucide/vue'
 
@@ -16,7 +16,6 @@ const props = defineProps<{
 }>()
 
 const open = ref(false)
-const menuRef = ref<HTMLElement | null>(null)
 
 const activeBrand = computed(() =>
     props.activeBrandId ? props.brands.find(b => b.id === props.activeBrandId) : null
@@ -32,22 +31,13 @@ function switchBrand(brandId: number | null) {
         preserveState: false,
     })
 }
-
-function onDocumentClick(e: MouseEvent) {
-    if (menuRef.value && !menuRef.value.contains(e.target as Node)) {
-        open.value = false
-    }
-}
-
-onMounted(() => document.addEventListener('click', onDocumentClick))
-onUnmounted(() => document.removeEventListener('click', onDocumentClick))
 </script>
 
 <template>
-    <div ref="menuRef" class="relative inline-block text-left">
+    <div class="relative inline-block text-left">
         <button
             type="button"
-            @click.stop="open = !open"
+            @click="open = !open"
             class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
         >
             <span
@@ -60,8 +50,13 @@ onUnmounted(() => document.removeEventListener('click', onDocumentClick))
 
         <div
             v-if="open"
+            @click.self="open = false"
+            class="fixed inset-0 z-[9998]"
+        ></div>
+
+        <div
+            v-if="open"
             class="absolute right-0 z-[9999] mt-2 w-56 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-900 focus:outline-none"
-            @click.stop
         >
             <div class="py-1 flex flex-col" role="menu" aria-orientation="vertical">
                 <button
