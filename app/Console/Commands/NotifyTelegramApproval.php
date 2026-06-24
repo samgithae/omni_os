@@ -158,7 +158,9 @@ class NotifyTelegramApproval extends Command
             'reply_markup' => ['inline_keyboard' => $keyboard],
         ];
 
-        \Illuminate\Support\Facades\Http::post(
+        \Illuminate\Support\Facades\Http::withOptions([
+            'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
+        ])->post(
             "https://api.telegram.org/bot" . config('services.telegram.bot_token') . "/sendMessage",
             $payload
         );
@@ -206,7 +208,9 @@ class NotifyTelegramApproval extends Command
                 'disable_web_page_preview' => true,
             ];
 
-            \Illuminate\Support\Facades\Http::post(
+            \Illuminate\Support\Facades\Http::withOptions([
+                'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
+            ])->post(
                 "https://api.telegram.org/bot" . config('services.telegram.bot_token') . "/sendMessage",
                 $payload
             );

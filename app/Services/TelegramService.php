@@ -31,7 +31,9 @@ class TelegramService
             return false;
         }
 
-        $response = Http::post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
+        $response = Http::withOptions([
+            'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
+        ])->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
             'chat_id' => $this->chatId,
             'text' => $text,
             'parse_mode' => $parseMode,
@@ -68,7 +70,9 @@ class TelegramService
             $payload['reply_markup'] = $replyMarkup;
         }
 
-        $response = Http::post("https://api.telegram.org/bot{$this->botToken}/sendMessage", $payload);
+        $response = Http::withOptions([
+            'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
+        ])->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", $payload);
 
         if (! $response->successful()) {
             Log::error('Telegram approval request failed', [
