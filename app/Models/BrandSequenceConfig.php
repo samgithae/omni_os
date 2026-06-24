@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBrand;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BrandSequenceConfig extends Model
 {
+    use BelongsToBrand;
+
     protected $fillable = [
         'brand_id', 'segment', 'prompt_text', 'sequence_steps', 'is_active',
     ];

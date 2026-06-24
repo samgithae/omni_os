@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBrand;
 use Database\Factories\MiningTargetFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -22,6 +23,8 @@ use Illuminate\Support\Carbon;
  */
 class MiningTarget extends Model
 {
+    use BelongsToBrand;
+
     /** @use HasFactory<MiningTargetFactory> */
     use HasFactory;
 

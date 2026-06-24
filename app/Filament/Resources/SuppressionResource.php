@@ -20,7 +20,7 @@ class SuppressionResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-no-symbol';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Email';
+    protected static \UnitEnum|string|null $navigationGroup = 'Campaigns';
 
     protected static ?int $navigationSort = 3;
 
@@ -35,7 +35,9 @@ class SuppressionResource extends Resource
                         Forms\Components\Select::make('brand_id')
                             ->relationship('brand', 'name')
                             ->required()
-                            ->searchable(),
+                            ->searchable()
+                            ->hidden(fn () => filled(session('active_brand_id')))
+                            ->required(fn () => blank(session('active_brand_id'))),
                         Forms\Components\TextInput::make('email')
                             ->email()
                             ->required()

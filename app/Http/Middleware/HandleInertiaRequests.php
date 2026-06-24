@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Brand;
 use App\Models\Reply;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -44,6 +45,8 @@ class HandleInertiaRequests extends Middleware
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'unreadReplyCount' => Reply::inbound()->unread()->count(),
+            'activeBrandId' => session('active_brand_id'),
+            'brands' => Brand::query()->orderBy('name')->get(['id', 'name', 'slug', 'color']),
         ];
     }
 }

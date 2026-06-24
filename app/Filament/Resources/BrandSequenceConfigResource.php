@@ -20,7 +20,7 @@ class BrandSequenceConfigResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-document-text';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Configuration';
+    protected static \UnitEnum|string|null $navigationGroup = 'Settings';
 
     protected static ?int $navigationSort = 3;
 
@@ -36,7 +36,9 @@ class BrandSequenceConfigResource extends Resource
                             ->label('Brand')
                             ->options(Brand::pluck('name', 'id'))
                             ->required()
-                            ->searchable(),
+                            ->searchable()
+                            ->hidden(fn () => filled(session('active_brand_id')))
+                            ->required(fn () => blank(session('active_brand_id'))),
 
                         Forms\Components\Select::make('segment')
                             ->options([

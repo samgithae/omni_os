@@ -1,7 +1,7 @@
 # Omni OS — Project Status, Architecture & Developer Guide
 
 > **Living document.** Updated every time a feature is completed.
-> Last updated: 2026-06-22
+> Last updated: 2026-06-24
 > Strategy source of truth: `Omni-OS-Strategy-Brief.md` (v1)
 > This document: technical state of the build, what exists, what's next, and how to continue.
 
@@ -226,11 +226,21 @@ types:check → vue-tsc --noEmit
 2026_06_20_092933_create_lead_events_table ........................... [1] Ran
 2026_06_20_092934_create_mining_targets_table ........................ [1] Ran
 2026_06_20_175321_add_approval_workflow_to_email_messages ........... [2] Ran
+2026_06_21_171104_create_activity_events_table ....................... [1] Ran
+2026_06_21_185736_add_enrichment_fields_to_leads_table .............. [1] Ran
+2026_06_22_033002_create_sequence_schedules_table .................... [1] Ran
+2026_06_22_055908_create_webhook_events_table ........................ [1] Ran
+2026_06_22_060302_create_replies_table ............................... [1] Ran
+2026_06_22_082052_add_sender_emails_to_brands_table .................. [1] Ran
+2026_06_22_082851_add_settings_to_brands_table ....................... [1] Ran
+2026_06_22_084427_create_cron_job_runs_table ......................... [1] Ran
+2026_06_22_094956_create_activity_event_comments_table ................ [1] Ran
+2026_06_22_100001_create_brand_sequence_configs_table ................ [1] Ran
 ```
 
-### Tables Overview (16 total)
+### Tables Overview (22 total)
 
-#### Core Application Tables (7)
+#### Core Application Tables (13)
 
 | Table | Purpose |
 |-------|---------|
@@ -241,6 +251,13 @@ types:check → vue-tsc --noEmit
 | `lead_events` | Event log for analytics (imported, enriched, emailed, replied, etc.) |
 | `mining_targets` | Geo config for lead mining (country, city, category, search_template, segment, cadence) |
 | `users` | Auth (Fortify, passkeys, 2FA) |
+| `activity_events` | Twitter-style activity feed (Command Center) |
+| `activity_event_comments` | Comments on activity feed events (Hermes auto-responds) |
+| `sequence_schedules` | Drip timing config per brand/segment/step |
+| `webhook_events` | Raw SMTP2GO webhook persistence (opens, clicks, bounces, replies) |
+| `replies` | Classified reply inbox (inbound/outbound, classification, read status) |
+| `brand_sequence_configs` | Per-brand/segment email generation config (prompt_text, sequence_steps) |
+| `cron_job_runs` | Scheduled job execution history (tracking, monitoring, health) |
 
 #### Laravel Default Tables (9)
 
@@ -627,9 +644,28 @@ The `ImportUjuziPlusLeads` command (`app/Console/Commands/ImportUjuziPlusLeads.p
 | `php artisan leads:score --brand=ujuziplus` | Score leads for a specific brand |
 | `php artisan leads:score --segment=deer --limit=50` | Score specific segment, limited |
 | `php artisan leads:score --dry-run` | Preview scoring without writing |
+| `php artisan leads:enrich-batch` | Batch enrichment: transitions new leads to enriching for Hermes processing |
+| `php artisan leads:backfill-json` | Recover leads from JSON backup to Postgres |
+| `php artisan leads:monitor-mining --hours=2` | Monitor lead mining pipeline: check Hermes mining crons are producing leads |
 | `php artisan emails:import-sequences` | Import email sequences (email_1..email_5) from CSV into email_messages table |
 | `php artisan emails:import-sequences --dry-run` | Preview email import without writing |
 | `php artisan emails:import-sequences --file=path/to/csv` | Import from specific CSV file |
+| `php artisan emails:send-batch` | Send approved/queued emails via SMTP2GO with safe-send discipline |
+| `php artisan emails:send-batch --limit=10` | Limit sends per run |
+| `php artisan emails:send-batch --force` | Skip MX check |
+| `php artisan emails:notify-telegram` | Send pending email approval requests to Telegram with content preview |
+| `php artisan emails:generate-content` | Check for leads needing email sequence generation and log pipeline status |
+| `php artisan emails:identify-incomplete-sequences` | Find enriched leads with incomplete email sequences (missing steps) |
+| `php artisan emails:identify-incomplete-sequences --fix` | Reset partial sequences for re-generation (marks as needs_content) |
+| `php artisan telegram:poll-approvals` | Poll Telegram for approval replies (text commands + inline callbacks) |
+| `php artisan inbox:poll --days=3 --limit=30` | Poll IMAP inbox for lead replies and create Reply records |
+| `php artisan activity:daily-brief` | Generate daily system overview brief with funnel metrics |
+| `php artisan activity:seed-test-data` | Seed sample activity feed events for testing |
+| `php artisan winloss:generate` | Generate win-loss report from reply outcomes and pipeline metrics |
+| `php artisan cron:cleanup-runs --older-than=30` | Mark stuck running cron job records as failed |
+| `php artisan sequence:seed-schedules` | Seed sequence schedule rows (idempotent via updateOrCreate) |
+| `php artisan mining:seed-targets` | Seed mining target geo config for UjuziPlus and Hudutech |
+| `php artisan emails:seed-sender-emails` | Seed brand sender email pools for rotation |
 | `php artisan migrate:fresh --seed` | Reset DB + seed brands + sample-only local dev data |
 | `php artisan serve` | Start Laravel dev server (port 8000) |
 | `php artisan queue:work redis` | Start queue worker manually (production uses Supervisor config) |
@@ -837,7 +873,24 @@ omni_os/
 │   ├── Console/
 │   │   └── Commands/
 │   │       ├── ImportUjuziPlusLeads.php       # Google Sheets CSV → Postgres lead importer
-│   │       └── ImportEmailSequences.php       # Google Sheets CSV → Postgres email sequence importer
+│   │       ├── ImportEmailSequences.php       # Google Sheets CSV → Postgres email sequence importer
+│   │       ├── BackfillJson.php               # JSON-to-Postgres lead recovery
+│   │       ├── EnrichLeadsBatch.php           # Batch enrichment: new → enriching
+│   │       ├── GenerateDailyBrief.php         # Daily system overview brief
+│   │       ├── GenerateEmailContent.php       # Pipeline check: logs needs-generation count
+│   │       ├── GenerateWinLossReport.php      # Win-loss report generator
+│   │       ├── IdentifyIncompleteSequences.php # Find leads with missing email steps
+│   │       ├── MonitorLeadMining.php          # Mining pipeline health monitor
+│   │       ├── NotifyTelegramApproval.php     # Send approval requests to Telegram
+│   │       ├── PollInboxReplies.php           # IMAP inbox poller for replies
+│   │       ├── PollTelegramApprovals.php     # Poll Telegram for APPROVE/REJECT commands
+│   │       ├── ScoreLeadsBatch.php            # Batch lead scoring
+│   │       ├── SeedActivityEvents.php         # Seed test activity events
+│   │       ├── SeedMiningTargets.php         # Seed mining target geo config
+│   │       ├── SeedSenderEmails.php           # Seed brand sender email pools
+│   │       ├── SeedSequenceSchedules.php      # Seed sequence schedule rows
+│   │       ├── SendEmailBatch.php             # Send approved emails via SMTP2GO
+│   │       └── CleanupCronJobRuns.php         # Mark stuck running cron jobs as failed
 │   │
 │   ├── Filament/
 │   │   ├── Resources/
@@ -1180,9 +1233,9 @@ This is the core work. The strategy brief says: "Marketing execution is the prio
 - [x] **Safe-send discipline** (from existing pipeline):
   - MX checks before sending (verify domain accepts email)
   - Randomized delays between sends (avoid burst patterns)
-  - Business-hours-only sending (respect recipient timezone)
   - Bounce tracking → automatic suppression on hard bounce
   - Domain warming (don't raise volume faster than reputation)
+  - Business-hours guard REMOVED — emails send every 15 min regardless of timezone (multi-country operation)
 - [x] **Telegram approval gate integration**:
   - Before ANY email is sent, draft goes to Telegram for human approval
   - Detailed per-company breakdown: email ID, subject, body summary

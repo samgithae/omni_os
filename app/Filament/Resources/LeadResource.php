@@ -20,7 +20,7 @@ class LeadResource extends Resource
 
     protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-user-group';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'CRM';
+    protected static \UnitEnum|string|null $navigationGroup = 'Pipeline';
 
     protected static ?int $navigationSort = 2;
 
@@ -35,7 +35,9 @@ class LeadResource extends Resource
                         Forms\Components\Select::make('brand_id')
                             ->relationship('brand', 'name')
                             ->required()
-                            ->searchable(),
+                            ->searchable()
+                            ->hidden(fn () => filled(session('active_brand_id')))
+                            ->required(fn () => blank(session('active_brand_id'))),
                         Forms\Components\TextInput::make('company_name')
                             ->maxLength(255),
                         Forms\Components\TextInput::make('contact_name')

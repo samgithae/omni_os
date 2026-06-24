@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBrand;
 use Database\Factories\LeadEventFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class LeadEvent extends Model
 {
+    use BelongsToBrand;
+
     /** @use HasFactory<LeadEventFactory> */
     use HasFactory;
 

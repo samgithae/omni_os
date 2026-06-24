@@ -19,7 +19,7 @@ class SequenceScheduleResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-clock';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Email';
+    protected static \UnitEnum|string|null $navigationGroup = 'Campaigns';
 
     protected static ?int $navigationSort = 3;
 
@@ -31,7 +31,9 @@ class SequenceScheduleResource extends Resource
             ->schema([
                 Select::make('brand_id')
                     ->relationship('brand', 'name')
-                    ->required(),
+                    ->required()
+                    ->hidden(fn () => filled(session('active_brand_id')))
+                    ->required(fn () => blank(session('active_brand_id'))),
                 Select::make('segment')
                     ->options(['rabbit' => 'Rabbit', 'deer' => 'Deer'])
                     ->required(),

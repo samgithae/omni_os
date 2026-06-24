@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBrand;
 use Database\Factories\EmailMessageFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -28,6 +29,8 @@ use Illuminate\Support\Carbon;
  */
 class EmailMessage extends Model
 {
+    use BelongsToBrand;
+
     /** @use HasFactory<EmailMessageFactory> */
     use HasFactory;
 

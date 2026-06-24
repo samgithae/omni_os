@@ -21,6 +21,17 @@ Route::inertia('/', 'Welcome')->name('home');
 Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    // Brand switcher — set active brand in session (used by Vue pages)
+    Route::post('/brand/switch', function (\Illuminate\Http\Request $request) {
+        $brandId = $request->input('brand_id');
+        if ($brandId === null || $brandId === 'null' || $brandId === '') {
+            session()->forget('active_brand_id');
+        } else {
+            session(['active_brand_id' => (int) $brandId]);
+        }
+        return back();
+    })->name('brand.switch');
+
     // Leads — Vue page with score, filters, and sorting
     Route::get('/leads', [LeadController::class, 'index'])->name('leads.index');
 

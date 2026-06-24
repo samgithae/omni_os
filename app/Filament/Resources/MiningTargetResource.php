@@ -20,7 +20,7 @@ class MiningTargetResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-map-pin';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Email';
+    protected static \UnitEnum|string|null $navigationGroup = 'Pipeline';
 
     protected static ?int $navigationSort = 4;
 
@@ -35,7 +35,9 @@ class MiningTargetResource extends Resource
                         Forms\Components\Select::make('brand_id')
                             ->relationship('brand', 'name')
                             ->required()
-                            ->searchable(),
+                            ->searchable()
+                            ->hidden(fn () => filled(session('active_brand_id')))
+                            ->required(fn () => blank(session('active_brand_id'))),
                         Forms\Components\TextInput::make('country')
                             ->required()
                             ->default('Kenya'),

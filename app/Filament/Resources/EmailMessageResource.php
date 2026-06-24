@@ -19,7 +19,7 @@ class EmailMessageResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-envelope';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Email';
+    protected static \UnitEnum|string|null $navigationGroup = 'Campaigns';
 
     protected static ?int $navigationSort = 5;
 
@@ -42,7 +42,9 @@ class EmailMessageResource extends Resource
                         Forms\Components\Select::make('brand_id')
                             ->relationship('brand', 'name')
                             ->required()
-                            ->searchable(),
+                            ->searchable()
+                            ->hidden(fn () => filled(session('active_brand_id')))
+                            ->required(fn () => blank(session('active_brand_id'))),
                         Forms\Components\Select::make('lead_id')
                             ->relationship('lead', 'company_name')
                             ->required()

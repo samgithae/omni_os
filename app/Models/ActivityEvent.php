@@ -4,12 +4,15 @@ namespace App\Models;
 
 use App\Enums\ActivityEventType;
 use App\Enums\ActivitySeverity;
+use App\Models\Concerns\BelongsToBrand;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ActivityEvent extends Model
 {
+    use BelongsToBrand;
+
     protected $fillable = [
         'brand_id',
         'source',

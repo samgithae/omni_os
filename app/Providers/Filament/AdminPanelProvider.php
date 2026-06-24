@@ -10,13 +10,17 @@ use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Support\Facades\FilamentView;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Livewire\Livewire;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -49,12 +53,12 @@ class AdminPanelProvider extends PanelProvider
                 NavigationItem::make('Activity Feed')
                     ->url('/activity', shouldOpenInNewTab: false)
                     ->icon('heroicon-o-arrow-trending-up')
-                    ->group('Analytics')
+                    ->group('Intelligence')
                     ->sort(1),
                 NavigationItem::make('Email Sequences')
                     ->url('/email-sequences', shouldOpenInNewTab: false)
                     ->icon('heroicon-o-envelope')
-                    ->group('Email')
+                    ->group('Campaigns')
                     ->sort(1),
             ])
             ->middleware([
@@ -70,6 +74,10 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+            ])
+            ->renderHook(
+                PanelsRenderHook::TOPBAR_END,
+                fn (): string => Blade::render('@livewire(\'brand-switcher\')'),
+            );
     }
 }

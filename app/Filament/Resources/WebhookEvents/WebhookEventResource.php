@@ -15,7 +15,7 @@ class WebhookEventResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBellAlert;
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Analytics';
+    protected static \UnitEnum|string|null $navigationGroup = 'Intelligence';
 
     protected static ?int $navigationSort = 10;
 

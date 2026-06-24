@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\LeadStatus;
+use App\Models\Concerns\BelongsToBrand;
 use Database\Factories\LeadFactory;
 use DomainException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -39,6 +40,7 @@ class Lead extends Model
 {
     /** @use HasFactory<LeadFactory> */
     use HasFactory;
+    use BelongsToBrand;
 
     protected ?array $pendingStatusTransition = null;
 
