@@ -33,6 +33,7 @@ class GenerateEmailContent extends Command
         $totalMissingSteps = 0;
         $withConfig = 0;
         $noConfig = 0;
+        $noMessages = 0;
 
         foreach ($leads as $lead) {
             $config = BrandSequenceConfig::resolveFor($lead->brand_id, $lead->segment);
@@ -56,6 +57,10 @@ class GenerateEmailContent extends Command
                 $needsGeneration++;
                 $totalMissingSteps += count($missingSteps);
             }
+
+            if ($lead->emailMessages->count() === 0) {
+                $noMessages++;
+            }
         }
 
         $this->line('');
@@ -63,6 +68,7 @@ class GenerateEmailContent extends Command
         $this->line("Enriched leads with email: {$leads->count()}");
         $this->line("Has sequence config:       {$withConfig}");
         $this->line("No sequence config:        {$noConfig}");
+        $this->line("Has no email messages:     {$noMessages}");
         $this->line("Needs generation:          {$needsGeneration}");
         $this->line("Total steps missing:       {$totalMissingSteps}");
         $this->line('');

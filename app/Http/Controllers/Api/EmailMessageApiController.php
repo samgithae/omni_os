@@ -85,6 +85,7 @@ class EmailMessageApiController extends Controller
         // Log lead event
         LeadEvent::create([
             'lead_id' => $emailMessage->lead_id,
+            'brand_id' => $emailMessage->brand_id,
             'event_type' => 'email_drafted',
             'source' => 'hermes.drafting-api',
             'payload' => [
