@@ -14,7 +14,7 @@ class GenerateEmailContent extends Command
         {--limit=10 : Max leads to generate for per run}
         {--dry-run : Preview without making changes}';
 
-    protected $description = 'Check for leads needing email sequence generation and log readiness. Actual LLM generation is done by the Hermes cron (generate-email-sequences skill, every 60 min). This command tracks the pipeline on the jobs dashboard.';
+    protected $description = 'Generate email content for leads that need it. Fetches needs_content messages and submits generated content via the API.';
 
     public function handle(ActivityLogger $logger): int
     {
