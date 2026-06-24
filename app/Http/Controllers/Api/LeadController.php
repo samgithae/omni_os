@@ -159,6 +159,11 @@ class LeadController extends Controller
             ], 422);
         }
 
+        // If lead is still 'new', transition to 'enriching' first
+        if ($lead->status === LeadStatus::New->value) {
+            $lead->startEnrichment('api.enrich');
+        }
+
         $validated = $request->validate([
             'email' => ['nullable', 'email', 'max:255'],
             'email_verified' => ['nullable', 'boolean'],

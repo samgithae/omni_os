@@ -51,7 +51,7 @@ function switchBrand(brandId: number | null) {
         <div
             v-if="open"
             class="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
-            style="z-index: 50;"
+            style="z-index: 9999;"
         >
             <div class="py-1">
                 <button
