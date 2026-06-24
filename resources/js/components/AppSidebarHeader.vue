@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { usePage } from '@inertiajs/vue3';
+import BrandSwitcher from '@/components/BrandSwitcher.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { BreadcrumbItem } from '@/types';
@@ -11,6 +13,8 @@ withDefaults(
         breadcrumbs: () => [],
     },
 );
+
+const page = usePage();
 </script>
 
 <template>
@@ -22,6 +26,14 @@ withDefaults(
             <template v-if="breadcrumbs && breadcrumbs.length > 0">
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>
+        </div>
+
+        <!-- Brand Switcher — right-aligned -->
+        <div class="ml-auto">
+            <BrandSwitcher
+                :active-brand-id="(page.props.activeBrandId as number | null)"
+                :brands="(page.props.brands as any[])"
+            />
         </div>
     </header>
 </template>

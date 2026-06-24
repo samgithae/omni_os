@@ -36,7 +36,7 @@
         class="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
         style="z-index: 50;"
     >
-        <div class="py-1">
+        <div class="py-1 flex flex-col">
             <button
                 wire:click="switchBrand(null)"
                 class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
