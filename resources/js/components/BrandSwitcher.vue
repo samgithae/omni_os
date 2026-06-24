@@ -37,7 +37,7 @@ function switchBrand(brandId: number | null) {
     <div class="relative" @click.outside="open = false">
         <button
             type="button"
-            @click="open = !open"
+            @click.stop="open = !open"
             class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
         >
             <span
@@ -50,7 +50,7 @@ function switchBrand(brandId: number | null) {
 
         <div
             v-if="open"
-            class="fixed right-4 top-16 w-56 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
+            class="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
             style="z-index: 9999;"
         >
             <div class="py-1">
