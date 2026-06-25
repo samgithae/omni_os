@@ -21,7 +21,7 @@ class CleanupCronJobRuns extends Command
             ->update([
                 'status' => 'failed',
                 'exit_code' => -1,
-                'output_summary' => 'Marked as failed by cleanup (stuck running > ' . $minutes . ' min)',
+                'output_summary' => 'Marked as failed by cleanup (stuck running > '.$minutes.' min)',
                 'finished_at' => now(),
             ]);
 

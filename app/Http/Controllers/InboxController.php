@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendLeadReply;
 use App\Models\Brand;
 use App\Models\EmailMessage;
 use App\Models\Lead;
 use App\Models\Reply;
 use App\Models\Suppression;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -196,7 +198,7 @@ class InboxController extends Controller
             'lead_id' => $lead->id,
             'brand_id' => $lead->brand_id,
             'from_email' => config('mail.from.address'),
-            'subject' => $request->subject ?: 'Re: ' . ($lead->emailMessages()->latest()->first()?->subject ?? 'Your inquiry'),
+            'subject' => $request->subject ?: 'Re: '.($lead->emailMessages()->latest()->first()?->subject ?? 'Your inquiry'),
             'body' => $request->body,
             'direction' => 'outbound',
             'read' => true,
@@ -204,10 +206,10 @@ class InboxController extends Controller
         ]);
 
         // Dispatch the send job
-        \App\Jobs\SendLeadReply::dispatch($lead, $request->body, $reply);
+        SendLeadReply::dispatch($lead, $request->body, $reply);
 
         // Log to activity feed
-        app(\App\Services\ActivityLogger::class)->log([
+        app(ActivityLogger::class)->log([
             'brand_id' => $lead->brand_id,
             'source' => 'inbox.reply',
             'event_type' => 'email_sent_batch',
@@ -221,6 +223,6 @@ class InboxController extends Controller
             'severity' => 'success',
         ]);
 
-        return back()->with('success', 'Reply sent to ' . $lead->email);
+        return back()->with('success', 'Reply sent to '.$lead->email);
     }
 }

@@ -22,10 +22,11 @@ class ProcessSequenceProgressions implements ShouldQueue
     {
         if (now()->isWeekend()) {
             Log::info('SequenceProgression: Skipping — weekend');
+
             return;
         }
 
-        $brands = Brand::whereHas('sequenceSchedules', fn($q) => $q->where('is_active', true))->get();
+        $brands = Brand::whereHas('sequenceSchedules', fn ($q) => $q->where('is_active', true))->get();
 
         $stats = [
             'drafts_created' => 0,
@@ -55,7 +56,7 @@ class ProcessSequenceProgressions implements ShouldQueue
 
         $leads = Lead::where('brand_id', $brand->id)
             ->whereNotIn('status', ['suppressed', 'closed', 'interested', 'not_interested', 'no_email_found'])
-            ->whereHas('emailMessages', fn($q) => $q->where('status', 'sent'))
+            ->whereHas('emailMessages', fn ($q) => $q->where('status', 'sent'))
             ->get();
 
         foreach ($leads as $lead) {
@@ -87,6 +88,7 @@ class ProcessSequenceProgressions implements ShouldQueue
         // Check if we've reached the end of the sequence
         if ($nextStep > 5) {
             $result['sequences_completed'] = 1;
+
             return $result;
         }
 
@@ -103,6 +105,7 @@ class ProcessSequenceProgressions implements ShouldQueue
         if ($lead->email && Suppression::where('brand_id', $brand->id)->where('email', $lead->email)->exists()) {
             Log::info("SequenceProgression: Lead {$lead->id} ({$lead->company_name}) is suppressed — stopping sequence");
             $result['sequences_stopped_suppressed'] = 1;
+
             return $result;
         }
 
@@ -183,7 +186,7 @@ class ProcessSequenceProgressions implements ShouldQueue
             return;
         }
 
-        $text = "📋 <b>Sequence Progression Report — " . now()->format('M j') . "</b>\n\n";
+        $text = '📋 <b>Sequence Progression Report — '.now()->format('M j')."</b>\n\n";
 
         if ($stats['drafts_created'] > 0) {
             $text .= "New drafts created: <b>{$stats['drafts_created']}</b>\n";

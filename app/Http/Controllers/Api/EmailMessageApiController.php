@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Brand;
 use App\Models\EmailMessage;
 use App\Models\LeadEvent;
+use App\Models\SequenceSchedule;
 use Illuminate\Http\Request;
 
 class EmailMessageApiController extends Controller
@@ -21,7 +23,7 @@ class EmailMessageApiController extends Controller
         ])->needsContent();
 
         if ($request->filled('brand_slug')) {
-            $brand = \App\Models\Brand::where('slug', $request->brand_slug)->first();
+            $brand = Brand::where('slug', $request->brand_slug)->first();
             if ($brand) {
                 $query->where('brand_id', $brand->id);
             }
@@ -34,7 +36,7 @@ class EmailMessageApiController extends Controller
                 ->where('status', 'sent')
                 ->first();
 
-            $schedule = \App\Models\SequenceSchedule::where('brand_id', $email->brand_id)
+            $schedule = SequenceSchedule::where('brand_id', $email->brand_id)
                 ->where('segment', $email->lead?->segment)
                 ->where('step', $email->sequence_step)
                 ->first();

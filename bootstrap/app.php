@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Middleware\AgentTokenAuth;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Jobs\ProcessSequenceProgressions;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -44,7 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
             ->appendOutputTo(storage_path('logs/telegram-approval.log'));
 
         // Sequence progression — daily at 5 AM (before approval batch)
-        $schedule->job(new \App\Jobs\ProcessSequenceProgressions)
+        $schedule->job(new ProcessSequenceProgressions)
             ->dailyAt('05:00')
             ->withoutOverlapping(60)
             ->description('Progress email sequences: schedule next steps for leads (weekdays only)')
@@ -98,6 +100,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
         $middleware->trustProxies(at: '*');
+
+        $middleware->alias([
+            'agent.token' => AgentTokenAuth::class,
+        ]);
 
         $middleware->web(append: [
             HandleAppearance::class,

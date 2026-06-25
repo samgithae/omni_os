@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\ActivityEvent;
 use App\Models\EmailMessage;
+use App\Models\Lead;
+use App\Models\Reply;
 
 /**
  * Generates contextual Hermes replies.
@@ -62,7 +64,7 @@ class CommentResponseService
             str_contains($lower, 'why')    // "why did X fail?" is also a data question
         );
 
-        if (!$askingForDetails) {
+        if (! $askingForDetails) {
             return null;
         }
 
@@ -98,15 +100,15 @@ class CommentResponseService
 
         // Friendly intro with humor
         $lines[] = "Here's the tea on the latest batch for **{$brandName}** ☕";
-        $lines[] = "";
+        $lines[] = '';
 
         if ($sentEmails->isNotEmpty()) {
             $count = $sentEmails->count();
             $lines[] = "**✅ Successfully landed ({$count}):**";
-            $lines[] = "";
+            $lines[] = '';
 
             // Group by company for readability
-            $byCompany = $sentEmails->groupBy(fn($e) => $e->lead?->company_name ?? 'Unknown Co.');
+            $byCompany = $sentEmails->groupBy(fn ($e) => $e->lead?->company_name ?? 'Unknown Co.');
             $displayed = 0;
             foreach ($byCompany as $company => $companyEmails) {
                 if ($displayed >= 5) {
@@ -119,7 +121,7 @@ class CommentResponseService
                 foreach ($companyEmails as $e) {
                     $lines[] = "    → \"{$e->subject}\"";
                 }
-                $lines[] = "";
+                $lines[] = '';
                 $displayed++;
             }
         }
@@ -134,7 +136,7 @@ class CommentResponseService
                 $reason = $e->failure_reason ?? $e->error ?? 'unknown';
                 $lines[] = "  💔 **{$company}** — {$reason}";
             }
-            $lines[] = "";
+            $lines[] = '';
         }
 
         // Short summary with humor
@@ -142,7 +144,7 @@ class CommentResponseService
             $rate = round($sent / ($sent + $failed) * 100);
             $lines[] = "**Bottom line:** {$sent} got through, {$failed} hit the wall. That's a {$rate}% delivery rate.";
             if ($rate > 80) {
-                $lines[] = "Not bad! The sender rotation is doing its job. 🚀";
+                $lines[] = 'Not bad! The sender rotation is doing its job. 🚀';
             } elseif ($rate > 50) {
                 $lines[] = "Room for improvement — I'll tighten up the MX checks before the next round.";
             } else {
@@ -199,7 +201,7 @@ class CommentResponseService
         $queued = $meta['email_enrichment_queued'] ?? 0;
         $brandName = $event->brand?->name ?? 'this brand';
 
-        $leads = \App\Models\Lead::query()
+        $leads = Lead::query()
             ->where('brand_id', $event->brand_id)
             ->where('status', 'enriched')
             ->whereNotNull('email')
@@ -210,33 +212,33 @@ class CommentResponseService
         $lines = ["**Enrichment run for {$brandName}:**"];
 
         if ($autoEnriched > 0) {
-            $lines[] = "";
-            $lines[] = "**Auto-enriched leads (had emails already):**";
+            $lines[] = '';
+            $lines[] = '**Auto-enriched leads (had emails already):**';
             foreach ($leads->take(10) as $i => $l) {
                 $phone = $l->phone ? ' 📞' : ' ❌ no phone';
                 $lines[] = "  {$i}. **{$l->company_name}** <{$l->email}>{$phone} — {$l->segment} / {$l->city}";
             }
             if ($leads->count() > 10) {
-                $lines[] = "  ... and " . ($leads->count() - 10) . " more.";
+                $lines[] = '  ... and '.($leads->count() - 10).' more.';
             }
         }
 
         if ($queued > 0) {
-            $lines[] = "";
+            $lines[] = '';
             $lines[] = "**Leads sent for email enrichment:** {$queued} (Hermes will look for emails)";
         }
 
-        $noEmail = \App\Models\Lead::where('brand_id', $event->brand_id)
+        $noEmail = Lead::where('brand_id', $event->brand_id)
             ->where('status', 'no_email_found')->count();
         if ($noEmail > 0) {
-            $lines[] = "";
+            $lines[] = '';
             $lines[] = "**Leads with no email found:** {$noEmail} — tried 3 times each, came up empty. These are terminal unless a new data source is added.";
         }
 
-        $noPhone = \App\Models\Lead::where('brand_id', $event->brand_id)
+        $noPhone = Lead::where('brand_id', $event->brand_id)
             ->whereNull('phone')->count();
         if (str_contains($comment, 'phone') || str_contains($comment, 'number')) {
-            $lines[] = "";
+            $lines[] = '';
             $lines[] = "**Missing phone numbers:** {$noPhone} leads — there's no phone enrichment pipeline yet.";
         }
 
@@ -250,7 +252,7 @@ class CommentResponseService
         $brandName = $event->brand?->name ?? 'this brand';
 
         // Find the reply record
-        $reply = \App\Models\Reply::query()
+        $reply = Reply::query()
             ->where('brand_id', $event->brand_id)
             ->latest()
             ->first();
@@ -259,17 +261,17 @@ class CommentResponseService
         $lines[] = "  Classification: **{$classification}**";
 
         if ($reply) {
-            $lines[] = "";
-            $lines[] = "**Reply content:**";
+            $lines[] = '';
+            $lines[] = '**Reply content:**';
             $lines[] = "  From: {$reply->from_email}";
             $lines[] = "  Subject: {$reply->subject}";
             $body = substr($reply->body, 0, 500);
-            $lines[] = "  Body: \"{$body}\"" . (strlen($reply->body) > 500 ? '...' : '');
-            $lines[] = "";
+            $lines[] = "  Body: \"{$body}\"".(strlen($reply->body) > 500 ? '...' : '');
+            $lines[] = '';
             $lines[] = "  Status: {$classification}";
 
             if ($classification === 'interested') {
-                $lines[] = "  → Marked as interested. In the inbox at /inbox if you want to reply.";
+                $lines[] = '  → Marked as interested. In the inbox at /inbox if you want to reply.';
             }
         } else {
             $lines[] = "  The reply was classified by the webhook but I can't find it in the replies table. It may be stored in the lead's raw_data.";
@@ -291,6 +293,7 @@ class CommentResponseService
             'enrichment_batch' => [$this, 'handleEnrichmentBatch'],
             'system' => [$this, 'handleSystem'],
         ];
+
         return $handlers[$eventType] ?? null;
     }
 
@@ -310,19 +313,20 @@ class CommentResponseService
                     $failedReasons[] = $domain ? "{$domain} ({$reason})" : $reason;
                 }
             }
-            $reasonDetail = !empty($failedReasons)
-                ? ' The failures were: ' . implode('; ', array_slice($failedReasons, 0, 3)) . '.'
+            $reasonDetail = ! empty($failedReasons)
+                ? ' The failures were: '.implode('; ', array_slice($failedReasons, 0, 3)).'.'
                 : '';
+
             return "Good catch. {$sent} went through, {$failed} failed for {$brandName}.{$reasonDetail} "
-                . "I'll check the MX records and verify the addresses before the next batch. "
-                . "Want me to list which ones failed and why?";
+                ."I'll check the MX records and verify the addresses before the next batch. "
+                .'Want me to list which ones failed and why?';
         }
 
         $rate = $sent > 0 ? round(($meta['opened'] ?? 0) / $sent * 100, 1) : 0;
         $senderCount = $meta['sender_count'] ?? 'multiple';
         if ($rate > 0) {
             return "Noted. {$sent} sent for {$brandName}, already seeing a {$rate}% open rate. "
-                . "The rotation through {$senderCount} sender addresses seems to be helping deliverability.";
+                ."The rotation through {$senderCount} sender addresses seems to be helping deliverability.";
         }
 
         return "Noted — {$sent} emails sent cleanly for {$brandName}. ";
@@ -339,15 +343,16 @@ class CommentResponseService
         }
 
         return "Got it. {$count} emails approved for {$brandName}. They'll go out in the next send window. "
-            . "Want me to list what's in the queue?";
+            ."Want me to list what's in the queue?";
     }
 
     private function handleEmailRejected(ActivityEvent $event, string $comment): string
     {
         $count = $event->metadata['count'] ?? 0;
         $brandName = $event->brand?->name ?? 'this brand';
+
         return "Noted. {$count} emails rejected for {$brandName}. "
-            . "If the rejection was due to content concerns, let me know what to adjust.";
+            .'If the rejection was due to content concerns, let me know what to adjust.';
     }
 
     private function handleReplyClassified(ActivityEvent $event, string $comment): string
@@ -358,11 +363,12 @@ class CommentResponseService
 
         if ($classification === 'interested') {
             return "Good signal — {$leadName} classified as interested for {$brandName}. "
-                . "Inbox link: /inbox if you want to see the full reply and respond.";
+                .'Inbox link: /inbox if you want to see the full reply and respond.';
         }
         if ($classification === 'not_interested') {
             return "Noted — {$leadName} declined for {$brandName}. Suppression logged.";
         }
+
         return "Recorded {$classification} for {$leadName} on {$brandName}.";
     }
 
@@ -374,22 +380,24 @@ class CommentResponseService
         if ($reason === 'bounce') {
             return "Good — {$count} bounce suppressions added for {$brandName}. Sender reputation protected.";
         }
+
         return "{$count} suppression(s) logged for {$brandName}.";
     }
 
     private function handleDailyBrief(ActivityEvent $event, string $comment): string
     {
         return "Thanks for the overview. I've reviewed the metrics. "
-            . "If you want me to investigate any specific area, just ask. "
-            . "Which emails went out, how the funnel looks, reply patterns — I can pull the data.";
+            .'If you want me to investigate any specific area, just ask. '
+            .'Which emails went out, how the funnel looks, reply patterns — I can pull the data.';
     }
 
     private function handleMiningRun(ActivityEvent $event, string $comment): string
     {
         $found = $event->metadata['found'] ?? $event->metadata['count'] ?? 0;
         $brandName = $event->brand?->name ?? 'this brand';
+
         return "Noted — {$found} new prospects mined for {$brandName}. "
-            . "They'll go through enrichment and scoring before entering the email pipeline.";
+            ."They'll go through enrichment and scoring before entering the email pipeline.";
     }
 
     private function handleEnrichmentBatch(ActivityEvent $event, string $comment): string
@@ -401,7 +409,8 @@ class CommentResponseService
         if ($auto > 0) {
             $lines[] = "({$auto} had emails already — auto-enriched)";
         }
-        $lines[] = "Want the full list of who was enriched?";
+        $lines[] = 'Want the full list of who was enriched?';
+
         return implode(' ', $lines);
     }
 
@@ -409,10 +418,11 @@ class CommentResponseService
     {
         $source = $event->source ?? '';
         if (str_contains($source, 'cron') || str_contains($source, 'scheduler')) {
-            return "System maintenance noted. All scheduled jobs running on cadence. "
-                . "The detailed schedule is at /analytics/jobs if you want to check.";
+            return 'System maintenance noted. All scheduled jobs running on cadence. '
+                .'The detailed schedule is at /analytics/jobs if you want to check.';
         }
-        return "Acknowledged. System event recorded.";
+
+        return 'Acknowledged. System event recorded.';
     }
 
     private function genericResponse(ActivityEvent $event, string $comment): string
@@ -430,10 +440,10 @@ class CommentResponseService
 
         if ($isActionItem) {
             return "Noted — I've logged this as an action item. "
-                . "If it's urgent, tell me and I'll prioritise it.";
+                ."If it's urgent, tell me and I'll prioritise it.";
         }
 
         return "Got it. Noted for {$brandName}. "
-            . "Want me to dig into any specific data, or is this just a note?";
+            .'Want me to dig into any specific data, or is this just a note?';
     }
 }

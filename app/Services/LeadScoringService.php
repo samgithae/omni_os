@@ -30,7 +30,7 @@ class LeadScoringService
     /**
      * Calculate the score for a single lead.
      *
-     * @param Lead $lead  The lead (with emailMessages relationship loaded)
+     * @param  Lead  $lead  The lead (with emailMessages relationship loaded)
      * @return array{score: int, breakdown: array<string, int>}
      */
     public function calculate(Lead $lead): array
@@ -42,15 +42,23 @@ class LeadScoringService
 
         // 2. Data completeness (max 40)
         $breakdown['data_completeness'] = 0;
-        if (!empty($lead->email)) $breakdown['data_completeness'] += 20;
-        if (!empty($lead->phone)) $breakdown['data_completeness'] += 10;
-        if (!empty($lead->website)) $breakdown['data_completeness'] += 7;
-        if (!empty($lead->contact_name)) $breakdown['data_completeness'] += 3;
+        if (! empty($lead->email)) {
+            $breakdown['data_completeness'] += 20;
+        }
+        if (! empty($lead->phone)) {
+            $breakdown['data_completeness'] += 10;
+        }
+        if (! empty($lead->website)) {
+            $breakdown['data_completeness'] += 7;
+        }
+        if (! empty($lead->contact_name)) {
+            $breakdown['data_completeness'] += 3;
+        }
 
         // 3. Email confidence (max 15)
         // If email exists but confidence is null (legacy imports), treat as inferred
         $confidence = $lead->email_confidence;
-        if (!$confidence && !empty($lead->email)) {
+        if (! $confidence && ! empty($lead->email)) {
             $confidence = 'inferred';
         }
         $breakdown['email_confidence'] = match ($confidence) {
@@ -92,7 +100,7 @@ class LeadScoringService
         $messages = $lead->emailMessages;
 
         // If relationship isn't loaded, query it
-        if (!$messages) {
+        if (! $messages) {
             $messages = $lead->emailMessages()->get();
         }
 
@@ -109,9 +117,15 @@ class LeadScoringService
             ->exists();
 
         $score = 0;
-        if ($hasOpened) $score += 5;
-        if ($hasClicked) $score += 5;
-        if ($hasReplied) $score += 5;
+        if ($hasOpened) {
+            $score += 5;
+        }
+        if ($hasClicked) {
+            $score += 5;
+        }
+        if ($hasReplied) {
+            $score += 5;
+        }
 
         return min(15, $score);
     }
@@ -119,8 +133,7 @@ class LeadScoringService
     /**
      * Recalculate and persist the score for a single lead.
      *
-     * @param Lead $lead
-     * @return int  The new score
+     * @return int The new score
      */
     public function recalculate(Lead $lead): int
     {

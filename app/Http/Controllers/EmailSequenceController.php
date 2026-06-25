@@ -138,14 +138,14 @@ class EmailSequenceController extends Controller
                 $complete = $lead->hasCompleteEmailSequence();
                 if ($complete === false) {
                     $missing = $lead->missingEmailSequenceSteps();
-                    $incompleteLeads[] = "Lead {$leadId} ({$lead->company_name}) — missing steps [" . implode(',', $missing) . ']';
+                    $incompleteLeads[] = "Lead {$leadId} ({$lead->company_name}) — missing steps [".implode(',', $missing).']';
                 }
             }
         }
 
         if (! empty($incompleteLeads)) {
             return back()->withErrors([
-                'completeness' => 'Cannot approve — incomplete sequences: ' . implode('; ', $incompleteLeads),
+                'completeness' => 'Cannot approve — incomplete sequences: '.implode('; ', $incompleteLeads),
             ]);
         }
 
@@ -185,8 +185,9 @@ class EmailSequenceController extends Controller
             $complete = $lead->hasCompleteEmailSequence();
             if ($complete === false) {
                 $missing = $lead->missingEmailSequenceSteps();
+
                 return back()->withErrors([
-                    'completeness' => "Cannot approve — the lead's email sequence is incomplete. Missing steps: [" . implode(',', $missing) . ']. Wait for Hermes to generate the missing emails.',
+                    'completeness' => "Cannot approve — the lead's email sequence is incomplete. Missing steps: [".implode(',', $missing).']. Wait for Hermes to generate the missing emails.',
                 ]);
             }
         }

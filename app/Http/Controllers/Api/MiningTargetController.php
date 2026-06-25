@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\MiningTarget;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 
 class MiningTargetController extends Controller
 {

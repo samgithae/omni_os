@@ -25,7 +25,7 @@ class SuppressionController extends Controller
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('email', 'ilike', "%{$s}%")
-                  ->orWhere('notes', 'ilike', "%{$s}%");
+                    ->orWhere('notes', 'ilike', "%{$s}%");
             });
         }
 

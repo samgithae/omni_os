@@ -70,7 +70,7 @@ class LeadController extends Controller
         $direction = $request->get('direction', 'desc');
 
         $allowedSorts = ['score', 'company_name', 'created_at', 'email', 'segment', 'status', 'city'];
-        if (!in_array($sort, $allowedSorts)) {
+        if (! in_array($sort, $allowedSorts)) {
             $sort = 'score';
         }
         $direction = in_array($direction, ['asc', 'desc']) ? $direction : 'desc';

@@ -25,14 +25,15 @@ class StoreActivityEventRequest extends FormRequest
             'metadata' => ['nullable', 'array'],
             'severity' => ['required', new Enum(ActivitySeverity::class)],
             'notify_telegram' => ['nullable', 'boolean'],
+            'agent_codename' => ['nullable', 'string', 'exists:agents,codename'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'event_type.Illuminate\Validation\Rules\Enum' => 'Invalid event type. Must be one of: ' . implode(', ', array_map(fn($c) => $c->value, ActivityEventType::cases())),
-            'severity.Illuminate\Validation\Rules\Enum' => 'Invalid severity. Must be one of: ' . implode(', ', array_map(fn($c) => $c->value, ActivitySeverity::cases())),
+            'event_type.Illuminate\Validation\Rules\Enum' => 'Invalid event type. Must be one of: '.implode(', ', array_map(fn ($c) => $c->value, ActivityEventType::cases())),
+            'severity.Illuminate\Validation\Rules\Enum' => 'Invalid severity. Must be one of: '.implode(', ', array_map(fn ($c) => $c->value, ActivitySeverity::cases())),
         ];
     }
 }

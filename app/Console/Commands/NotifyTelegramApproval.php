@@ -7,6 +7,7 @@ use App\Models\EmailMessage;
 use App\Services\ActivityLogger;
 use App\Services\TelegramService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Http;
 
 class NotifyTelegramApproval extends Command
 {
@@ -25,6 +26,7 @@ class NotifyTelegramApproval extends Command
 
         if (! $telegram->isConfigured()) {
             $this->warn('Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.');
+
             return 1;
         }
 
@@ -45,6 +47,7 @@ class NotifyTelegramApproval extends Command
 
         if ($allEmails->isEmpty()) {
             $this->info('No pending emails to notify.');
+
             return 0;
         }
 
@@ -54,10 +57,11 @@ class NotifyTelegramApproval extends Command
 
         if ($newEmails->isEmpty()) {
             $this->info('All pending emails have already been notified. Skipping duplicate notification.');
+
             return 0;
         }
 
-        $this->info('Notifying ' . $newEmails->count() . ' new emails (skipping ' . ($allEmails->count() - $newEmails->count()) . ' already notified).');
+        $this->info('Notifying '.$newEmails->count().' new emails (skipping '.($allEmails->count() - $newEmails->count()).' already notified).');
 
         // Group by brand
         $byBrand = $newEmails->groupBy('brand.name');
@@ -68,7 +72,7 @@ class NotifyTelegramApproval extends Command
         // so "APPROVE ALL" only applies to THIS batch, not all pending emails
         $allIds = $newEmails->pluck('id')->toArray();
         cache()->forever('telegram_pending_batch', $allIds);
-        $this->info("Stored batch of " . count($allIds) . " email IDs for scoped approval.");
+        $this->info('Stored batch of '.count($allIds).' email IDs for scoped approval.');
         $totalInBatch = count($allIds);
 
         foreach ($byBrand as $brandName => $emails) {
@@ -124,7 +128,7 @@ class NotifyTelegramApproval extends Command
             $leadEmails = $emails->filter(fn ($e) => $e->lead?->company_name === $company);
             $steps = $leadEmails->pluck('sequence_step')->sort()->map(fn ($s) => "S{$s}")->implode(', ');
             $emailIds = $leadEmails->pluck('id')->map(fn ($id) => (string) $id)->implode(', ');
-            $text .= "  " . ($idx + 1) . ". <b>{$company}</b> [{$steps}] IDs: {$emailIds}\n";
+            $text .= '  '.($idx + 1).". <b>{$company}</b> [{$steps}] IDs: {$emailIds}\n";
         }
 
         $text .= "\n💡 <b>How to approve:</b>\n";
@@ -158,10 +162,10 @@ class NotifyTelegramApproval extends Command
             'reply_markup' => ['inline_keyboard' => $keyboard],
         ];
 
-        \Illuminate\Support\Facades\Http::withOptions([
+        Http::withOptions([
             'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
         ])->post(
-            "https://api.telegram.org/bot" . config('services.telegram.bot_token') . "/sendMessage",
+            'https://api.telegram.org/bot'.config('services.telegram.bot_token').'/sendMessage',
             $payload
         );
     }
@@ -178,12 +182,14 @@ class NotifyTelegramApproval extends Command
 
         foreach ($samples as $company => $leadEmails) {
             $lead = $leadEmails->first()?->lead;
-            if (!$lead) continue;
+            if (! $lead) {
+                continue;
+            }
 
             $text = "📄 <b>Sample: {$company}</b>\n";
             $text .= "━━━━━━━━━━━━━━━━━━━━\n";
             $text .= "Email: <code>{$lead->email}</code>\n";
-            $text .= "Segment: {$lead->segment} | City: " . ($lead->city ?? '—') . "\n\n";
+            $text .= "Segment: {$lead->segment} | City: ".($lead->city ?? '—')."\n\n";
 
             foreach ($leadEmails->sortBy('sequence_step') as $email) {
                 $text .= "<b>── Step {$email->sequence_step} (ID: {$email->id}) ──</b>\n";
@@ -208,10 +214,10 @@ class NotifyTelegramApproval extends Command
                 'disable_web_page_preview' => true,
             ];
 
-            \Illuminate\Support\Facades\Http::withOptions([
+            Http::withOptions([
                 'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
             ])->post(
-                "https://api.telegram.org/bot" . config('services.telegram.bot_token') . "/sendMessage",
+                'https://api.telegram.org/bot'.config('services.telegram.bot_token').'/sendMessage',
                 $payload
             );
         }

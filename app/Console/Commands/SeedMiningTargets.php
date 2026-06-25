@@ -156,14 +156,18 @@ class SeedMiningTargets extends Command
         if (! $brandSlug || $brandSlug === 'ujuziplus' || $brandSlug === 'hudutech') {
             $logger = app(ActivityLogger::class);
             $brandNames = [];
-            if ($ujuzi && (! $brandSlug || $brandSlug === 'ujuziplus')) $brandNames[] = 'UjuziPlus';
-            if ($hudu && (! $brandSlug || $brandSlug === 'hudutech')) $brandNames[] = 'Hudutech';
+            if ($ujuzi && (! $brandSlug || $brandSlug === 'ujuziplus')) {
+                $brandNames[] = 'UjuziPlus';
+            }
+            if ($hudu && (! $brandSlug || $brandSlug === 'hudutech')) {
+                $brandNames[] = 'Hudutech';
+            }
 
             $total = MiningTarget::count();
             $logger->log([
                 'source' => 'laravel.cli.mining-targets',
                 'event_type' => 'system',
-                'title' => 'Mining targets seeded — ' . implode(', ', $brandNames) . " ({$total} targets)",
+                'title' => 'Mining targets seeded — '.implode(', ', $brandNames)." ({$total} targets)",
                 'metadata' => [
                     'brands' => $brandNames,
                     'total_targets' => $total,
@@ -173,7 +177,8 @@ class SeedMiningTargets extends Command
             ]);
         }
 
-        $this->info('Seeded ' . MiningTarget::count() . ' mining targets.');
+        $this->info('Seeded '.MiningTarget::count().' mining targets.');
+
         return self::SUCCESS;
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\LeadStatus;
 use App\Models\Brand;
 use App\Models\EmailMessage;
 use App\Services\ActivityLogger;
@@ -18,6 +19,7 @@ class SendEmailBatch extends Command
     protected $description = 'Send approved/queued emails via SMTP2GO with safe-send discipline';
 
     private const int MAX_PER_DOMAIN = 5;        // domain warming limit
+
     private const string MX_CACHE_KEY = 'omni_mx_valid_';
 
     public function handle(): int
@@ -28,6 +30,7 @@ class SendEmailBatch extends Command
 
         if (! $apiKey) {
             $this->error('SMTP2GO API key not configured.');
+
             return 1;
         }
 
@@ -39,7 +42,7 @@ class SendEmailBatch extends Command
                     ->from('leads')
                     ->join('suppressions', function ($join) {
                         $join->on('suppressions.email', '=', 'leads.email')
-                             ->on('suppressions.brand_id', '=', 'leads.brand_id');
+                            ->on('suppressions.brand_id', '=', 'leads.brand_id');
                     });
             })
             ->with(['lead:id,company_name,email,contact_name', 'brand:id,name,slug,sender_emails,sender_name']);
@@ -56,6 +59,7 @@ class SendEmailBatch extends Command
 
         if ($emails->isEmpty()) {
             $this->info('No queued emails to send.');
+
             return 0;
         }
 
@@ -73,6 +77,7 @@ class SendEmailBatch extends Command
             if (! $lead || ! $lead->email) {
                 $email->update(['status' => 'failed', 'error_message' => 'No lead email address.']);
                 $failed++;
+
                 continue;
             }
 
@@ -83,6 +88,7 @@ class SendEmailBatch extends Command
                 $this->warn("  Skipping {$lead->email}: domain {$domain} has no MX record");
                 $email->update(['status' => 'failed', 'error_message' => "Domain {$domain} has no MX record."]);
                 $failed++;
+
                 continue;
             }
 
@@ -90,6 +96,7 @@ class SendEmailBatch extends Command
             $domainCount[$domain] = ($domainCount[$domain] ?? 0) + 1;
             if ($domainCount[$domain] > self::MAX_PER_DOMAIN) {
                 $this->warn("  Skipping {$lead->email}: domain warming limit ({$domain})");
+
                 continue; // Leave as queued — try next run
             }
 
@@ -123,7 +130,7 @@ class SendEmailBatch extends Command
 
                     // Transition lead to emailed
                     try {
-                        $lead->transitionTo(\App\Enums\LeadStatus::Emailed, 'cli.emails.send', [
+                        $lead->transitionTo(LeadStatus::Emailed, 'cli.emails.send', [
                             'email_id' => $email->id,
                             'sequence_step' => $email->sequence_step,
                         ]);
@@ -163,7 +170,7 @@ class SendEmailBatch extends Command
         $logger->log([
             'source' => 'laravel.scheduler.email-sender',
             'event_type' => 'email_sent_batch',
-            'title' => "{$sent} emails sent" . ($failed ? ", {$failed} failed" : '') . ($brandNames ? ' — ' . implode(', ', $brandNames) : ''),
+            'title' => "{$sent} emails sent".($failed ? ", {$failed} failed" : '').($brandNames ? ' — '.implode(', ', $brandNames) : ''),
             'metadata' => [
                 'total' => $emails->count(),
                 'sent' => $sent,
@@ -188,14 +195,14 @@ class SendEmailBatch extends Command
     {
         // Skip check for common major providers (they always have MX)
         $knownGood = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com',
-                       'aol.com', 'protonmail.com', 'mail.com', 'zoho.com', 'yandex.com',
-                       'live.com', 'msn.com', 'ymail.com'];
+            'aol.com', 'protonmail.com', 'mail.com', 'zoho.com', 'yandex.com',
+            'live.com', 'msn.com', 'ymail.com'];
 
         if (in_array(strtolower($domain), $knownGood, true)) {
             return true;
         }
 
-        $cacheKey = self::MX_CACHE_KEY . str_replace('.', '_', $domain);
+        $cacheKey = self::MX_CACHE_KEY.str_replace('.', '_', $domain);
         $cached = cache()->get($cacheKey);
 
         if ($cached !== null) {

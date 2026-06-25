@@ -36,7 +36,7 @@ class NotifyTelegram
         if ($entry->metadata) {
             $meta = is_array($entry->metadata) ? $entry->metadata : json_decode($entry->metadata, true) ?? [];
             foreach ($meta as $key => $val) {
-                $text .= "\n{$key}: " . (is_array($val) ? json_encode($val) : $val);
+                $text .= "\n{$key}: ".(is_array($val) ? json_encode($val) : $val);
             }
         }
 

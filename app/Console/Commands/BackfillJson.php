@@ -8,7 +8,6 @@ use App\Models\Lead;
 use App\Models\Suppression;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Str;
 
 class BackfillJson extends Command
 {
@@ -141,6 +140,7 @@ class BackfillJson extends Command
             } catch (\Throwable $e) {
                 $this->warn("  Cannot parse JSON: {$e->getMessage()}");
                 $totalSkipped++;
+
                 continue;
             }
 
@@ -160,6 +160,7 @@ class BackfillJson extends Command
                 // ICP filter — skip non-training companies
                 if (! $this->passesIcpFilter($companyName)) {
                     $totalFiltered++;
+
                     continue;
                 }
 
@@ -175,6 +176,7 @@ class BackfillJson extends Command
                             $this->line("  ⛔ {$companyName} — suppressed");
                         }
                         $totalSuppressed++;
+
                         continue;
                     }
                 }
@@ -192,12 +194,14 @@ class BackfillJson extends Command
                         $this->line("  🔁 {$companyName} — duplicate");
                     }
                     $totalDuplicates++;
+
                     continue;
                 }
 
                 if ($dryRun) {
                     $this->line("  ✅ {$companyName} — would import".($email ? " ({$email})" : ''));
                     $totalCreated++; // count in dry-run too
+
                     continue;
                 }
 

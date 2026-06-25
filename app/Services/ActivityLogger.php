@@ -13,6 +13,7 @@ class ActivityLogger
     {
         $event = ActivityEvent::create([
             'brand_id' => $data['brand_id'] ?? null,
+            'agent_id' => $data['agent_id'] ?? null,
             'source' => $data['source'],
             'event_type' => $data['event_type'] instanceof ActivityEventType
                 ? $data['event_type']->value : $data['event_type'],

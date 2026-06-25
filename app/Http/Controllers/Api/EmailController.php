@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\LeadStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\EmailMessage;
 use App\Models\Lead;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Http;
 
 class EmailController extends Controller
 {
@@ -70,7 +71,7 @@ class EmailController extends Controller
 
         // Check suppression
         if ($lead->isSuppressed()) {
-            $lead->transitionTo(\App\Enums\LeadStatus::Suppressed, 'api.email.draft');
+            $lead->transitionTo(LeadStatus::Suppressed, 'api.email.draft');
 
             return response()->json([
                 'message' => 'Lead email is suppressed. Cannot draft.',
@@ -183,7 +184,7 @@ class EmailController extends Controller
                 $lead = $email->lead;
                 $brand = $email->brand;
 
-                $response = \Illuminate\Support\Facades\Http::withHeaders([
+                $response = Http::withHeaders([
                     'Content-Type' => 'application/json',
                     'X-Smtp2go-Api-Key' => $apiKey,
                 ])->post(rtrim($apiEndpoint, '/').'/email/send', [
@@ -207,7 +208,7 @@ class EmailController extends Controller
 
                     // Transition lead to emailed
                     try {
-                        $lead->transitionTo(\App\Enums\LeadStatus::Emailed, 'api.email.send', [
+                        $lead->transitionTo(LeadStatus::Emailed, 'api.email.send', [
                             'email_id' => $email->id,
                             'sequence_step' => $email->sequence_step,
                         ]);

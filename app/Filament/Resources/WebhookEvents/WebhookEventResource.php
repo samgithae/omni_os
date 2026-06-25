@@ -5,8 +5,14 @@ namespace App\Filament\Resources\WebhookEvents;
 use App\Filament\Resources\WebhookEvents\Pages\ListWebhookEvents;
 use App\Models\WebhookEvent;
 use BackedEnum;
+use Filament\Actions\ViewAction;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 
 class WebhookEventResource extends Resource
@@ -23,14 +29,14 @@ class WebhookEventResource extends Resource
     {
         return $table
             ->columns([
-                \Filament\Tables\Columns\TextColumn::make('received_at')
+                TextColumn::make('received_at')
                     ->label('Received')
                     ->dateTime()
                     ->sortable(),
-                \Filament\Tables\Columns\TextColumn::make('source')
+                TextColumn::make('source')
                     ->badge()
                     ->sortable(),
-                \Filament\Tables\Columns\TextColumn::make('event_type')
+                TextColumn::make('event_type')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'open', 'opened' => 'info',
@@ -43,25 +49,25 @@ class WebhookEventResource extends Resource
                         default => 'gray',
                     })
                     ->sortable(),
-                \Filament\Tables\Columns\TextColumn::make('recipient_email')
+                TextColumn::make('recipient_email')
                     ->searchable()
                     ->limit(40),
-                \Filament\Tables\Columns\TextColumn::make('lead.company_name')
+                TextColumn::make('lead.company_name')
                     ->label('Lead')
                     ->limit(30)
                     ->toggleable(),
-                \Filament\Tables\Columns\TextColumn::make('email_message_id')
+                TextColumn::make('email_message_id')
                     ->label('Email ID')
                     ->toggleable(),
-                \Filament\Tables\Columns\IconColumn::make('processed')
+                IconColumn::make('processed')
                     ->boolean()
                     ->sortable(),
-                \Filament\Tables\Columns\TextColumn::make('processing_notes')
+                TextColumn::make('processing_notes')
                     ->limit(50)
                     ->toggleable(),
             ])
             ->filters([
-                \Filament\Tables\Filters\SelectFilter::make('event_type')
+                SelectFilter::make('event_type')
                     ->options([
                         'open' => 'Open',
                         'click' => 'Click',
@@ -71,18 +77,18 @@ class WebhookEventResource extends Resource
                         'reply' => 'Reply',
                         'delivered' => 'Delivered',
                     ]),
-                \Filament\Tables\Filters\TernaryFilter::make('processed'),
+                TernaryFilter::make('processed'),
             ])
             ->actions([
-                \Filament\Actions\ViewAction::make()
+                ViewAction::make()
                     ->schema([
-                        \Filament\Infolists\Components\TextEntry::make('received_at')->dateTime(),
-                        \Filament\Infolists\Components\TextEntry::make('event_type'),
-                        \Filament\Infolists\Components\TextEntry::make('recipient_email'),
-                        \Filament\Infolists\Components\TextEntry::make('lead.company_name'),
-                        \Filament\Infolists\Components\TextEntry::make('processed')->badge(),
-                        \Filament\Infolists\Components\TextEntry::make('processing_notes'),
-                        \Filament\Infolists\Components\TextEntry::make('payload')
+                        TextEntry::make('received_at')->dateTime(),
+                        TextEntry::make('event_type'),
+                        TextEntry::make('recipient_email'),
+                        TextEntry::make('lead.company_name'),
+                        TextEntry::make('processed')->badge(),
+                        TextEntry::make('processing_notes'),
+                        TextEntry::make('payload')
                             ->json()
                             ->columnSpanFull(),
                     ]),

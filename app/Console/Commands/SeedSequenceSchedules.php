@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 class SeedSequenceSchedules extends Command
 {
     protected $signature = 'sequence:seed-schedules';
+
     protected $description = 'Seed initial sequence schedules for all brands';
 
     public function handle(): int
@@ -42,7 +43,8 @@ class SeedSequenceSchedules extends Command
             $this->line("Seeded schedules for {$brand->name}");
         }
 
-        $this->info('Sequence schedules seeded: ' . SequenceSchedule::count() . ' total.');
+        $this->info('Sequence schedules seeded: '.SequenceSchedule::count().' total.');
+
         return self::SUCCESS;
     }
 }

@@ -76,7 +76,7 @@ class SeedSenderEmails extends Command
                     'sender_emails' => $data['sender_emails'],
                     'sender_name' => $data['sender_name'],
                 ]);
-                $this->info("  {$brand->name}: " . count($data['sender_emails']) . " sender emails seeded");
+                $this->info("  {$brand->name}: ".count($data['sender_emails']).' sender emails seeded');
                 $updated++;
             } else {
                 $this->warn("  {$brand->name}: no sender emails configured — skipped");

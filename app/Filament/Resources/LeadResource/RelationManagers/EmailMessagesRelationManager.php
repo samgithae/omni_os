@@ -11,6 +11,8 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Collection;
+use Illuminate\Support\HtmlString;
 
 class EmailMessagesRelationManager extends RelationManager
 {
@@ -18,7 +20,7 @@ class EmailMessagesRelationManager extends RelationManager
 
     protected static ?string $title = 'Email Sequence';
 
-    protected static string | BackedEnum | null $icon = 'heroicon-o-envelope';
+    protected static string|BackedEnum|null $icon = 'heroicon-o-envelope';
 
     public function form(Schema $schema): Schema
     {
@@ -150,6 +152,7 @@ class EmailMessagesRelationManager extends RelationManager
                     ->label('Add Email')
                     ->mutateFormDataUsing(function (array $data): array {
                         $data['brand_id'] = $this->getOwnerRecord()->brand_id;
+
                         return $data;
                     }),
             ])
@@ -162,9 +165,9 @@ class EmailMessagesRelationManager extends RelationManager
                             ->content($record->subject ?? '(no subject)'),
                         Forms\Components\Placeholder::make('body_preview')
                             ->label('Body')
-                            ->content(new \Illuminate\Support\HtmlString(
-                                '<div style="white-space: pre-wrap; font-family: sans-serif; max-height: 400px; overflow-y: auto; padding: 12px; background: #f9fafb; border-radius: 8px;">' .
-                                e($record->body ?? '') .
+                            ->content(new HtmlString(
+                                '<div style="white-space: pre-wrap; font-family: sans-serif; max-height: 400px; overflow-y: auto; padding: 12px; background: #f9fafb; border-radius: 8px;">'.
+                                e($record->body ?? '').
                                 '</div>'
                             )),
                         Forms\Components\Placeholder::make('approval')
@@ -187,8 +190,7 @@ class EmailMessagesRelationManager extends RelationManager
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Approve this email?')
-                    ->modalDescription(fn (EmailMessage $record): string =>
-                        "Subject: {$record->subject}\n\nOnce approved, this email will be queued for sending.")
+                    ->modalDescription(fn (EmailMessage $record): string => "Subject: {$record->subject}\n\nOnce approved, this email will be queued for sending.")
                     ->visible(fn (EmailMessage $record): bool => $record->approval_status === 'pending')
                     ->action(function (EmailMessage $record): void {
                         $record->approve();
@@ -213,7 +215,7 @@ class EmailMessagesRelationManager extends RelationManager
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
                         ->requiresConfirmation()
-                        ->action(function (\Illuminate\Support\Collection $records): void {
+                        ->action(function (Collection $records): void {
                             $records->each(fn (EmailMessage $record) => $record->approve());
                         })
                         ->after(fn () => $this->sendCreatedNotificationAndReceivesDirty()),

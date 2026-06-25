@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\ActivityEvent;
 use App\Models\Brand;
 use App\Services\ActivityLogger;
 use Illuminate\Console\Command;
@@ -9,6 +10,7 @@ use Illuminate\Console\Command;
 class SeedActivityEvents extends Command
 {
     protected $signature = 'activity:seed-test-data';
+
     protected $description = 'Seed sample activity events for testing the feed';
 
     public function handle(ActivityLogger $logger): int
@@ -36,7 +38,7 @@ class SeedActivityEvents extends Command
             $logger->log($data);
         }
 
-        $count = \App\Models\ActivityEvent::count();
+        $count = ActivityEvent::count();
         $this->info("Seeded {$count} activity events.");
 
         return self::SUCCESS;

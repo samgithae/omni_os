@@ -13,6 +13,7 @@ use Illuminate\Console\Command;
 class GenerateDailyBrief extends Command
 {
     protected $signature = 'activity:daily-brief';
+
     protected $description = 'Generate daily brief and post to Activity Feed';
 
     public function handle(): int
@@ -23,12 +24,13 @@ class GenerateDailyBrief extends Command
         $logger->log([
             'source' => 'laravel.control-tower.daily-brief',
             'event_type' => 'daily_brief',
-            'title' => 'Daily brief — ' . now()->format('M j'),
+            'title' => 'Daily brief — '.now()->format('M j'),
             'body' => $brief,
             'severity' => 'info',
         ]);
 
         $this->info('Daily brief posted to Activity Feed.');
+
         return self::SUCCESS;
     }
 
@@ -37,24 +39,24 @@ class GenerateDailyBrief extends Command
         $brands = Brand::all();
         $lines = [];
 
-        $lines[] = "System Overview — " . now()->format('M j, Y');
+        $lines[] = 'System Overview — '.now()->format('M j, Y');
         $lines[] = str_repeat('─', 30);
-        $lines[] = "";
+        $lines[] = '';
 
         // Funnel summary
         $winloss = app(WinLossService::class);
         $funnel = $winloss->funnel();
         $rates = $winloss->rates();
 
-        $lines[] = "Pipeline Funnel:";
+        $lines[] = 'Pipeline Funnel:';
         $lines[] = "  Leads: {$funnel['leads']} → Email: {$funnel['with_email']} → Emailed: {$funnel['emailed']} → Replied: {$funnel['replied']} → Interested: {$funnel['interested']}";
         $lines[] = "  Enrichment: {$funnel['enrichment_rate']}% | Reply: {$funnel['reply_rate']}% | Interest: {$funnel['interest_rate']}%";
-        $lines[] = "";
+        $lines[] = '';
 
         if ($rates['sent'] > 0) {
-            $lines[] = "Email Engagement:";
+            $lines[] = 'Email Engagement:';
             $lines[] = "  Sent: {$rates['sent']} | Open: {$rates['open_rate']}% | Click: {$rates['click_rate']}% | Reply: {$rates['reply_rate']}%";
-            $lines[] = "";
+            $lines[] = '';
         }
 
         foreach ($brands as $brand) {
@@ -81,17 +83,17 @@ class GenerateDailyBrief extends Command
                 $lines[] = "  • Sent today: {$sentToday}";
             }
 
-            $lines[] = "";
+            $lines[] = '';
         }
 
         // System health
         $totalEvents = ActivityEvent::whereDate('created_at', today())->count();
         $queueHealth = $this->checkQueueHealth();
 
-        $lines[] = "System:";
+        $lines[] = 'System:';
         $lines[] = "  • Activity events today: {$totalEvents}";
         $lines[] = "  • Queue workers: {$queueHealth}";
-        $lines[] = "";
+        $lines[] = '';
 
         // Check for anything noteworthy
         $recentInterested = Lead::where('status', 'interested')
@@ -111,13 +113,17 @@ class GenerateDailyBrief extends Command
                 $lines = explode("\n", trim($output));
                 $running = 0;
                 foreach ($lines as $line) {
-                    if (str_contains($line, 'RUNNING')) $running++;
+                    if (str_contains($line, 'RUNNING')) {
+                        $running++;
+                    }
                 }
+
                 return "{$running}/2 running";
             }
         } catch (\Throwable $e) {
             // Silently fail
         }
+
         return 'unknown';
     }
 }

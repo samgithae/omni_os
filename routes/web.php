@@ -1,10 +1,11 @@
 <?php
 
-use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ActivityController;
+use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AnalyticsController;
-use App\Http\Controllers\BrandSettingsController;
 use App\Http\Controllers\BrandsController;
+use App\Http\Controllers\BrandSettingsController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmailMessagesController;
 use App\Http\Controllers\EmailSequenceController;
 use App\Http\Controllers\InboxController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\MiningTargetController;
 use App\Http\Controllers\SequenceConfigController;
 use App\Http\Controllers\SequenceScheduleController;
 use App\Http\Controllers\SuppressionController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
@@ -22,13 +24,14 @@ Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Brand switcher — set active brand in session (used by Vue pages)
-    Route::post('/brand/switch', function (\Illuminate\Http\Request $request) {
+    Route::post('/brand/switch', function (Request $request) {
         $brandId = $request->input('brand_id');
         if ($brandId === null || $brandId === 'null' || $brandId === '') {
             session()->forget('active_brand_id');
         } else {
             session(['active_brand_id' => (int) $brandId]);
         }
+
         return back();
     })->name('brand.switch');
 
@@ -68,6 +71,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/activity/poll', [ActivityController::class, 'poll'])->name('activity.poll');
     Route::get('/activity/load-more', [ActivityController::class, 'loadMore'])->name('activity.load-more');
     Route::post('/activity/{event}/comments', [ActivityController::class, 'storeComment'])->name('activity.store-comment');
+
+    // Agents — Vue roster page
+    Route::get('/agents', [AgentController::class, 'index'])->name('agents.index');
 
     // Sequence Configs
     Route::get('/sequence-configs', [SequenceConfigController::class, 'index'])->name('sequence-configs.index');

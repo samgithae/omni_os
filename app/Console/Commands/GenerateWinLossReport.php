@@ -21,6 +21,7 @@ class GenerateWinLossReport extends Command
 
         if ($this->option('json')) {
             $this->line(json_encode($report, JSON_PRETTY_PRINT));
+
             return self::SUCCESS;
         }
 
@@ -66,7 +67,7 @@ class GenerateWinLossReport extends Command
             'brand_id' => null,
             'source' => 'laravel.winloss',
             'event_type' => 'system',
-            'title' => 'Win-loss report — ' . now()->format('M j'),
+            'title' => 'Win-loss report — '.now()->format('M j'),
             'body' => $body,
             'metadata' => $report,
             'severity' => 'info',
@@ -85,13 +86,13 @@ class GenerateWinLossReport extends Command
         $o = $report['reply_outcomes'];
 
         $lines = [];
-        $lines[] = "Pipeline funnel:";
+        $lines[] = 'Pipeline funnel:';
         $lines[] = "  Leads: {$f['leads']} → Email: {$f['with_email']} → Emailed: {$f['emailed']} → Replied: {$f['replied']} → Interested: {$f['interested']}";
         $lines[] = "  Enrichment: {$f['enrichment_rate']}% | Reply: {$f['reply_rate']}% | Interest: {$f['interest_rate']}%";
-        $lines[] = "";
-        $lines[] = "Email engagement:";
+        $lines[] = '';
+        $lines[] = 'Email engagement:';
         $lines[] = "  Sent: {$r['sent']} | Open: {$r['open_rate']}% | Click: {$r['click_rate']}% | Reply: {$r['reply_rate']}%";
-        $lines[] = "";
+        $lines[] = '';
 
         if ($o['total'] > 0) {
             $lines[] = "Reply outcomes ({$o['total']} total):";
@@ -102,11 +103,11 @@ class GenerateWinLossReport extends Command
                 }
             }
         } else {
-            $lines[] = "No replies classified yet.";
+            $lines[] = 'No replies classified yet.';
         }
 
-        $lines[] = "";
-        $lines[] = "Top categories:";
+        $lines[] = '';
+        $lines[] = 'Top categories:';
         foreach (array_slice($report['by_category'], 0, 5) as $cat) {
             $lines[] = "  {$cat['dimension']}: {$cat['leads']} leads, {$cat['interested']} interested";
         }

@@ -2,16 +2,15 @@
 
 namespace App\Filament\Resources;
 
-use BackedEnum;
-
 use App\Filament\Resources\BrandResource\Pages;
 use App\Models\Brand;
+use Filament\Actions;
 use Filament\Forms;
+use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
-use Filament\Resources\Resource;
 use Filament\Tables;
-use Filament\Actions;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Table;
 
 class BrandResource extends Resource
@@ -24,7 +23,10 @@ class BrandResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
-    public static function shouldRegisterNavigation(): bool { return false; }
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -81,7 +83,7 @@ class BrandResource extends Resource
                 Tables\Filters\TernaryFilter::make('is_active'),
             ])
             ->actions([
-                \Filament\Tables\Actions\Action::make('settings')
+                Action::make('settings')
                     ->label('Settings')
                     ->icon('heroicon-o-cog-6-tooth')
                     ->url(fn (Brand $record): string => "/brands/{$record->slug}/settings")

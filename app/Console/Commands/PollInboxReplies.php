@@ -6,7 +6,7 @@ use App\Models\Brand;
 use App\Models\EmailMessage;
 use App\Models\Lead;
 use App\Models\Reply;
-use App\Models\WebhookEvent;
+use App\Models\Suppression;
 use App\Services\ActivityLogger;
 use Illuminate\Console\Command;
 
@@ -20,6 +20,7 @@ class PollInboxReplies extends Command
     protected $description = 'Poll IMAP inbox for incoming replies and create Reply records';
 
     private array $brandCache = [];
+
     private array $leadCache = [];
 
     public function handle(): int
@@ -29,8 +30,9 @@ class PollInboxReplies extends Command
         $username = config('services.imap.username');
         $password = config('services.imap.password');
 
-        if (!$username || !$password) {
+        if (! $username || ! $password) {
             $this->error('IMAP credentials not configured. Set IMAP_HOST, IMAP_PORT, IMAP_USERNAME, IMAP_PASSWORD in .env');
+
             return self::FAILURE;
         }
 
@@ -42,12 +44,13 @@ class PollInboxReplies extends Command
             $this->warn('DRY RUN — no data will be written.');
         }
 
-        $mailbox = '{' . $host . ':' . $port . '/ssl}INBOX';
+        $mailbox = '{'.$host.':'.$port.'/ssl}INBOX';
 
         $imap = @imap_open($mailbox, $username, $password, OP_READONLY, 1, []);
 
-        if (!$imap) {
-            $this->error('IMAP connection failed: ' . imap_last_error());
+        if (! $imap) {
+            $this->error('IMAP connection failed: '.imap_last_error());
+
             return self::FAILURE;
         }
 
@@ -60,15 +63,16 @@ class PollInboxReplies extends Command
         // Search for recent messages
         $messageIds = imap_search($imap, "SINCE \"{$sinceDate}\"", SE_UID);
 
-        if (!$messageIds) {
+        if (! $messageIds) {
             $this->info("No messages found since {$sinceDate}.");
             imap_close($imap);
+
             return self::SUCCESS;
         }
 
         // Take the most recent N messages
         $messageIds = array_slice($messageIds, -$limit);
-        $this->info("Found " . count($messageIds) . " messages since {$sinceDate} (limited to {$limit}).");
+        $this->info('Found '.count($messageIds)." messages since {$sinceDate} (limited to {$limit}).");
 
         $stats = [
             'scanned' => 0,
@@ -85,11 +89,13 @@ class PollInboxReplies extends Command
             // Get headers
             $header = imap_headerinfo($imap, imap_msgno($imap, $uid));
 
-            if (!$header) continue;
+            if (! $header) {
+                continue;
+            }
 
             $from = $header->from[0] ?? null;
-            $fromEmail = $from ? ($from->mailbox . '@' . $from->host) : '';
-            $fromAddress = $from ? ($from->personal ?? $from->mailbox . '@' . $from->host) : '';
+            $fromEmail = $from ? ($from->mailbox.'@'.$from->host) : '';
+            $fromAddress = $from ? ($from->personal ?? $from->mailbox.'@'.$from->host) : '';
             $subject = $header->subject ?? '(no subject)';
             $date = $header->date ?? date('r');
             $messageNumber = imap_msgno($imap, $uid);
@@ -98,11 +104,12 @@ class PollInboxReplies extends Command
             $ourAddress = config('mail.from.address');
             if ($fromEmail === $ourAddress) {
                 $stats['skipped_outbound']++;
+
                 continue;
             }
 
             // Check if this is a bounce
-            $fromStr = strtolower($fromEmail . ' ' . $subject . ' ' . $fromAddress);
+            $fromStr = strtolower($fromEmail.' '.$subject.' '.$fromAddress);
             $isBounce = str_contains($fromStr, 'undelivered') ||
                        str_contains($fromStr, 'mail delivery failed') ||
                        str_contains($fromStr, 'mailer-daemon') ||
@@ -115,7 +122,7 @@ class PollInboxReplies extends Command
             $lead = $this->findLeadByEmail($fromEmail);
             $brand = $lead ? $this->getBrand($lead->brand_id) : null;
 
-            if (!$lead && !$isBounce) {
+            if (! $lead && ! $isBounce) {
                 // Try to find a lead by company name in the subject or body
                 $lead = $this->findLeadByContent($subject, $body);
                 if ($lead) {
@@ -132,33 +139,37 @@ class PollInboxReplies extends Command
 
             if ($existing) {
                 $stats['skipped_already_exists']++;
+
                 continue;
             }
 
-            if (!$lead && !$isBounce) {
+            if (! $lead && ! $isBounce) {
                 $stats['skipped_no_match']++;
                 if ($stats['skipped_no_match'] <= 5) {
                     $this->line("  No lead match: {$fromEmail} — {$subject}");
                 }
+
                 continue;
             }
 
             // Bounces without a matched lead can't be stored (FK constraint) — skip
-            if (!$lead && $isBounce) {
+            if (! $lead && $isBounce) {
                 $stats['skipped_no_match']++;
                 if ($stats['skipped_no_match'] <= 10) {
                     $this->line("  Bounce (no lead match): {$fromEmail} — {$subject}");
                 }
+
                 continue;
             }
 
             if ($dryRun) {
-                $this->line("  Would import: {$fromEmail} → " . ($lead ? $lead->company_name : 'bounce') . " — {$subject}");
+                $this->line("  Would import: {$fromEmail} → ".($lead ? $lead->company_name : 'bounce')." — {$subject}");
                 if ($isBounce) {
                     $stats['bounces_imported']++;
                 } else {
                     $stats['replies_imported']++;
                 }
+
                 continue;
             }
 
@@ -187,16 +198,16 @@ class PollInboxReplies extends Command
 
             // If it's a bounce, handle suppression
             if ($isBounce && $lead && $lead->email) {
-                \App\Models\Suppression::firstOrCreate(
+                Suppression::firstOrCreate(
                     ['brand_id' => $lead->brand_id, 'email' => $lead->email],
-                    ['reason' => 'hard_bounce', 'notes' => 'Bounce detected via IMAP poll: ' . substr($subject, 0, 100)],
+                    ['reason' => 'hard_bounce', 'notes' => 'Bounce detected via IMAP poll: '.substr($subject, 0, 100)],
                 );
             }
 
             // If a lead actively replies, remove any stale "manual" suppression —
             // a reply is an explicit opt-in signal that overrides the old suppression
-            if ($lead && !$isBounce) {
-                $manualSupp = \App\Models\Suppression::where('brand_id', $lead->brand_id)
+            if ($lead && ! $isBounce) {
+                $manualSupp = Suppression::where('brand_id', $lead->brand_id)
                     ->where('email', $lead->email)
                     ->where('reason', 'manual')
                     ->first();
@@ -207,12 +218,12 @@ class PollInboxReplies extends Command
             }
 
             // Log to activity feed
-            if (!$isBounce) {
+            if (! $isBounce) {
                 app(ActivityLogger::class)->log([
                     'brand_id' => $lead?->brand_id,
                     'source' => 'imap.poll',
                     'event_type' => 'reply_classified',
-                    'title' => "Reply received — " . ($lead?->company_name ?? $fromEmail) . " (pending classification)",
+                    'title' => 'Reply received — '.($lead?->company_name ?? $fromEmail).' (pending classification)',
                     'body' => substr($body, 0, 500),
                     'metadata' => [
                         'lead_id' => $lead?->id,
@@ -231,7 +242,7 @@ class PollInboxReplies extends Command
                 $stats['replies_imported']++;
             }
 
-            $this->line("  ✅ Imported: {$fromEmail} → " . ($lead?->company_name ?? 'bounce') . " — {$subject}");
+            $this->line("  ✅ Imported: {$fromEmail} → ".($lead?->company_name ?? 'bounce')." — {$subject}");
         }
 
         imap_close($imap);
@@ -279,6 +290,7 @@ class PollInboxReplies extends Command
 
         // Strip HTML tags for plain text body
         $body = trim(strip_tags($body));
+
         return $body ?: '(empty body)';
     }
 
@@ -299,6 +311,7 @@ class PollInboxReplies extends Command
 
         $lead = Lead::where('email', $email)->first();
         $this->leadCache[$email] = $lead;
+
         return $lead;
     }
 
@@ -326,6 +339,7 @@ class PollInboxReplies extends Command
 
         $brand = Brand::find($brandId);
         $this->brandCache[$brandId] = $brand;
+
         return $brand;
     }
 }

@@ -29,7 +29,7 @@ class EmailMessagesController extends Controller
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('subject', 'ilike', "%{$s}%")
-                  ->orWhereHas('lead', fn($q) => $q->where('company_name', 'ilike', "%{$s}%"));
+                    ->orWhereHas('lead', fn ($q) => $q->where('company_name', 'ilike', "%{$s}%"));
             });
         }
 

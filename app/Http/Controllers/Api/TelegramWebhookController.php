@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\EmailMessage;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class TelegramWebhookController extends Controller
 {
@@ -89,7 +90,7 @@ class TelegramWebhookController extends Controller
             $newStatus = $isApprove ? 'approved' : 'rejected';
 
             // Only approve/reject the batch that was most recently sent to Telegram
-            $batchIds = \Illuminate\Support\Facades\Cache::get('telegram_pending_batch', []);
+            $batchIds = Cache::get('telegram_pending_batch', []);
             if (empty($batchIds)) {
                 $query = EmailMessage::where('approval_status', 'pending')
                     ->where('status', 'draft');
@@ -106,7 +107,7 @@ class TelegramWebhookController extends Controller
             ]);
 
             // Clear the batch cache
-            \Illuminate\Support\Facades\Cache::forget('telegram_pending_batch');
+            Cache::forget('telegram_pending_batch');
 
             $this->logActivity(null, $isApprove ? 'approve_all' : 'reject_all', $count);
 

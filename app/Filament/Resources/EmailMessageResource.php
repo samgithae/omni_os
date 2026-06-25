@@ -4,7 +4,6 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\EmailMessageResource\Pages;
 use App\Models\EmailMessage;
-use BackedEnum;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
@@ -12,6 +11,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Collection;
 
 class EmailMessageResource extends Resource
 {
@@ -23,13 +23,15 @@ class EmailMessageResource extends Resource
 
     protected static ?int $navigationSort = 5;
 
-    public static function shouldRegisterNavigation(): bool { return false; }
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
 
     public static function getNavigationBadge(): ?string
     {
         return null;
     }
-
 
     protected static ?string $navigationLabel = 'Email Messages';
 
@@ -231,7 +233,7 @@ class EmailMessageResource extends Resource
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
                         ->requiresConfirmation()
-                        ->action(function (\Illuminate\Support\Collection $records): void {
+                        ->action(function (Collection $records): void {
                             $records->each(fn (EmailMessage $record) => $record->approve());
                         }),
                     Actions\DeleteBulkAction::make(),

@@ -141,7 +141,7 @@ class ReplyService
     {
         Suppression::firstOrCreate(
             ['brand_id' => $lead->brand_id, 'email' => $lead->email],
-            ['reason' => 'unsubscribe', 'notes' => 'Reply classified as unsubscribe: ' . ($reply['summary'] ?? '')],
+            ['reason' => 'unsubscribe', 'notes' => 'Reply classified as unsubscribe: '.($reply['summary'] ?? '')],
         );
 
         $lead->transitionTo(LeadStatus::Suppressed, 'reply.classifier', [
@@ -165,7 +165,7 @@ class ReplyService
     {
         $email->update([
             'status' => 'failed',
-            'error_message' => 'Bounced (reply classified): ' . ($reply['summary'] ?? ''),
+            'error_message' => 'Bounced (reply classified): '.($reply['summary'] ?? ''),
         ]);
 
         Suppression::firstOrCreate(
@@ -207,7 +207,7 @@ class ReplyService
         $text .= "Score: {$lead->score}\n";
         $text .= "Reply confidence: {$confidence}%\n";
         $text .= "Segment: {$lead->segment}\n";
-        $text .= "City: " . ($lead->city ?? '—') . "\n";
+        $text .= 'City: '.($lead->city ?? '—')."\n";
 
         if ($summary) {
             $text .= "\n📝 <b>Summary:</b> {$summary}\n";

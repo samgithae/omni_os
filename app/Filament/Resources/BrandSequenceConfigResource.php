@@ -6,12 +6,12 @@ use App\Filament\Resources\BrandSequenceConfigResource\Pages;
 use App\Models\Brand;
 use App\Models\BrandSequenceConfig;
 use BackedEnum;
+use Filament\Actions;
 use Filament\Forms;
+use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
-use Filament\Resources\Resource;
 use Filament\Tables;
-use Filament\Actions;
 use Filament\Tables\Table;
 
 class BrandSequenceConfigResource extends Resource
@@ -24,7 +24,10 @@ class BrandSequenceConfigResource extends Resource
 
     protected static ?int $navigationSort = 3;
 
-    public static function shouldRegisterNavigation(): bool { return false; }
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -42,10 +45,10 @@ class BrandSequenceConfigResource extends Resource
 
                         Forms\Components\Select::make('segment')
                             ->options([
-                                'all'      => 'All Segments (fallback)',
-                                'rabbit'   => 'Rabbit',
-                                'deer'     => 'Deer',
-                                'mouse'    => 'Mouse',
+                                'all' => 'All Segments (fallback)',
+                                'rabbit' => 'Rabbit',
+                                'deer' => 'Deer',
+                                'mouse' => 'Mouse',
                                 'elephant' => 'Elephant',
                             ])
                             ->required()
@@ -116,9 +119,9 @@ class BrandSequenceConfigResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListBrandSequenceConfigs::route('/'),
+            'index' => Pages\ListBrandSequenceConfigs::route('/'),
             'create' => Pages\CreateBrandSequenceConfig::route('/create'),
-            'edit'   => Pages\EditBrandSequenceConfig::route('/{record}/edit'),
+            'edit' => Pages\EditBrandSequenceConfig::route('/{record}/edit'),
         ];
     }
 }

@@ -1,18 +1,18 @@
 <?php
 
+use App\Http\Controllers\Api\ActivityEventCommentController;
+use App\Http\Controllers\Api\ActivityEventController;
 use App\Http\Controllers\Api\EmailController;
+use App\Http\Controllers\Api\EmailMessageApiController;
+use App\Http\Controllers\Api\InstructionController;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\MiningTargetController;
-use App\Http\Controllers\Api\StatsController;
-use App\Http\Controllers\Api\SequenceConfigController;
-use App\Http\Controllers\Api\SuppressionController;
-use App\Http\Controllers\Api\WebhookController;
-use App\Http\Controllers\Api\ActivityEventController;
-use App\Http\Controllers\Api\ActivityEventCommentController;
-use App\Http\Controllers\Api\InstructionController;
-use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\ReplyController;
-use App\Http\Controllers\Api\EmailMessageApiController;
+use App\Http\Controllers\Api\SequenceConfigController;
+use App\Http\Controllers\Api\StatsController;
+use App\Http\Controllers\Api\SuppressionController;
+use App\Http\Controllers\Api\TelegramWebhookController;
+use App\Http\Controllers\Api\WebhookController;
 use App\Http\Middleware\ApiTokenAuth;
 use App\Services\WinLossService;
 use Illuminate\Support\Facades\Route;
@@ -52,8 +52,8 @@ Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
     Route::post('emails/{email}/reject', [EmailController::class, 'reject']);
     Route::post('emails/send-batch', [EmailController::class, 'sendBatch']);
 
-    // Activity events
-    Route::post('events', [ActivityEventController::class, 'store']);
+    // Activity events — uses per-agent token auth, backward-compatible with legacy token
+    Route::post('events', [ActivityEventController::class, 'store'])->middleware('agent.token');
 
     // Classified replies (from Hermes)
     Route::post('replies', [ReplyController::class, 'store']);

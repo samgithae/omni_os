@@ -38,9 +38,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Lead extends Model
 {
+    use BelongsToBrand;
+
     /** @use HasFactory<LeadFactory> */
     use HasFactory;
-    use BelongsToBrand;
 
     protected ?array $pendingStatusTransition = null;
 
@@ -314,7 +315,7 @@ class Lead extends Model
      */
     public function hasCompleteEmailSequence(): ?bool
     {
-        $config = \App\Models\BrandSequenceConfig::resolveFor($this->brand_id, $this->segment);
+        $config = BrandSequenceConfig::resolveFor($this->brand_id, $this->segment);
 
         if (! $config) {
             return null;
@@ -335,7 +336,7 @@ class Lead extends Model
      */
     public function missingEmailSequenceSteps(): array
     {
-        $config = \App\Models\BrandSequenceConfig::resolveFor($this->brand_id, $this->segment);
+        $config = BrandSequenceConfig::resolveFor($this->brand_id, $this->segment);
 
         if (! $config) {
             return [];

@@ -28,6 +28,7 @@ class IdentifyIncompleteSequences extends Command
             $brand = Brand::where('slug', $brandSlug)->first();
             if (! $brand) {
                 $this->error("Brand '{$brandSlug}' not found.");
+
                 return 1;
             }
             $query->where('brand_id', $brand->id);
@@ -41,6 +42,7 @@ class IdentifyIncompleteSequences extends Command
 
         if ($leads->isEmpty()) {
             $this->warn('No enriched leads with email addresses found.');
+
             return 0;
         }
 
@@ -54,6 +56,7 @@ class IdentifyIncompleteSequences extends Command
 
             if (! $config) {
                 $this->line("  [SKIP] Lead {$lead->id} ({$lead->company_name}) — no sequence config for brand {$lead->brand->name}/{$lead->segment}");
+
                 continue;
             }
 
@@ -85,12 +88,13 @@ class IdentifyIncompleteSequences extends Command
         $this->line('');
         $this->info('=== Incomplete Sequence Report ===');
         $this->line("Total leads scanned: {$leads->count()}");
-        $this->line("Incomplete leads: " . count($incompleteLeads));
+        $this->line('Incomplete leads: '.count($incompleteLeads));
         $this->line("Total steps missing: {$totalMissingSteps}");
         $this->line('');
 
         if (empty($incompleteLeads)) {
             $this->info('All leads have complete email sequences. Nothing to fix.');
+
             return 0;
         }
 
@@ -106,15 +110,15 @@ class IdentifyIncompleteSequences extends Command
                     $lead->brand->name,
                     $lead->segment,
                     $item['config']->sequence_steps,
-                    '[' . implode(',', $item['existing_steps']) . ']',
-                    '[' . implode(',', $item['missing_steps']) . ']',
+                    '['.implode(',', $item['existing_steps']).']',
+                    '['.implode(',', $item['missing_steps']).']',
                     $hasApproved ? 'YES ⚠️' : 'No',
                 ];
             })->toArray()
         );
 
         $this->line('');
-        $this->info("Summary: Found " . count($incompleteLeads) . " leads with incomplete sequences. {$totalMissingSteps} steps missing across " . count($incompleteLeads) . " leads.");
+        $this->info('Summary: Found '.count($incompleteLeads)." leads with incomplete sequences. {$totalMissingSteps} steps missing across ".count($incompleteLeads).' leads.');
 
         // --fix action
         if ($this->option('fix')) {

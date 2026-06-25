@@ -2,29 +2,33 @@
 
 namespace App\Filament\Resources;
 
-use BackedEnum;
 use App\Enums\LeadStatus;
 use App\Filament\Resources\LeadResource\Pages;
+use App\Filament\Resources\LeadResource\RelationManagers\EmailMessagesRelationManager;
 use App\Models\Lead;
+use BackedEnum;
+use Filament\Actions;
 use Filament\Forms;
+use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
-use Filament\Resources\Resource;
 use Filament\Tables;
-use Filament\Actions;
 use Filament\Tables\Table;
 
 class LeadResource extends Resource
 {
     protected static ?string $model = Lead::class;
 
-    protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-user-group';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-user-group';
 
     protected static \UnitEnum|string|null $navigationGroup = 'Pipeline';
 
     protected static ?int $navigationSort = 2;
 
-    public static function shouldRegisterNavigation(): bool { return false; }
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -206,7 +210,7 @@ class LeadResource extends Resource
     public static function getRelations(): array
     {
         return [
-            \App\Filament\Resources\LeadResource\RelationManagers\EmailMessagesRelationManager::class,
+            EmailMessagesRelationManager::class,
         ];
     }
 

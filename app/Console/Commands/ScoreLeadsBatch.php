@@ -36,8 +36,9 @@ class ScoreLeadsBatch extends Command
         // Brand filter
         if ($this->option('brand')) {
             $brand = Brand::where('slug', $this->option('brand'))->first();
-            if (!$brand) {
+            if (! $brand) {
                 $this->error("Brand not found: {$this->option('brand')}");
+
                 return self::FAILURE;
             }
             $query->where('brand_id', $brand->id);
@@ -60,6 +61,7 @@ class ScoreLeadsBatch extends Command
 
         if ($total === 0) {
             $this->warn('No leads found matching criteria.');
+
             return self::SUCCESS;
         }
 
@@ -96,7 +98,7 @@ class ScoreLeadsBatch extends Command
                     }
 
                     if ($stats['scored'] <= 10) {
-                        $this->line("  {$lead->company_name}: {$oldScore} -> {$newScore} [" . LeadScoringService::tier($newScore) . "]");
+                        $this->line("  {$lead->company_name}: {$oldScore} -> {$newScore} [".LeadScoringService::tier($newScore).']');
                     }
                 } else {
                     $newScore = $this->scorer->recalculate($lead);
@@ -128,13 +130,13 @@ class ScoreLeadsBatch extends Command
         }
 
         // Log to activity feed (only on real run)
-        if (!$dryRun && $stats['scored'] > 0) {
+        if (! $dryRun && $stats['scored'] > 0) {
             $brandSlug = $this->option('brand') ?? 'all';
             app(ActivityLogger::class)->log([
                 'brand_id' => null,
                 'source' => 'lead_scoring',
                 'event_type' => 'system',
-                'title' => "Lead scoring batch complete",
+                'title' => 'Lead scoring batch complete',
                 'body' => "Scored {$stats['scored']} leads ({$stats['changed']} changed). Average: {$avg}. Brand: {$brandSlug}.",
                 'metadata' => [
                     'scored' => $stats['scored'],

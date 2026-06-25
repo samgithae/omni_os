@@ -81,6 +81,7 @@ class Brand extends Model
         if (empty($emails)) {
             return config('mail.from.address');
         }
+
         return $emails[array_rand($emails)];
     }
 }

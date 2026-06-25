@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreClassifiedReplyRequest;
+use App\Models\EmailMessage;
+use App\Models\Lead;
 use App\Models\Reply;
 use App\Services\ReplyService;
 
@@ -42,8 +44,8 @@ class ReplyController extends Controller
             ]);
         } else {
             // No existing Reply record — create one (Hermes may classify before webhook fires, or webhook didn't create one)
-            $emailMessage = \App\Models\EmailMessage::find($data['email_message_id']);
-            $lead = \App\Models\Lead::find($data['lead_id']);
+            $emailMessage = EmailMessage::find($data['email_message_id']);
+            $lead = Lead::find($data['lead_id']);
 
             $reply = Reply::create([
                 'lead_id' => $data['lead_id'],

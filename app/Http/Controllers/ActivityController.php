@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ActivityEvent;
-use App\Models\ActivityEventComment;
-use App\Models\Brand;
 use App\Jobs\RespondToComment;
+use App\Models\ActivityEvent;
+use App\Models\Agent;
+use App\Models\Brand;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,22 +15,31 @@ class ActivityController extends Controller
     public function index(Request $request)
     {
         $query = ActivityEvent::with('brand')
+            ->with('agent')
             ->with('comments')
             ->withCount('comments');
 
         // Brand filter
         if ($request->filled('brand')) {
-            $query->whereHas('brand', fn($q) => $q->where('slug', $request->brand));
+            $query->whereHas('brand', fn ($q) => $q->where('slug', $request->brand));
+        }
+
+        // Agent filter
+        if ($request->filled('agent')) {
+            $query->where('agent_id', $request->agent);
         }
 
         $events = $query->latest()
             ->take(30)
             ->get()
-            ->groupBy(fn($e) => $e->created_at->isToday() ? 'Today'
+            ->groupBy(fn ($e) => $e->created_at->isToday() ? 'Today'
                 : ($e->created_at->isYesterday() ? 'Yesterday'
                     : $e->created_at->format('F j, Y')));
 
         $brands = Brand::where('is_active', true)->get(['id', 'name', 'slug', 'color']);
+
+        // Agents for filter
+        $agents = Agent::ordered()->get(['id', 'display_name', 'codename', 'avatar_path', 'is_active']);
 
         // Latest event id for polling
         $latestId = ActivityEvent::max('id');
@@ -38,7 +47,8 @@ class ActivityController extends Controller
         return Inertia::render('Activity', [
             'groupedEvents' => $events,
             'brands' => $brands,
-            'filters' => $request->only(['brand']),
+            'agents' => $agents,
+            'filters' => $request->only(['brand', 'agent']),
             'latestId' => $latestId,
         ]);
     }
@@ -104,7 +114,11 @@ class ActivityController extends Controller
         $query = ActivityEvent::where('id', '>', $request->since);
 
         if ($request->filled('brand')) {
-            $query->whereHas('brand', fn($q) => $q->where('slug', $request->brand));
+            $query->whereHas('brand', fn ($q) => $q->where('slug', $request->brand));
+        }
+
+        if ($request->filled('agent')) {
+            $query->where('agent_id', $request->agent);
         }
 
         $newCount = $query->count();
@@ -123,18 +137,23 @@ class ActivityController extends Controller
         ]);
 
         $query = ActivityEvent::with('brand')
+            ->with('agent')
             ->with('comments')
             ->withCount('comments')
             ->where('id', '<', $request->before);
 
         if ($request->filled('brand')) {
-            $query->whereHas('brand', fn($q) => $q->where('slug', $request->brand));
+            $query->whereHas('brand', fn ($q) => $q->where('slug', $request->brand));
+        }
+
+        if ($request->filled('agent')) {
+            $query->where('agent_id', $request->agent);
         }
 
         $events = $query->latest()->take(20)->get();
 
         return response()->json([
-            'events' => $events->map(fn($e) => [
+            'events' => $events->map(fn ($e) => [
                 'id' => $e->id,
                 'source' => $e->source,
                 'event_type' => $e->event_type,
@@ -143,7 +162,7 @@ class ActivityController extends Controller
                 'metadata' => $e->metadata,
                 'severity' => $e->severity,
                 'comments_count' => $e->comments_count,
-                'comments' => $e->comments->map(fn($c) => [
+                'comments' => $e->comments->map(fn ($c) => [
                     'id' => $c->id,
                     'author' => $c->author,
                     'body' => $c->body,
@@ -157,6 +176,11 @@ class ActivityController extends Controller
                     'name' => $e->brand->name,
                     'slug' => $e->brand->slug,
                     'color' => $e->brand->color,
+                ] : null,
+                'agent' => $e->agent ? [
+                    'id' => $e->agent->id,
+                    'display_name' => $e->agent->display_name,
+                    'avatar_url' => $e->agent->avatar_url,
                 ] : null,
                 'created_at' => $e->created_at->toIso8601String(),
                 'relative_time' => $e->created_at->diffForHumans(),

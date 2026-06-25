@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityEventComment;
+use App\Models\Brand;
 use Illuminate\Http\Request;
 
 class InstructionController extends Controller
@@ -32,7 +33,7 @@ class InstructionController extends Controller
 
         // Brand filter via parent event
         if ($request->filled('brand')) {
-            $brand = \App\Models\Brand::where('slug', $request->brand)->first();
+            $brand = Brand::where('slug', $request->brand)->first();
             if ($brand) {
                 $query->whereHas('event', fn ($q) => $q->where('brand_id', $brand->id));
             }
@@ -75,7 +76,7 @@ class InstructionController extends Controller
             'instruction_status' => ['required', 'string', 'in:acknowledged,addressed'],
         ]);
 
-        if (!$comment->is_instruction) {
+        if (! $comment->is_instruction) {
             return response()->json(['message' => 'Comment is not an instruction.'], 422);
         }
 
@@ -83,7 +84,7 @@ class InstructionController extends Controller
             'instruction_status' => $request->instruction_status,
         ];
 
-        if ($request->instruction_status === 'acknowledged' && !$comment->acknowledged_at) {
+        if ($request->instruction_status === 'acknowledged' && ! $comment->acknowledged_at) {
             $update['acknowledged_at'] = now();
         }
 

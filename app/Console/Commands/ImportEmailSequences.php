@@ -23,8 +23,9 @@ class ImportEmailSequences extends Command
         $this->info('=== Email Sequence Import ===');
 
         $brand = Brand::where('slug', 'ujuziplus')->first();
-        if (!$brand) {
+        if (! $brand) {
             $this->error('UjuziPlus brand not found. Run the seeder first.');
+
             return self::FAILURE;
         }
         $this->ujuziplusBrandId = $brand->id;
@@ -40,8 +41,8 @@ class ImportEmailSequences extends Command
         } else {
             $storagePath = storage_path('app/private');
             $files = [
-                $storagePath . '/ujuziplus_rabbits.csv',
-                $storagePath . '/ujuziplus_deer.csv',
+                $storagePath.'/ujuziplus_rabbits.csv',
+                $storagePath.'/ujuziplus_deer.csv',
             ];
         }
 
@@ -54,13 +55,14 @@ class ImportEmailSequences extends Command
         ];
 
         foreach ($files as $csvFile) {
-            if (!file_exists($csvFile)) {
+            if (! file_exists($csvFile)) {
                 $this->warn("File not found: {$csvFile}");
+
                 continue;
             }
 
             $segment = str_contains($csvFile, 'rabbit') ? 'rabbit' : 'deer';
-            $this->info("\n--- Importing {$segment} sequences from " . basename($csvFile) . " ---");
+            $this->info("\n--- Importing {$segment} sequences from ".basename($csvFile).' ---');
 
             $csv = Reader::createFromPath($csvFile, 'r');
             $csv->setHeaderOffset(0);
@@ -72,7 +74,7 @@ class ImportEmailSequences extends Command
             foreach ($records as $rowIdx => $record) {
                 // Find the lead by company name
                 $companyName = $this->getValue($record, $headers, 'org_name');
-                if (!$companyName) {
+                if (! $companyName) {
                     continue;
                 }
 
@@ -80,15 +82,16 @@ class ImportEmailSequences extends Command
                     ->where('company_name', $companyName)
                     ->first();
 
-                if (!$lead) {
+                if (! $lead) {
                     // Try a fuzzy match — sometimes names have slight differences
                     $lead = Lead::where('brand_id', $this->ujuziplusBrandId)
-                        ->where('company_name', 'LIKE', '%' . substr($companyName, 0, 20) . '%')
+                        ->where('company_name', 'LIKE', '%'.substr($companyName, 0, 20).'%')
                         ->first();
                 }
 
-                if (!$lead) {
+                if (! $lead) {
                     $stats['skipped_no_lead']++;
+
                     continue;
                 }
 
@@ -100,7 +103,7 @@ class ImportEmailSequences extends Command
                     $rawEmail = $this->getValue($record, $headers, $emailKey);
                     $rawEmail = trim($rawEmail);
 
-                    if (!$rawEmail) {
+                    if (! $rawEmail) {
                         continue;
                     }
 
@@ -108,24 +111,27 @@ class ImportEmailSequences extends Command
                     $fileStats['emails_found']++;
 
                     // Skip non-email entries (skip notes, enrichment markers, etc.)
-                    if (!$this->isRealEmailContent($rawEmail)) {
+                    if (! $this->isRealEmailContent($rawEmail)) {
                         $stats['skipped_not_real_email']++;
                         $fileStats['skipped']++;
+
                         continue;
                     }
 
                     // Parse subject and body
                     [$subject, $body] = $this->parseEmailContent($rawEmail);
 
-                    if (!$subject && !$body) {
+                    if (! $subject && ! $body) {
                         $stats['skipped_not_real_email']++;
                         $fileStats['skipped']++;
+
                         continue;
                     }
 
                     if ($dryRun) {
                         $stats['imported']++;
                         $fileStats['imported']++;
+
                         continue;
                     }
 
@@ -137,6 +143,7 @@ class ImportEmailSequences extends Command
                     if ($existing) {
                         $stats['skipped_duplicate']++;
                         $fileStats['skipped']++;
+
                         continue;
                     }
 
@@ -178,6 +185,7 @@ class ImportEmailSequences extends Command
                 return trim($record[$h] ?? '');
             }
         }
+
         return '';
     }
 
@@ -219,7 +227,7 @@ class ImportEmailSequences extends Command
 
         // If subject is too long (> 255 chars), it's probably not a real subject
         if ($subject && strlen($subject) > 255) {
-            $subject = substr($subject, 0, 252) . '...';
+            $subject = substr($subject, 0, 252).'...';
         }
 
         return [$subject, $body];

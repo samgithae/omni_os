@@ -27,12 +27,12 @@ class SequenceConfigController extends Controller
         }
 
         return response()->json([
-            'brand_id'       => $brand->id,
-            'brand_slug'     => $brand->slug,
-            'brand_name'     => $brand->name,
-            'segment'        => $config->segment,
+            'brand_id' => $brand->id,
+            'brand_slug' => $brand->slug,
+            'brand_name' => $brand->name,
+            'segment' => $config->segment,
             'sequence_steps' => $config->sequence_steps,
-            'prompt_text'    => $config->prompt_text,
+            'prompt_text' => $config->prompt_text,
         ]);
     }
 }

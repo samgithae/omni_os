@@ -27,8 +27,9 @@ class SendLeadReply implements ShouldQueue
         $apiKey = config('services.smtp2go.api_key');
         $apiEndpoint = config('services.smtp2go.api_endpoint', 'https://api.smtp2go.com/v3');
 
-        if (!$apiKey) {
+        if (! $apiKey) {
             Log::error('SendLeadReply: SMTP2GO API key not configured');
+
             return;
         }
 
@@ -56,7 +57,7 @@ class SendLeadReply implements ShouldQueue
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
             'X-Smtp2go-Api-Key' => $apiKey,
-        ])->post(rtrim($apiEndpoint, '/') . '/email/send', [
+        ])->post(rtrim($apiEndpoint, '/').'/email/send', [
             'to' => [$this->lead->email],
             'sender' => $fromAddress,
             'sender_name' => $fromName,

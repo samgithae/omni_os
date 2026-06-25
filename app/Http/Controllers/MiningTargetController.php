@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\MiningTarget;
 use App\Models\Brand;
+use App\Models\MiningTarget;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -67,7 +67,7 @@ class MiningTargetController extends Controller
 
     public function toggleActive(MiningTarget $miningTarget)
     {
-        $miningTarget->update(['is_active' => !$miningTarget->is_active]);
+        $miningTarget->update(['is_active' => ! $miningTarget->is_active]);
 
         return redirect()->route('mining-targets.index')
             ->with('success', 'Mining target updated.');

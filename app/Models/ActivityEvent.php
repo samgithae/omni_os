@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
-use App\Enums\ActivityEventType;
 use App\Enums\ActivitySeverity;
 use App\Models\Concerns\BelongsToBrand;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ActivityEvent extends Model
 {
@@ -15,6 +15,7 @@ class ActivityEvent extends Model
 
     protected $fillable = [
         'brand_id',
+        'agent_id',
         'source',
         'event_type',
         'title',
@@ -36,7 +37,12 @@ class ActivityEvent extends Model
         return $this->belongsTo(Brand::class);
     }
 
-    public function comments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function agent(): BelongsTo
+    {
+        return $this->belongsTo(Agent::class);
+    }
+
+    public function comments(): HasMany
     {
         return $this->hasMany(ActivityEventComment::class)->orderBy('created_at');
     }

@@ -36,7 +36,7 @@ class BrandScope implements Scope
 
         $brandId = session('active_brand_id');
         if ($brandId !== null) {
-            $builder->where($model->getTable() . '.brand_id', $brandId);
+            $builder->where($model->getTable().'.brand_id', $brandId);
         }
     }
 }

@@ -50,7 +50,7 @@ class BrandSequenceConfig extends Model
             ->where(function ($q) use ($segment) {
                 $q->where('segment', $segment)->orWhere('segment', 'all');
             })
-            ->orderByRaw("CASE WHEN segment = ? THEN 0 ELSE 1 END", [$segment])
+            ->orderByRaw('CASE WHEN segment = ? THEN 0 ELSE 1 END', [$segment])
             ->first();
     }
 }

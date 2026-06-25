@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreActivityEventRequest;
+use App\Models\Agent;
+use App\Models\Brand;
 use App\Services\ActivityLogger;
 
 class ActivityEventController extends Controller
@@ -15,11 +17,23 @@ class ActivityEventController extends Controller
         // Resolve brand_slug to brand_id
         $brand = null;
         if ($data['brand_slug'] ?? null) {
-            $brand = \App\Models\Brand::where('slug', $data['brand_slug'])->first();
+            $brand = Brand::where('slug', $data['brand_slug'])->first();
+        }
+
+        // Determine agent_id: explicit override > token-derived > null
+        $agentId = null;
+        if (! empty($data['agent_codename'])) {
+            $agent = Agent::where('codename', $data['agent_codename'])->where('is_active', true)->first();
+            if ($agent) {
+                $agentId = $agent->id;
+            }
+        } elseif (app()->bound('currentAgent')) {
+            $agentId = app('currentAgent')->id;
         }
 
         $event = $logger->log([
             'brand_id' => $brand?->id,
+            'agent_id' => $agentId,
             'source' => $data['source'],
             'event_type' => $data['event_type'],
             'title' => $data['title'],

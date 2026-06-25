@@ -28,7 +28,7 @@ class BrandsController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'slug' => 'required|string|max:255|unique:brands,slug,' . $brand->id,
+            'slug' => 'required|string|max:255|unique:brands,slug,'.$brand->id,
             'description' => 'nullable|string|max:1000',
             'primary_market' => 'nullable|string|max:255',
             'primary_kpi' => 'nullable|string|max:255',

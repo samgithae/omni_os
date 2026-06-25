@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Head, router, Link } from '@inertiajs/vue3'
-import { Activity, ChevronDown, ChevronRight, Clock, MessageSquare, Send, Bot, Flag, CheckCircle, Loader } from '@lucide/vue'
+import { Activity, ChevronDown, ChevronRight, Clock, MessageSquare, Send, Bot, Flag, CheckCircle, Loader, Circle } from '@lucide/vue'
 import { dashboard } from '@/routes'
 
 defineOptions({
@@ -18,6 +18,15 @@ interface BrandInfo {
   name: string
   slug: string
   color: string | null
+}
+
+interface AgentInfo {
+  id: number
+  display_name: string
+  codename?: string
+  avatar_path?: string | null
+  avatar_url?: string | null
+  is_active?: boolean
 }
 
 interface CommentData {
@@ -40,6 +49,7 @@ interface ActivityEventData {
   metadata: Record<string, unknown> | null
   severity: 'info' | 'success' | 'warning' | 'error'
   brand: BrandInfo | null
+  agent: AgentInfo | null
   relative_time: string
   created_at: string
   comments_count?: number
@@ -49,6 +59,7 @@ interface ActivityEventData {
 const props = defineProps<{
   groupedEvents: Record<string, ActivityEventData[]>
   brands: BrandInfo[]
+  agents: AgentInfo[]
   filters: Record<string, string | undefined>
   latestId: number
 }>()
@@ -66,6 +77,9 @@ const commentTexts = ref<Record<number, string>>({})
 const sendingComments = ref<Record<number, boolean>>({})
 const toggleInstructions = ref<Record<number, boolean>>({})
 
+const activeBrand = computed(() => props.filters.brand ?? null)
+const activeAgent = computed(() => props.filters.agent ?? null)
+
 const dayGroups = computed(() => {
   return Object.entries(props.groupedEvents).map(([day, events]) => ({
     day,
@@ -73,6 +87,24 @@ const dayGroups = computed(() => {
     hasDailyBrief: (events as ActivityEventData[]).some(e => e.event_type === 'daily_brief'),
   }))
 })
+
+function filterByBrand(slug: string | null) {
+  const params: Record<string, string> = {}
+  if (slug) params.brand = slug
+  if (activeAgent.value) params.agent = activeAgent.value
+  router.get('/activity', params, { preserveState: true, preserveScroll: true })
+}
+
+function filterByAgent(id: string | null) {
+  const params: Record<string, string> = {}
+  if (id) params.agent = id
+  if (activeBrand.value) params.brand = activeBrand.value
+  router.get('/activity', params, { preserveState: true, preserveScroll: true })
+}
+
+function clearFilters() {
+  router.get('/activity', {}, { preserveState: true, preserveScroll: true })
+}
 
 function toggleEvent(id: number) {
   const newSet = new Set(expandedEvents.value)
@@ -203,7 +235,7 @@ async function postComment(eventId: number) {
     if (res.ok) {
       const data = await res.json()
       // Reload to show new comment
-      router.reload({ only: ['groupedEvents'], preserveScroll: true, preserveState: true })
+      router.reload({ only: ['groupedEvents'] })
       commentTexts.value[eventId] = ''
       toggleInstructions.value[eventId] = false
     }
@@ -218,6 +250,8 @@ async function postComment(eventId: number) {
 async function checkForNewEvents() {
   try {
     const params = new URLSearchParams({ since: String(latestKnownId.value) })
+    if (activeBrand.value) params.append('brand', activeBrand.value)
+    if (activeAgent.value) params.append('agent', activeAgent.value)
     const res = await fetch(`/activity/poll?${params.toString()}`)
     const data = await res.json()
     if (data.new_count > 0) {
@@ -230,7 +264,7 @@ async function checkForNewEvents() {
 }
 
 function loadNewEvents() {
-  router.reload({ only: ['groupedEvents', 'latestId'], preserveScroll: true })
+  router.reload({ only: ['groupedEvents', 'latestId'] })
   newEventCount.value = 0
 }
 
@@ -242,6 +276,8 @@ async function loadMore() {
   loadingMore.value = true
   try {
     const params = new URLSearchParams({ before: String(oldest.id) })
+    if (activeBrand.value) params.append('brand', activeBrand.value)
+    if (activeAgent.value) params.append('agent', activeAgent.value)
     const res = await fetch(`/activity/load-more?${params.toString()}`)
     const data = await res.json()
 
@@ -276,6 +312,10 @@ function isYesterday(d: Date): boolean {
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
   return d.getDate() === yesterday.getDate() && d.getMonth() === yesterday.getMonth() && d.getFullYear() === yesterday.getFullYear()
+}
+
+function agentInitials(name: string): string {
+  return name.split(' ').map(s => s.charAt(0)).join('').toUpperCase().slice(0, 2)
 }
 
 onMounted(() => {
@@ -314,6 +354,50 @@ onUnmounted(() => {
         {{ newEventCount }} new {{ newEventCount === 1 ? 'event' : 'events' }} — click to load
       </button>
     </Transition>
+
+    <!-- Brand filter pills -->
+    <div class="flex flex-wrap items-center gap-1 border-b border-gray-100 px-4 py-2">
+      <button
+        class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors"
+        :class="!activeBrand && !activeAgent ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+        @click="clearFilters"
+      >All</button>
+      <button
+        v-for="brand in brands"
+        :key="brand.id"
+        class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors"
+        :class="activeBrand === brand.slug && !activeAgent
+          ? 'text-white'
+          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+        :style="activeBrand === brand.slug && !activeAgent ? { backgroundColor: brand.color || '#6b7280' } : {}"
+        @click="filterByBrand(activeBrand === brand.slug ? null : brand.slug)"
+      >
+        <span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: brand.color || '#6b7280' }"></span>
+        {{ brand.name }}
+      </button>
+    </div>
+
+    <!-- Agent filter pills -->
+    <div v-if="agents.length > 0" class="flex flex-wrap items-center gap-1 border-b border-gray-100 bg-gray-50/50 px-4 py-1.5">
+      <span class="mr-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">Agent</span>
+      <button
+        v-for="agent in agents"
+        :key="agent.id"
+        class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors"
+        :class="activeAgent === String(agent.id)
+          ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
+          : 'bg-white text-gray-500 hover:bg-gray-100 ring-1 ring-gray-200'"
+        @click="filterByAgent(activeAgent === String(agent.id) ? null : String(agent.id))"
+      >
+        <Circle class="h-2 w-2" :class="agent.is_active !== false ? 'fill-green-500' : 'fill-gray-400'" />
+        {{ agent.display_name }}
+      </button>
+      <button
+        v-if="activeBrand || activeAgent"
+        class="ml-1 text-[10px] text-blue-600 hover:text-blue-800"
+        @click="clearFilters"
+      >Clear</button>
+    </div>
 
     <!-- Feed -->
     <div v-if="dayGroups.length === 0" class="flex flex-col items-center justify-center py-20 text-center">
@@ -358,13 +442,18 @@ onUnmounted(() => {
               <div v-else class="border-l-2 px-4 py-2 transition-colors hover:bg-gray-50/50" :class="severityBorder(event.severity)">
                 <!-- Clickable header area -->
                 <div class="flex items-start gap-3 cursor-pointer" @click="toggleEvent(event.id)">
-                  <div class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" :style="{ backgroundColor: brandColor(event.brand) }">
+                  <!-- Agent avatar or brand initial -->
+                  <div v-if="event.agent" class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-100 text-[9px] font-bold text-purple-700" :title="event.agent.display_name">
+                    {{ agentInitials(event.agent.display_name) }}
+                  </div>
+                  <div v-else class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" :style="{ backgroundColor: brandColor(event.brand) }">
                     {{ event.brand ? event.brand.name.charAt(0) : 'S' }}
                   </div>
 
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2 text-[10px]">
-                      <span class="font-medium text-gray-700">{{ sourceLabel(event.source) }}</span>
+                      <span v-if="event.agent" class="font-semibold text-purple-700">{{ event.agent.display_name }}</span>
+                      <span v-else class="font-medium text-gray-700">{{ sourceLabel(event.source) }}</span>
                       <span v-if="event.brand" class="text-gray-400">· {{ event.brand.name }}</span>
                       <span class="text-gray-400">{{ formatTimestamp(event.created_at) }}</span>
                       <span
@@ -389,7 +478,10 @@ onUnmounted(() => {
                             <span>{{ typeof val === 'object' ? JSON.stringify(val) : val }}</span>
                           </div>
                         </div>
-                        <div class="text-[10px] text-gray-400">Source: {{ event.source }}</div>
+                        <div class="flex gap-2 text-[10px] text-gray-400">
+                          <span>Source: {{ event.source }}</span>
+                          <span v-if="event.agent">· Agent: {{ event.agent.display_name }}</span>
+                        </div>
                       </div>
                     </Transition>
                   </div>

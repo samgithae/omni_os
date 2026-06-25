@@ -31,8 +31,9 @@ class EnrichLeadsBatch extends Command
 
         if ($brandSlug) {
             $brand = Brand::where('slug', $brandSlug)->first();
-            if (!$brand) {
+            if (! $brand) {
                 $this->error("Brand '{$brandSlug}' not found.");
+
                 return self::FAILURE;
             }
             $alreadyHaveEmail->where('brand_id', $brand->id);
@@ -41,7 +42,7 @@ class EnrichLeadsBatch extends Command
         $alreadyCount = $alreadyHaveEmail->count();
         $alreadyTransitioned = 0;
         $samples = [];
-        if ($alreadyCount > 0 && !$dryRun) {
+        if ($alreadyCount > 0 && ! $dryRun) {
             $alreadyHaveEmail->limit($limit)->each(function (Lead $lead) use (&$alreadyTransitioned, &$samples) {
                 try {
                     // Must go through enriching first (state machine: new -> enriching -> enriched)
@@ -57,7 +58,7 @@ class EnrichLeadsBatch extends Command
                     );
                     $alreadyTransitioned++;
                     if (count($samples) < 3) {
-                        $samples[] = $lead->company_name . ' (' . $lead->email . ')';
+                        $samples[] = $lead->company_name.' ('.$lead->email.')';
                     }
                 } catch (\Throwable $e) {
                     $this->warn("Lead #{$lead->id}: could not auto-enrich — {$e->getMessage()}");
@@ -105,7 +106,7 @@ class EnrichLeadsBatch extends Command
                 $this->warn('DRY RUN — no changes made.');
                 $this->table(
                     ['ID', 'Company', 'Segment', 'City', 'Attempts', 'Brand'],
-                    $leads->map(fn($l) => [
+                    $leads->map(fn ($l) => [
                         $l->id,
                         $l->company_name,
                         $l->segment,
@@ -114,6 +115,7 @@ class EnrichLeadsBatch extends Command
                         $l->brand?->name ?? '—',
                     ])->toArray()
                 );
+
                 return self::SUCCESS;
             }
 
@@ -156,8 +158,8 @@ class EnrichLeadsBatch extends Command
             'source' => 'laravel.cli.enrich-batch',
             'event_type' => 'enrichment_batch',
             'title' => "Enrichment batch: {$totalProcessed} processed{$segmentLabel}"
-                . ($alreadyTransitioned > 0 ? " ({$alreadyTransitioned} auto-enriched)" : '')
-                . ($errors ? " — {$errors} failed" : ''),
+                .($alreadyTransitioned > 0 ? " ({$alreadyTransitioned} auto-enriched)" : '')
+                .($errors ? " — {$errors} failed" : ''),
             'metadata' => [
                 'auto_enriched' => $alreadyTransitioned,
                 'email_enrichment_queued' => $processed,

@@ -45,9 +45,9 @@ class MonitorLeadMining extends Command
         $severity = $healthy ? 'success' : 'warning';
 
         $body = "Monitored lead mining pipeline over the last {$hours}h. "
-            . "{$newLeads} new leads added ({$newEnriched} enriched). "
-            . "Total leads database: {$totalLeads}. "
-            . "Hermes crons (Rabbit + Deer, every 2h) handle the actual mining.";
+            ."{$newLeads} new leads added ({$newEnriched} enriched). "
+            ."Total leads database: {$totalLeads}. "
+            .'Hermes crons (Rabbit + Deer, every 2h) handle the actual mining.';
 
         if ($newLeads === 0) {
             $body .= " No leads mined in the last {$hours}h — check Hermes cron logs.";

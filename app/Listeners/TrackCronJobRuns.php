@@ -67,7 +67,7 @@ class TrackCronJobRuns
         self::$running[$jobName] = $runIds;
 
         $run = CronJobRun::find($runId);
-        if (!$run) {
+        if (! $run) {
             return;
         }
 
@@ -93,14 +93,14 @@ class TrackCronJobRuns
     private function logToActivityFeed(CronJobRun $run, bool $success, int $durationMs, string $description): void
     {
         $duration = $durationMs < 1000
-            ? $durationMs . 'ms'
-            : number_format($durationMs / 1000, 1) . 's';
+            ? $durationMs.'ms'
+            : number_format($durationMs / 1000, 1).'s';
 
         $emoji = $success ? '✅' : '❌';
-        $title = "{$emoji} {$run->job_name} — " . ($success ? 'completed' : 'failed');
+        $title = "{$emoji} {$run->job_name} — ".($success ? 'completed' : 'failed');
 
         if ($description) {
-            $title .= ': ' . $description;
+            $title .= ': '.$description;
         }
 
         $body = $success
@@ -109,7 +109,7 @@ class TrackCronJobRuns
 
         app(ActivityLogger::class)->log([
             'brand_id' => null,
-            'source' => 'scheduler.' . $run->job_name,
+            'source' => 'scheduler.'.$run->job_name,
             'event_type' => $success ? 'system' : 'system',
             'title' => $title,
             'body' => $body,
@@ -131,11 +131,19 @@ class TrackCronJobRuns
         if ($task->command) {
             $parts = explode(' ', $task->command);
             foreach ($parts as $part) {
-                if (str_contains($part, 'artisan')) continue;
-                if (str_starts_with($part, '/')) continue;
-                if (str_contains($part, 'php')) continue;
+                if (str_contains($part, 'artisan')) {
+                    continue;
+                }
+                if (str_starts_with($part, '/')) {
+                    continue;
+                }
+                if (str_contains($part, 'php')) {
+                    continue;
+                }
+
                 return $part;
             }
+
             return $parts[count($parts) - 1] ?? 'unknown';
         }
 

@@ -2,16 +2,14 @@
 
 namespace App\Filament\Resources;
 
-use BackedEnum;
-
 use App\Filament\Resources\MiningTargetResource\Pages;
 use App\Models\MiningTarget;
+use Filament\Actions;
 use Filament\Forms;
+use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
-use Filament\Resources\Resource;
 use Filament\Tables;
-use Filament\Actions;
 use Filament\Tables\Table;
 
 class MiningTargetResource extends Resource
@@ -24,7 +22,10 @@ class MiningTargetResource extends Resource
 
     protected static ?int $navigationSort = 4;
 
-    public static function shouldRegisterNavigation(): bool { return false; }
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
 
     public static function form(Schema $schema): Schema
     {

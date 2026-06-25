@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\EmailMessage;
 use App\Models\Lead;
 use App\Models\LeadEvent;
-use Illuminate\Support\Collection;
 
 /**
  * Win-Loss analytics service.
@@ -242,6 +241,7 @@ class WinLossService
             if ($b['replied'] !== $a['replied']) {
                 return $b['replied'] <=> $a['replied'];
             }
+
             return $b['leads'] <=> $a['leads'];
         });
 
@@ -256,6 +256,7 @@ class WinLossService
         if ($denominator === 0) {
             return 0.0;
         }
+
         return round(($numerator / $denominator) * 100, 1);
     }
 }

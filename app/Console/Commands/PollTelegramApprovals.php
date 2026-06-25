@@ -4,18 +4,21 @@ namespace App\Console\Commands;
 
 use App\Models\EmailMessage;
 use App\Services\ActivityLogger;
-use App\Services\TelegramService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 
 class PollTelegramApprovals extends Command
 {
     protected $signature = 'telegram:poll-approvals';
+
     protected $description = 'Poll Telegram for approval replies and process them';
 
     private ?string $botToken;
+
     private int $lastUpdateId = 0;
+
     private const CACHE_KEY = 'telegram_last_update_id';
+
     private const NOTIFIED_CACHE_KEY = 'telegram_notified_email_ids';
 
     public function handle(): int
@@ -24,6 +27,7 @@ class PollTelegramApprovals extends Command
 
         if (! $this->botToken) {
             $this->warn('Telegram bot token not configured.');
+
             return 1;
         }
 
@@ -33,6 +37,7 @@ class PollTelegramApprovals extends Command
         if ($updates === false) {
             // Network error — don't advance offset, try again next minute
             $this->warn('Telegram API unreachable. Will retry on next poll.');
+
             return 1;
         }
 
@@ -94,6 +99,7 @@ class PollTelegramApprovals extends Command
 
             if ($response->successful()) {
                 $data = $response->json();
+
                 return $data['result'] ?? [];
             }
         } catch (\Throwable $e) {

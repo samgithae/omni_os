@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Log;
 class TelegramService
 {
     private ?string $botToken;
+
     private ?string $chatId;
 
     public function __construct()
@@ -28,6 +29,7 @@ class TelegramService
     {
         if (! $this->isConfigured()) {
             Log::warning('Telegram not configured — message not sent.', ['preview' => substr($text, 0, 200)]);
+
             return false;
         }
 
@@ -45,6 +47,7 @@ class TelegramService
                 'status' => $response->status(),
                 'body' => substr($response->body(), 0, 500),
             ]);
+
             return false;
         }
 
@@ -79,6 +82,7 @@ class TelegramService
                 'status' => $response->status(),
                 'body' => substr($response->body(), 0, 500),
             ]);
+
             return false;
         }
 
@@ -99,6 +103,7 @@ class TelegramService
 
         if (count($emails) === 0) {
             $text .= "No pending emails to review.\n";
+
             return [$text, null];
         }
 

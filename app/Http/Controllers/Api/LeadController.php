@@ -8,13 +8,12 @@ use App\Models\Brand;
 use App\Models\BrandSequenceConfig;
 use App\Models\EmailMessage;
 use App\Models\Lead;
+use App\Models\LeadEvent;
 use App\Models\Suppression;
 use App\Services\LeadScoringService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 class LeadController extends Controller
 {
@@ -89,6 +88,7 @@ class LeadController extends Controller
 
                 if ($isSuppressed) {
                     $suppressed++;
+
                     continue;
                 }
             }
@@ -104,6 +104,7 @@ class LeadController extends Controller
 
             if ($dedupQuery->exists()) {
                 $duplicates++;
+
                 continue;
             }
 
@@ -184,7 +185,7 @@ class LeadController extends Controller
             );
 
             return response()->json([
-                'message' => 'No email found. Attempt ' . $lead->enrichment_attempts . ' recorded.',
+                'message' => 'No email found. Attempt '.$lead->enrichment_attempts.' recorded.',
                 'lead_id' => $lead->id,
                 'enrichment_attempts' => $lead->enrichment_attempts,
                 'status' => $lead->status,
@@ -318,22 +319,22 @@ class LeadController extends Controller
             $rawData = $lead->raw_data ?? [];
 
             $results[] = [
-                'lead_id'        => $lead->id,
-                'brand_id'       => $lead->brand_id,
-                'brand_slug'     => $lead->brand->slug,
-                'brand_name'     => $lead->brand->name,
-                'segment'        => $lead->segment,
-                'company_name'   => $lead->company_name,
-                'display_name'   => $rawData['display_name'] ?? null,
-                'concrete_fact'  => $rawData['concrete_fact'] ?? null,
-                'category'       => $lead->category,
-                'city'           => $lead->city,
-                'country'        => $lead->country,
-                'email'          => $lead->email,
-                'website'        => $lead->website,
+                'lead_id' => $lead->id,
+                'brand_id' => $lead->brand_id,
+                'brand_slug' => $lead->brand->slug,
+                'brand_name' => $lead->brand->name,
+                'segment' => $lead->segment,
+                'company_name' => $lead->company_name,
+                'display_name' => $rawData['display_name'] ?? null,
+                'concrete_fact' => $rawData['concrete_fact'] ?? null,
+                'category' => $lead->category,
+                'city' => $lead->city,
+                'country' => $lead->country,
+                'email' => $lead->email,
+                'website' => $lead->website,
                 'sequence_steps' => $config->sequence_steps,
                 'existing_steps' => $existingSteps,
-                'missing_steps'  => $missingSteps,
+                'missing_steps' => $missingSteps,
             ];
 
             if (count($results) >= $limit) {
@@ -373,10 +374,10 @@ class LeadController extends Controller
         $requiredSteps = range(1, $config->sequence_steps);
 
         $validated = $request->validate([
-            'emails'             => ['required', 'array'],
-            'emails.*.step'      => ['required', 'integer', 'min:1', 'max:10'],
-            'emails.*.subject'   => ['required', 'string', 'max:255'],
-            'emails.*.body'      => ['required', 'string'],
+            'emails' => ['required', 'array'],
+            'emails.*.step' => ['required', 'integer', 'min:1', 'max:10'],
+            'emails.*.subject' => ['required', 'string', 'max:255'],
+            'emails.*.body' => ['required', 'string'],
         ]);
 
         $submittedSteps = collect($validated['emails'])->pluck('step')->toArray();
@@ -385,9 +386,9 @@ class LeadController extends Controller
         // Completeness gate — ALL required steps must be in this batch
         if (! empty($missingSteps)) {
             return response()->json([
-                'error'          => 'Incomplete batch — missing required sequence steps.',
+                'error' => 'Incomplete batch — missing required sequence steps.',
                 'required_steps' => $requiredSteps,
-                'missing_steps'  => $missingSteps,
+                'missing_steps' => $missingSteps,
             ], 422);
         }
 
@@ -406,14 +407,14 @@ class LeadController extends Controller
             foreach ($validated['emails'] as $email) {
                 $emailMessage = EmailMessage::updateOrCreate(
                     [
-                        'lead_id'       => $lead->id,
+                        'lead_id' => $lead->id,
                         'sequence_step' => $email['step'],
                     ],
                     [
-                        'brand_id'        => $lead->brand_id,
-                        'subject'         => $email['subject'],
-                        'body'            => $email['body'],
-                        'status'          => 'draft',
+                        'brand_id' => $lead->brand_id,
+                        'subject' => $email['subject'],
+                        'body' => $email['body'],
+                        'status' => 'draft',
                         'approval_status' => 'pending',
                     ]
                 );
@@ -422,19 +423,19 @@ class LeadController extends Controller
             }
 
             // Log generation event
-            \App\Models\LeadEvent::create([
-                'lead_id'    => $lead->id,
-                'brand_id'   => $lead->brand_id,
+            LeadEvent::create([
+                'lead_id' => $lead->id,
+                'brand_id' => $lead->brand_id,
                 'event_type' => 'email_sequence_generated',
-                'payload'    => ['steps_generated' => collect($validated['emails'])->pluck('step')],
-                'source'     => 'hermes',
+                'payload' => ['steps_generated' => collect($validated['emails'])->pluck('step')],
+                'source' => 'hermes',
             ]);
         });
 
         return response()->json([
             'success' => true,
             'lead_id' => $lead->id,
-            'steps'   => $createdSteps,
+            'steps' => $createdSteps,
             'message' => "Email sequence ({$config->sequence_steps} emails) ready for review.",
         ]);
     }

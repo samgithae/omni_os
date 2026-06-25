@@ -16,8 +16,8 @@ use Illuminate\Support\Carbon;
  * @property int $sequence_step
  * @property string|null $subject
  * @property string|null $body
- * @property string $status                  // draft, queued, sent, failed
- * @property string $approval_status         // pending, approved, rejected
+ * @property string $status // draft, queued, sent, failed
+ * @property string $approval_status // pending, approved, rejected
  * @property Carbon|null $approved_at
  * @property Carbon|null $rejected_at
  * @property string|null $approval_notes
@@ -193,6 +193,7 @@ class EmailMessage extends Model
         if ($this->approval_status === 'approved') {
             return 'Approved';
         }
+
         return 'Pending Approval';
     }
 }

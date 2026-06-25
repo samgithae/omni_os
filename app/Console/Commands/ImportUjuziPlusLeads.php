@@ -26,8 +26,9 @@ class ImportUjuziPlusLeads extends Command
 
         // Find UjuziPlus brand
         $brand = Brand::query()->where('slug', 'ujuziplus')->first();
-        if (!$brand) {
+        if (! $brand) {
             $this->error('UjuziPlus brand not found. Run the seeder first.');
+
             return self::FAILURE;
         }
         $this->ujuziplusBrandId = $brand->id;
@@ -44,8 +45,8 @@ class ImportUjuziPlusLeads extends Command
         } else {
             $storagePath = storage_path('app/private');
             $files = [
-                $storagePath . '/ujuziplus_rabbits.csv',
-                $storagePath . '/ujuziplus_deer.csv',
+                $storagePath.'/ujuziplus_rabbits.csv',
+                $storagePath.'/ujuziplus_deer.csv',
             ];
         }
 
@@ -59,13 +60,14 @@ class ImportUjuziPlusLeads extends Command
         ];
 
         foreach ($files as $csvFile) {
-            if (!file_exists($csvFile)) {
+            if (! file_exists($csvFile)) {
                 $this->warn("File not found: {$csvFile}");
+
                 continue;
             }
 
             $segment = str_contains($csvFile, 'rabbit') ? 'rabbit' : 'deer';
-            $this->info("\n--- Importing {$segment} from " . basename($csvFile) . " ---");
+            $this->info("\n--- Importing {$segment} from ".basename($csvFile).' ---');
 
             $csv = Reader::createFromPath($csvFile, 'r');
             $csv->setHeaderOffset(0);
@@ -80,9 +82,10 @@ class ImportUjuziPlusLeads extends Command
 
                 $lead = $this->mapRecord($record, $headers, $segment);
 
-                if (!$lead['company_name']) {
+                if (! $lead['company_name']) {
                     $fileStats['skipped']++;
                     $stats['skipped_no_name']++;
+
                     continue;
                 }
 
@@ -94,6 +97,7 @@ class ImportUjuziPlusLeads extends Command
                 if ($dryRun) {
                     $fileStats['imported']++;
                     $stats['imported']++;
+
                     continue;
                 }
 
@@ -106,6 +110,7 @@ class ImportUjuziPlusLeads extends Command
                     if ($existing) {
                         $stats['skipped_duplicate']++;
                         $fileStats['skipped']++;
+
                         continue;
                     }
                 }
@@ -179,6 +184,7 @@ class ImportUjuziPlusLeads extends Command
                     return trim($record[$h] ?? '');
                 }
             }
+
             return '';
         };
 
@@ -196,7 +202,7 @@ class ImportUjuziPlusLeads extends Command
 
         // Truncate company_name if too long
         if (strlen($companyName) > 255) {
-            $companyName = substr($companyName, 0, 252) . '...';
+            $companyName = substr($companyName, 0, 252).'...';
         }
 
         // Truncate email if too long (shouldn't be, but Deer has misaligned data)
@@ -210,12 +216,12 @@ class ImportUjuziPlusLeads extends Command
         }
 
         // Clean website (sometimes email is in website field)
-        if ($website && !str_starts_with($website, 'http') && !str_contains($website, '.')) {
+        if ($website && ! str_starts_with($website, 'http') && ! str_contains($website, '.')) {
             $website = null;
         }
         // Sometimes email ends up in website field
-        if ($website && str_contains($website, '@') && !str_starts_with($website, 'http')) {
-            if (!$email) {
+        if ($website && str_contains($website, '@') && ! str_starts_with($website, 'http')) {
+            if (! $email) {
                 $email = $website;
             }
             $website = null;
@@ -231,19 +237,31 @@ class ImportUjuziPlusLeads extends Command
         // Build raw_data from all columns
         $rawData = [];
         foreach ($headers as $h) {
-            if (!empty($record[$h] ?? '')) {
+            if (! empty($record[$h] ?? '')) {
                 $rawData[$h] = $record[$h];
             }
         }
 
         // Calculate score
         $score = 0;
-        if ($email) $score += 30;
-        if ($phone) $score += 15;
-        if ($website) $score += 15;
-        if (!empty($rawData['business_insight'])) $score += 20;
-        if (!empty($rawData['concrete_fact'])) $score += 10;
-        if ($segment === 'deer') $score += 10;
+        if ($email) {
+            $score += 30;
+        }
+        if ($phone) {
+            $score += 15;
+        }
+        if ($website) {
+            $score += 15;
+        }
+        if (! empty($rawData['business_insight'])) {
+            $score += 20;
+        }
+        if (! empty($rawData['concrete_fact'])) {
+            $score += 10;
+        }
+        if ($segment === 'deer') {
+            $score += 10;
+        }
 
         return [
             'company_name' => $companyName,
@@ -266,14 +284,14 @@ class ImportUjuziPlusLeads extends Command
         // Check if city is in the raw data
         foreach (['city', 'location', 'address'] as $key) {
             foreach ($rawData as $k => $v) {
-                if (strtolower($k) === $key && !empty($v)) {
+                if (strtolower($k) === $key && ! empty($v)) {
                     return $v;
                 }
             }
         }
 
         // Try to infer from company name or other fields
-        $text = strtolower($companyName . ' ' . implode(' ', $rawData));
+        $text = strtolower($companyName.' '.implode(' ', $rawData));
         $cities = ['nairobi', 'mombasa', 'kisumu', 'nakuru', 'eldoret', 'thika', 'nyeri', 'machakos', 'kakamega', 'naivasha', 'meru', 'kisii', 'malindi', 'kitale'];
 
         foreach ($cities as $city) {

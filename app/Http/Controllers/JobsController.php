@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CronJobRun;
 use App\Services\ActivityLogger;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Inertia\Inertia;
@@ -79,7 +80,7 @@ class JobsController extends Controller
      * POST /analytics/jobs/{jobName}/run
      * Trigger a manual run of a scheduled job.
      */
-    public function run(string $jobName, ActivityLogger $logger): \Illuminate\Http\JsonResponse
+    public function run(string $jobName, ActivityLogger $logger): JsonResponse
     {
         $jobDefinitions = config('schedule-jobs.jobs', []);
         $definition = collect($jobDefinitions)->firstWhere('name', $jobName);
@@ -153,7 +154,7 @@ class JobsController extends Controller
             $query->since($request->from);
         }
         if ($request->filled('to')) {
-            $query->until($request->to . ' 23:59:59');
+            $query->until($request->to.' 23:59:59');
         }
 
         $limit = (int) ($request->get('limit', 100));

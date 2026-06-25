@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\EmailMessage;
 use App\Models\Lead;
+use App\Models\Reply;
 use App\Models\Suppression;
 use App\Models\WebhookEvent;
 use App\Services\ActivityLogger;
@@ -123,7 +124,7 @@ class WebhookController extends Controller
         $email = $emailMessageId ? EmailMessage::find($emailMessageId) : null;
 
         // If no email matched by custom header, try matching by recipient
-        if (!$email && $webhookEvent->lead_id) {
+        if (! $email && $webhookEvent->lead_id) {
             $email = EmailMessage::where('lead_id', $webhookEvent->lead_id)
                 ->where('status', 'sent')
                 ->latest('sent_at')
@@ -144,27 +145,31 @@ class WebhookController extends Controller
 
     protected function handleBounce(?EmailMessage $email, array $event): void
     {
-        if (!$email) return;
+        if (! $email) {
+            return;
+        }
 
         $reason = $event['reason'] ?? 'unknown';
         $recipient = $event['recipient'] ?? $event['email'] ?? $email->lead?->email;
 
         $email->update([
             'status' => 'failed',
-            'error_message' => 'Bounced: ' . $reason,
+            'error_message' => 'Bounced: '.$reason,
         ]);
 
         if ($recipient && $email->lead) {
             Suppression::firstOrCreate(
                 ['brand_id' => $email->brand_id, 'email' => $recipient],
-                ['reason' => 'hard_bounce', 'notes' => 'Bounced via SMTP2GO webhook: ' . $reason],
+                ['reason' => 'hard_bounce', 'notes' => 'Bounced via SMTP2GO webhook: '.$reason],
             );
         }
     }
 
     protected function handleComplaint(?EmailMessage $email, array $event): void
     {
-        if (!$email) return;
+        if (! $email) {
+            return;
+        }
 
         $recipient = $event['recipient'] ?? $event['email'] ?? $email->lead?->email;
 
@@ -183,7 +188,9 @@ class WebhookController extends Controller
 
     protected function handleUnsubscribe(?EmailMessage $email, array $event): void
     {
-        if (!$email) return;
+        if (! $email) {
+            return;
+        }
 
         $recipient = $event['recipient'] ?? $event['email'] ?? $email->lead?->email;
 
@@ -208,7 +215,9 @@ class WebhookController extends Controller
     protected function handleReply(?EmailMessage $email, array $event, WebhookEvent $webhookEvent): void
     {
         $lead = $email?->lead ?? Lead::find($webhookEvent->lead_id);
-        if (!$lead) return;
+        if (! $lead) {
+            return;
+        }
 
         $replyText = $event['plain_text_body']
             ?? $event['text']
@@ -219,7 +228,7 @@ class WebhookController extends Controller
         $fromEmail = $event['from'] ?? $event['sender'] ?? $lead->email ?? '';
 
         // Create a Reply record (visible in the inbox)
-        \App\Models\Reply::create([
+        Reply::create([
             'lead_id' => $lead->id,
             'brand_id' => $lead->brand_id,
             'email_message_id' => $email?->id,

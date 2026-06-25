@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Brand;
 use App\Models\BrandSequenceConfig;
 use App\Models\Lead;
 use App\Services\ActivityLogger;
@@ -40,6 +39,7 @@ class GenerateEmailContent extends Command
 
             if (! $config) {
                 $noConfig++;
+
                 continue;
             }
 

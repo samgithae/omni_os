@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Building2, Users, Ban, MapPin, LayoutGrid, FolderGit2, Mail, Activity, Clock, BarChart3, Inbox, Settings, Timer, FileText, Shield } from '@lucide/vue';
+import { BookOpen, Building2, Users, Ban, MapPin, LayoutGrid, FolderGit2, Mail, Activity, Clock, BarChart3, Inbox, Settings, Timer, FileText, Shield, Bot } from '@lucide/vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -48,6 +48,7 @@ const navGroups: NavGroup[] = [
             { title: 'Analytics', href: '/analytics', icon: BarChart3 },
             { title: 'Scheduled Jobs', href: '/analytics/jobs', icon: Timer },
             { title: 'Activity Feed', href: '/activity', icon: Activity },
+            { title: 'Agents', href: '/agents', icon: Bot },
         ],
     },
     {
@@ -109,7 +110,7 @@ function isExternal(href: string | { name: string; params?: Record<string, strin
                 <SidebarMenu>
                     <SidebarMenuItem v-for="item in group.items" :key="item.title">
                         <SidebarMenuButton as-child :tooltip="item.title">
-                            <a v-if="isExternal(item.href)" :href="String(item.href)">
+                            <a v-if="isExternal(String(item.href))" :href="String(item.href)">
                                 <component :is="item.icon" />
                                 <span>{{ item.title }}</span>
                                 <span v-if="item.badge && item.badge > 0" class="ml-auto rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ item.badge }}</span>
