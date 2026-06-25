@@ -75,8 +75,37 @@ const docErrors = ref<string | null>(null)
 function onAvatarSelected(event: Event) {
   const target = event.target as HTMLInputElement
   if (target.files && target.files[0]) {
-    avatarFile.value = target.files[0]
-    avatarPreview.value = URL.createObjectURL(target.files[0])
+    const file = target.files[0]
+
+    // Client-side resize: max 256x256, quality 0.8
+    const img = new Image()
+    const canvas = document.createElement('canvas')
+    const maxSize = 256
+
+    img.onload = () => {
+      let { width, height } = img
+      if (width > maxSize || height > maxSize) {
+        const ratio = Math.min(maxSize / width, maxSize / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, width, height)
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const resized = new File([blob], file.name, {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          })
+          avatarFile.value = resized
+          avatarPreview.value = URL.createObjectURL(resized)
+        }
+      }, 'image/jpeg', 0.8)
+    }
+    img.src = URL.createObjectURL(file)
   }
 }
 
