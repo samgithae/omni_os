@@ -34,7 +34,7 @@ class SendEmailBatch extends Command
         $query = EmailMessage::query()
             ->where('approval_status', 'approved')
             ->where('status', 'queued')
-            ->with(['lead:id,company_name,email,contact_name', 'brand:id,name,slug']);
+            ->with(['lead:id,company_name,email,contact_name', 'brand:id,name,slug,sender_emails,sender_name']);
 
         if ($brandSlug = $this->option('brand')) {
             $brand = Brand::where('slug', $brandSlug)->first();
