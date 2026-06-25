@@ -28,7 +28,8 @@ class WebhookController extends Controller
         if ($webhookKey) {
             $receivedKey = $request->input('api_key')
                           ?? $request->header('X-Api-Key')
-                          ?? $request->query('api_key');
+                          ?? $request->query('api_key')
+                          ?? str($request->header('Authorization'))->after('Bearer ')->trim()->value();
             if ($receivedKey !== $webhookKey) {
                 return response()->json(['message' => 'Unauthorized.'], 401);
             }
