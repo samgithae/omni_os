@@ -42,8 +42,30 @@ class SendEmailBatch extends Command
                     ->from('leads')
                     ->join('suppressions', function ($join) {
                         $join->on('suppressions.email', '=', 'leads.email')
-                            ->on('suppressions.brand_id', '=', 'leads.brand_id');
+                             ->on('suppressions.brand_id', '=', 'leads.brand_id');
                     });
+            })
+            ->where(function ($q) {
+                // Step 1 is always eligible (days_after_previous = 0)
+                // Steps 2+ need to wait days_after_previous after previous step was sent
+                $q->where('sequence_step', 1)
+                  ->orWhere(function ($q2) {
+                      $q2->where('sequence_step', '>', 1)
+                         ->whereRaw('NOT EXISTS (
+                            SELECT 1 FROM sequence_schedules ss
+                            WHERE ss.brand_id = email_messages.brand_id
+                            AND ss.step = email_messages.sequence_step
+                            AND ss.is_active = true
+                            AND EXISTS (
+                                SELECT 1 FROM email_messages prev
+                                WHERE prev.lead_id = email_messages.lead_id
+                                AND prev.sequence_step = email_messages.sequence_step - 1
+                                AND prev.status = \'sent\'
+                                AND prev.sent_at IS NOT NULL
+                                AND prev.sent_at > NOW() - (ss.days_after_previous || \' days\')::INTERVAL
+                            )
+                         )');
+                  });
             })
             ->with(['lead:id,company_name,email,contact_name', 'brand:id,name,slug,sender_emails,sender_name']);
 
