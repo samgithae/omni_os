@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
-import { Bot, Activity, ChevronDown, ChevronRight, FileText, ExternalLink, Clock, Circle } from '@lucide/vue'
+import { Bot, Activity, ChevronDown, ChevronRight, FileText, ExternalLink, Clock, Circle, Settings } from '@lucide/vue'
 import { dashboard } from '@/routes'
 
 defineOptions({
@@ -210,6 +210,17 @@ function statusLabel(status: string): string {
             <!-- Description -->
             <div v-if="agent.description" class="mb-3 rounded-md bg-white px-3 py-2 text-xs leading-relaxed text-gray-600">
               {{ agent.description }}
+            </div>
+
+            <!-- Edit link -->
+            <div class="mb-3 flex items-center gap-2">
+              <a
+                :href="`/admin/agents/${agent.id}/edit`"
+                class="inline-flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-[11px] font-medium text-blue-600 ring-1 ring-inset ring-gray-200 transition-colors hover:bg-blue-50 hover:text-blue-700"
+              >
+                <Settings class="h-3 w-3" />
+                Edit in Admin — avatar, documents, token, details
+              </a>
             </div>
 
             <!-- Recent events -->
