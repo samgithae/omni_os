@@ -41,3 +41,6 @@ yarn-error.log
 *.pyc
 company_name
 source
+*.py
+*.sh
+*_b64.txt
