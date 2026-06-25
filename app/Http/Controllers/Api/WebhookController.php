@@ -23,10 +23,13 @@ class WebhookController extends Controller
      */
     public function smtp2go(Request $request)
     {
-        // 1. Validate api_key (if configured)
+        // 1. Validate api_key — SMTP2GO can send it as custom header or in body
         $webhookKey = config('services.smtp2go.webhook_key');
         if ($webhookKey) {
-            if ($request->input('api_key') !== $webhookKey) {
+            $receivedKey = $request->input('api_key')
+                          ?? $request->header('X-Api-Key')
+                          ?? $request->query('api_key');
+            if ($receivedKey !== $webhookKey) {
                 return response()->json(['message' => 'Unauthorized.'], 401);
             }
         }
