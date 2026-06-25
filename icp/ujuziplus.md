@@ -1,87 +1,82 @@
 # UjuziPlus ICP Context (spine file)
 
 ## WHAT UJUZIPLUS IS
-UjuziPlus is a PLATFORM — not a training delivery company.
-We sell the INFRASTRUCTURE for training providers to deliver, track, certify, and prove the value of THEIR OWN training programs.
-We NEVER sell "our training programmes" to training firms.
+UjuziPlus is always a PLATFORM — never a training company.
 
-## WHO WE SELL TO (ICP)
+We offer TWO things that can be sold separately or together:
 
-### RABBITS — Training PROVIDERS
+1. THE PLATFORM (Proposition A)
+   Infrastructure for delivering, tracking, and certifying training.
+   Sold to: training firms, coaches, consultancies, SACCOs.
+   Pitch: "Deliver, track, and scale the training you already do without adding admin."
+
+2. THE PLATFORM + CONTENT BUNDLE (Proposition B)
+   Platform infrastructure PLUS a certified partner trainer who delivers a specific programme on it.
+   Sold to: corporates, SMEs, NGOs, schools, government agencies, manufacturers.
+   Pitch: "A structured learning system for your team — and if you need content, we bring a certified trainer too."
+
+The key distinction: UjuziPlus is always the platform. In the bundle, it is still the platform — just with a partner trainer running on top of it.
+
+## WHO WE SELL TO (ICP WITH ROUTING)
+
+### TYPE A — TRAINING PROVIDERS (Platform only — Proposition A)
 Anyone whose business IS delivering training to others:
-- Corporate Training Firms
-- HR Consulting Firms
-- Learning & Development Consultants
-- Executive Coaching Firms
-- Business Coaching Firms
-- SACCO Training Consultants
-- Digital Marketing Training Companies
-- Sales Training Providers
-- Customer Service Training Providers
-- Leadership Development Firms
-- Private Academies and Institutes
-- Vocational Training Centres
+Corporate Training Firms, HR Consulting Firms, L&D Consultants,
+Executive Coaching Firms, Business Coaching Firms,
+SACCO Training Consultants, Digital Marketing Training Companies,
+Sales Training Providers, Leadership Development Firms
+- They SELL training
+- They need the PLATFORM to deliver theirs better
+- Do NOT offer to bring them a trainer or a course
+- Do NOT say "upskill your team" or "professional development for your staff"
 
-### DEER — Training BUYERS
-Organizations that need training for their own people:
-- SACCOs (SASRA-licensed co-operatives) — need member education delivery
-- NGOs with compliance/beneficiary training requirements
-- Corporate HR teams needing LMS for internal training
-- Government institutions with capacity building needs
+### TYPE B — TRAINING BUYERS (Platform + optionally the Bundle — Proposition B)
+Organisations that BUY training for their people:
+Corporates, SMEs, NGOs, SACCOs, Government Agencies,
+Schools, Universities, Manufacturers, Financial Institutions
+- They BUY training for their staff/members
+- Pitch option 1 (Platform only): structured learning system with dashboards and certifications
+- Pitch option 2 (Bundle): platform + certified trainer for a specific programme
+- "Upskill your team" IS the RIGHT language for this segment
 
-## WHO IS NOT OUR CUSTOMER (for training services)
-
-UjuziPlus does NOT sell training content or programmes to training firms.
-If a prospect's business is delivering training to others,
-they are a platform customer, not a training services customer.
-
-Never pitch "our training programmes" or "professional development"
-to firms in the following categories — pitch the PLATFORM instead:
-- Any firm with "Training", "Consultancy", "Coaching", "Academy",
-  "Institute", "Learning" in their name or category
-- Any firm whose website shows they deliver training or capacity building
-- Any SACCO (they need the member education portal, not training for staff)
+### SACCO SPECIAL CASE
+segment=deer AND category contains SACCO:
+- Pitch: member education portal for financial literacy compliance (SASRA records)
+- Bundle angle: "We can also connect you with a certified financial literacy trainer"
 
 ## THE ONE-SENTENCE POSITION TEST
+Before sending, identify which buyer type:
 
-Before sending any email, complete this sentence:
-"We help [prospect] to ___."
+TYPE A — TRAINING PROVIDER (they sell training):
+"We help [prospect] deliver more training to more clients without drowning in admin." ✓
 
-If the answer is "deliver better training to their clients/members" → correct
-If the answer is "upskill their own team" → wrong pitch, rewrite
+TYPE B — TRAINING BUYER (they buy training for their people):
+"We give [prospect] a structured learning system for their team — and if they need content, we can bring a certified trainer too." ✓
 
-## CORRECT PITCH BY PROSPECT TYPE
+WRONG (regardless of prospect type):
+"We deliver training programmes for your organisation." ✗
 
-RABBITS (training providers):
-"A system to scale the training you already deliver — automated enrollment, digital certificates, client dashboards, proving ROI to their clients"
-Platform positioning: "your branding, your courses, your programs — delivered through our infrastructure"
+## THE ARMSTRONG LESSON (2026-06-24)
+Armstrong Global is a training firm. They do not need us to bring them training. They need the platform to deliver theirs better.
+The email we sent offered them training content (Proposition B to a Type A buyer). That was wrong.
+The correct email would have offered them the platform (Proposition A).
+Permanent rule: If the prospect IS a training provider → pitch only the Platform. Never the Bundle.
 
-DEER (SACCOs):
-"A member education portal to deliver financial literacy training across branches with SASRA-compliant completion records"
+## PRACTICAL IMPACT ON EMAIL 3 OFFERS BY SEGMENT
 
-DEER (corporate/NGO):
-"Learning infrastructure for your team — track completion, automate certification, generate compliance reports"
+| Segment | Email 3 Offer |
+|---------|--------------|
+| Rabbits (training firms) | "I build your platform inside UjuziPlus — your branding, your courses, your client dashboards." |
+| Corporates/NGOs/SMEs | "I build your learning system inside UjuziPlus — and if you need a certified trainer for [specific topic], we can arrange that too." |
+| SACCOs (deer) | "I build your member education portal — and if you need a financial literacy facilitator, we can connect you with one." |
 
-## REPLY OUTCOME TO LEARN FROM (2026-06-24)
+## PRE-DRAFT ICP ROUTING CHECKLIST (for Hermes cron)
 
-Armstrong Global Institute Nakuru replied:
-"It is definite that you did not do your homework. 
-We are a research, training and consultancy firm. 
-So, we do exactly what you are proposing to help us do."
-
-Root cause: Email pitched UjuziPlus training services to a training firm.
-Correct pitch would have been: UjuziPlus as the platform they use to 
-deliver and scale their own training programs.
-Classification: not_interested (bad pitch, recoverable with corrected approach)
-Win-loss file: add to "wrong pitch" category, use to bias future mining 
-toward more specific ICP targeting.
-
-## PRE-DRAFT VALIDATION CHECKLIST (for Hermes cron)
-
-Before generating any email, check:
-1. Read leads.category — is the prospect a training provider?
-2. If yes → pitch PLATFORM, never training services
-3. If segment=rabbit → training PROVIDER, pitch platform
-4. If segment=deer → member education compliance, pitch portal
-5. Run the one-sentence test: "We help [prospect] to ___"
-6. If the answer is "upskill their own team" → STOP, rewrite from scratch
+Before generating any email, run:
+1. Read leads.category
+2. Is it in TRAINING_PROVIDER list? → Type A (Platform only)
+3. Is it in CORPORATE/EMPLOYER list? → Type B (Platform + Bundle)
+4. SACCO special case? → member portal + optional facilitator
+5. Run the One Test: "Does this organisation hire others to train their people?"
+6. Confirm Email 3 offer matches the buyer type
+7. If drafting Proposition B for a Type A buyer → STOP, rewrite from scratch
