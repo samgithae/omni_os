@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Head, Link } from '@inertiajs/vue3'
-import { Bot, Activity, ChevronDown, ChevronRight, FileText, ExternalLink, Clock, Circle, Settings } from '@lucide/vue'
+import { Head, Link, router } from '@inertiajs/vue3'
+import { Bot, Activity, ChevronDown, ChevronRight, FileText, ExternalLink, Clock, Circle, Settings, Plus, Pencil, Trash2 } from '@lucide/vue'
 import { dashboard } from '@/routes'
 
 defineOptions({
@@ -64,6 +64,13 @@ function isExpanded(id: number): boolean {
   return expandedAgents.value.has(id)
 }
 
+function deleteAgent(id: number, name: string) {
+  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return
+  router.delete(`/agents/${id}`, {
+    preserveScroll: true,
+  })
+}
+
 function functionAreaColor(area: string | null): string {
   switch (area) {
     case 'orchestration': return 'bg-indigo-100 text-indigo-700'
@@ -121,8 +128,15 @@ function statusLabel(status: string): string {
         <Bot class="h-4 w-4 text-gray-400" />
         <h1 class="text-sm font-semibold text-gray-900">Agent Fleet</h1>
       </div>
-      <div class="text-[10px] text-gray-400">
-        Roster · {{ agents.length }} agents
+      <div class="flex items-center gap-2">
+        <Link
+          href="/agents/create"
+          class="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-blue-700"
+        >
+          <Plus class="h-3 w-3" />
+          New Agent
+        </Link>
+        <span class="text-[10px] text-gray-400">{{ agents.length }} agents</span>
       </div>
     </div>
 
@@ -212,15 +226,22 @@ function statusLabel(status: string): string {
               {{ agent.description }}
             </div>
 
-            <!-- Edit link -->
+            <!-- Edit + Delete links -->
             <div class="mb-3 flex items-center gap-2">
-              <a
-                :href="`/admin/agents/${agent.id}/edit`"
+              <Link
+                :href="`/agents/${agent.id}/edit`"
                 class="inline-flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-[11px] font-medium text-blue-600 ring-1 ring-inset ring-gray-200 transition-colors hover:bg-blue-50 hover:text-blue-700"
               >
-                <Settings class="h-3 w-3" />
-                Edit in Admin — avatar, documents, token, details
-              </a>
+                <Pencil class="h-3 w-3" />
+                Edit
+              </Link>
+              <button
+                @click.prevent="deleteAgent(agent.id, agent.display_name)"
+                class="inline-flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-[11px] font-medium text-red-500 ring-1 ring-inset ring-gray-200 transition-colors hover:bg-red-50 hover:text-red-700"
+              >
+                <Trash2 class="h-3 w-3" />
+                Delete
+              </button>
             </div>
 
             <!-- Recent events -->

@@ -72,8 +72,16 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/activity/load-more', [ActivityController::class, 'loadMore'])->name('activity.load-more');
     Route::post('/activity/{event}/comments', [ActivityController::class, 'storeComment'])->name('activity.store-comment');
 
-    // Agents — Vue roster page
+    // Agents — Vue roster + management pages
     Route::get('/agents', [AgentController::class, 'index'])->name('agents.index');
+    Route::get('/agents/create', [AgentController::class, 'create'])->name('agents.create');
+    Route::post('/agents', [AgentController::class, 'store'])->name('agents.store');
+    Route::get('/agents/{agent}/edit', [AgentController::class, 'edit'])->name('agents.edit');
+    Route::put('/agents/{agent}', [AgentController::class, 'update'])->name('agents.update');
+    Route::delete('/agents/{agent}', [AgentController::class, 'destroy'])->name('agents.destroy');
+    Route::post('/agents/{agent}/token', [AgentController::class, 'generateToken'])->name('agents.token');
+    Route::post('/agents/{agent}/documents', [AgentController::class, 'uploadDocument'])->name('agents.documents.upload');
+    Route::delete('/agents/{agent}/documents/{document}', [AgentController::class, 'deleteDocument'])->name('agents.documents.destroy');
 
     // Sequence Configs
     Route::get('/sequence-configs', [SequenceConfigController::class, 'index'])->name('sequence-configs.index');
