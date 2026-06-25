@@ -53,7 +53,7 @@ Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
     Route::post('emails/send-batch', [EmailController::class, 'sendBatch']);
 
     // Activity events — uses per-agent token auth, backward-compatible with legacy token
-    Route::post('events', [ActivityEventController::class, 'store'])->middleware('agent.token');
+    Route::post('events', [ActivityEventController::class, 'store'])->withoutMiddleware(ApiTokenAuth::class)->middleware('agent.token');
 
     // Classified replies (from Hermes)
     Route::post('replies', [ReplyController::class, 'store']);
