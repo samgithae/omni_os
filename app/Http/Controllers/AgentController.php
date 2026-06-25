@@ -86,33 +86,10 @@ class AgentController extends Controller
             'avatar' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:5120'],
         ]);
 
-        // Handle avatar upload
+        // Handle avatar upload (client-side handles compression; server stores)
         if ($request->hasFile('avatar')) {
-            $file = $request->file('avatar');
-            $image = @imagecreatefromstring(file_get_contents($file->getRealPath() ?: $file->path()));
-            if ($image !== false) {
-                $origW = imagesx($image);
-                $origH = imagesy($image);
-                $maxSize = 256;
-                if ($origW > $maxSize || $origH > $maxSize) {
-                    $ratio = min($maxSize / $origW, $maxSize / $origH);
-                    $newW = (int) round($origW * $ratio);
-                    $newH = (int) round($origH * $ratio);
-                    $resized = imagecreatetruecolor($newW, $newH);
-                    imagecopyresampled($resized, $image, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
-                    $tempPath = sys_get_temp_dir() . '/' . uniqid('avatar_') . '.jpg';
-                    imagejpeg($resized, $tempPath, 80);
-                    imagedestroy($resized);
-                    imagedestroy($image);
-                    $validated['avatar_path'] = Storage::disk('public')
-                        ->putFile('agents/avatars', new \Illuminate\Http\File($tempPath));
-                    @unlink($tempPath);
-                } else {
-                    $validated['avatar_path'] = $file->store('agents/avatars', 'public');
-                }
-            } else {
-                $validated['avatar_path'] = $file->store('agents/avatars', 'public');
-            }
+            $validated['avatar_path'] = $request->file('avatar')
+                ->store('agents/avatars', 'public');
         }
 
         $agent = Agent::create($validated);
@@ -166,40 +143,14 @@ class AgentController extends Controller
             'avatar' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:5120'],
         ]);
 
-        // Handle avatar upload
+        // Handle avatar upload (client-side handles compression; server stores)
         if ($request->hasFile('avatar')) {
             // Delete old avatar
             if ($agent->avatar_path) {
                 Storage::disk('public')->delete($agent->avatar_path);
             }
-
-            // Server-side resize with GD (safety net)
-            $file = $request->file('avatar');
-            $image = imagecreatefromstring(file_get_contents($file->getRealPath() ?: $file->path()));
-            if ($image !== false) {
-                $origW = imagesx($image);
-                $origH = imagesy($image);
-                $maxSize = 256;
-                if ($origW > $maxSize || $origH > $maxSize) {
-                    $ratio = min($maxSize / $origW, $maxSize / $origH);
-                    $newW = (int) round($origW * $ratio);
-                    $newH = (int) round($origH * $ratio);
-                    $resized = imagecreatetruecolor($newW, $newH);
-                    imagecopyresampled($resized, $image, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
-                    $tempPath = sys_get_temp_dir() . '/' . uniqid('avatar_') . '.jpg';
-                    imagejpeg($resized, $tempPath, 80);
-                    imagedestroy($resized);
-                    imagedestroy($image);
-                    $validated['avatar_path'] = Storage::disk('public')
-                        ->putFile('agents/avatars', new \Illuminate\Http\File($tempPath));
-                    @unlink($tempPath);
-                } else {
-                    $validated['avatar_path'] = $file->store('agents/avatars', 'public');
-                    imagedestroy($image);
-                }
-            } else {
-                $validated['avatar_path'] = $file->store('agents/avatars', 'public');
-            }
+            $validated['avatar_path'] = $request->file('avatar')
+                ->store('agents/avatars', 'public');
         }
 
         $agent->update($validated);
