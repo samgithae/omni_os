@@ -34,6 +34,14 @@ class SendEmailBatch extends Command
         $query = EmailMessage::query()
             ->where('approval_status', 'approved')
             ->where('status', 'queued')
+            ->whereNotIn('lead_id', function ($sub) {
+                $sub->select('leads.id')
+                    ->from('leads')
+                    ->join('suppressions', function ($join) {
+                        $join->on('suppressions.email', '=', 'leads.email')
+                             ->on('suppressions.brand_id', '=', 'leads.brand_id');
+                    });
+            })
             ->with(['lead:id,company_name,email,contact_name', 'brand:id,name,slug,sender_emails,sender_name']);
 
         if ($brandSlug = $this->option('brand')) {
