@@ -11,6 +11,13 @@ class TelegramService
 
     private ?string $chatId;
 
+    private const array PINS = [
+        'api.telegram.org:443:149.154.166.110',
+        'api.telegram.org:443:149.154.167.220',
+    ];
+
+    private const int MAX_RETRIES = 5;
+
     public function __construct()
     {
         $this->botToken = config('services.telegram.bot_token');
@@ -33,25 +40,14 @@ class TelegramService
             return false;
         }
 
-        $response = Http::withOptions([
-            'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
-        ])->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
+        $payload = [
             'chat_id' => $this->chatId,
             'text' => $text,
             'parse_mode' => $parseMode,
             'disable_web_page_preview' => true,
-        ]);
+        ];
 
-        if (! $response->successful()) {
-            Log::error('Telegram send failed', [
-                'status' => $response->status(),
-                'body' => substr($response->body(), 0, 500),
-            ]);
-
-            return false;
-        }
-
-        return true;
+        return $this->sendWithRetry('sendMessage', $payload);
     }
 
     /**
@@ -73,20 +69,58 @@ class TelegramService
             $payload['reply_markup'] = $replyMarkup;
         }
 
-        $response = Http::withOptions([
-            'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
-        ])->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", $payload);
+        return $this->sendWithRetry('sendMessage', $payload);
+    }
 
-        if (! $response->successful()) {
-            Log::error('Telegram approval request failed', [
-                'status' => $response->status(),
-                'body' => substr($response->body(), 0, 500),
-            ]);
+    /**
+     * POST to Telegram Bot API with retry + DNS pinning.
+     * Telegram IPs are unreliable on this network — retry up to MAX_RETRIES times.
+     */
+    private function sendWithRetry(string $method, array $payload, int $attempt = 1): bool
+    {
+        $curlOpts = [
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+        ];
 
-            return false;
+        // Pin DNS to working Telegram IPs (bypass unreliable DNS)
+        if ($attempt <= count(self::PINS)) {
+            $curlOpts[CURLOPT_RESOLVE] = [self::PINS[$attempt - 1]];
         }
 
-        return true;
+        try {
+            $response = Http::timeout(15)->withOptions([
+                'curl' => $curlOpts,
+            ])->post("https://api.telegram.org/bot{$this->botToken}/{$method}", $payload);
+
+            if ($response->successful()) {
+                return true;
+            }
+
+            // 401 = auth error (permanent), 409 = conflict (transient)
+            if ($response->status() === 401) {
+                Log::error('Telegram auth failed (401) — check bot token.', [
+                    'method' => $method,
+                    'status' => $response->status(),
+                ]);
+
+                return false;
+            }
+        } catch (\Throwable $e) {
+            Log::warning("Telegram {$method} attempt {$attempt} failed", [
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        if ($attempt < self::MAX_RETRIES) {
+            $delay = min($attempt * 3, 10);
+            sleep($delay);
+
+            return $this->sendWithRetry($method, $payload, $attempt + 1);
+        }
+
+        Log::error("Telegram {$method} failed after " . self::MAX_RETRIES . ' attempts.');
+
+        return false;
     }
 
     /**

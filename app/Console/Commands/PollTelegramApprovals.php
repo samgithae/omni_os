@@ -84,18 +84,22 @@ class PollTelegramApprovals extends Command
     private function getUpdates(): array|false
     {
         try {
-            $response = Http::timeout(10)->withOptions([
-                'curl' => [
-                    CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-                ],
-            ])->get(
-                "https://api.telegram.org/bot{$this->botToken}/getUpdates",
-                [
-                    'offset' => $this->lastUpdateId + 1,
-                    'timeout' => 0,
-                    'allowed_updates' => ['message', 'callback_query'],
-                ]
-            );
+            $response = Http::timeout(15)->withOptions([
+                    'curl' => [
+                        CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                        CURLOPT_RESOLVE => [
+                            'api.telegram.org:443:149.154.166.110',
+                            'api.telegram.org:443:149.154.167.220',
+                        ],
+                    ],
+                ])->get(
+                    "https://api.telegram.org/bot{$this->botToken}/getUpdates",
+                    [
+                        'offset' => $this->lastUpdateId + 1,
+                        'timeout' => 30,
+                        'allowed_updates' => ['message', 'callback_query'],
+                    ]
+                );
 
             if ($response->successful()) {
                 $data = $response->json();
