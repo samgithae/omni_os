@@ -52,10 +52,10 @@ return Application::configure(basePath: dirname(__DIR__))
             ->description('Progress email sequences: schedule next steps for leads (weekdays only)')
             ->appendOutputTo(storage_path('logs/sequence-progression.log'));
 
-        // Poll Telegram for approval replies — every minute
+        // Poll Telegram for approval replies — every 5 minutes (reduced from 1min)
         $schedule->command('telegram:poll-approvals')
-            ->everyMinute()
-            ->withoutOverlapping(5)
+            ->everyFiveMinutes()
+            ->withoutOverlapping(10)
             ->description('Poll Telegram for approval replies (text commands + inline callbacks)')
             ->appendOutputTo(storage_path('logs/telegram-poll.log'));
 

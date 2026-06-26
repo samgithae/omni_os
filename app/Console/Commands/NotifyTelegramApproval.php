@@ -162,10 +162,9 @@ class NotifyTelegramApproval extends Command
             'reply_markup' => ['inline_keyboard' => $keyboard],
         ];
 
-        Http::withOptions([
+        $response = Http::timeout(15)->withOptions([
             'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
-        ])->post(
-            'https://api.telegram.org/bot'.config('services.telegram.bot_token').'/sendMessage',
+        ])->post('https://telegram-api.hudutech.co.ke/bot' . config('services.telegram.bot_token') . '/sendMessage',
             $payload
         );
     }
@@ -214,10 +213,9 @@ class NotifyTelegramApproval extends Command
                 'disable_web_page_preview' => true,
             ];
 
-            Http::withOptions([
+            $response = Http::timeout(15)->withOptions([
                 'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
-            ])->post(
-                'https://api.telegram.org/bot'.config('services.telegram.bot_token').'/sendMessage',
+            ])->post('https://telegram-api.hudutech.co.ke/bot' . config('services.telegram.bot_token') . '/sendMessage',
                 $payload
             );
         }

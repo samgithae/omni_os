@@ -87,13 +87,9 @@ class PollTelegramApprovals extends Command
             $response = Http::timeout(15)->withOptions([
                     'curl' => [
                         CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-                        CURLOPT_RESOLVE => [
-                            'api.telegram.org:443:149.154.166.110',
-                            'api.telegram.org:443:149.154.167.220',
-                        ],
                     ],
                 ])->get(
-                    "https://api.telegram.org/bot{$this->botToken}/getUpdates",
+                    "https://telegram-api.hudutech.co.ke/bot{$this->botToken}/getUpdates",
                     [
                         'offset' => $this->lastUpdateId + 1,
                         'timeout' => 30,

@@ -11,12 +11,9 @@ class TelegramService
 
     private ?string $chatId;
 
-    private const array PINS = [
-        'api.telegram.org:443:149.154.166.110',
-        'api.telegram.org:443:149.154.167.220',
-    ];
+    private const string API_BASE = 'https://telegram-api.hudutech.co.ke';
 
-    private const int MAX_RETRIES = 5;
+    private const int MAX_RETRIES = 3;
 
     public function __construct()
     {
@@ -78,19 +75,10 @@ class TelegramService
      */
     private function sendWithRetry(string $method, array $payload, int $attempt = 1): bool
     {
-        $curlOpts = [
-            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-        ];
-
-        // Pin DNS to working Telegram IPs (bypass unreliable DNS)
-        if ($attempt <= count(self::PINS)) {
-            $curlOpts[CURLOPT_RESOLVE] = [self::PINS[$attempt - 1]];
-        }
-
         try {
             $response = Http::timeout(15)->withOptions([
-                'curl' => $curlOpts,
-            ])->post("https://api.telegram.org/bot{$this->botToken}/{$method}", $payload);
+                'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
+            ])->post(self::API_BASE . "/bot{$this->botToken}/{$method}", $payload);
 
             if ($response->successful()) {
                 return true;
