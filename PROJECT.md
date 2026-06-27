@@ -1,7 +1,7 @@
 # Omni OS — Project Status, Architecture & Developer Guide
 
 > **Living document.** Updated every time a feature is completed.
-> Last updated: 2026-06-24
+> Last updated: 2026-06-25
 > Strategy source of truth: `Omni-OS-Strategy-Brief.md` (v1)
 > This document: technical state of the build, what exists, what's next, and how to continue.
 
@@ -1572,6 +1572,34 @@ new, enriching, enriched, emailed, replied, interested -> suppressed
 ---
 
 ## 16. Changelog
+
+### 2026-06-25 — Agent Registry (WO#1) + Rebrand
+
+**Agent Registry — Platform Scaffolding:**
+- [x] `agents` table: codename, display_name, role, description, function_area, avatar_path, status, is_active, token_hash (sha256), token_last_four, last_active_at, sort_order
+- [x] `agent_documents` table: agent_id (FK cascade), label, file_path, mime_type, size_bytes
+- [x] `agent_id` added to `activity_events` (FK SET NULL) with `(agent_id, created_at)` index
+- [x] `Agent` model: fillable, hidden (token_hash), relationships, scopes, `generateToken()`, `touchActivity()`, `actionsThisWeek()`
+- [x] `AgentDocument` model with `url` accessor
+- [x] `AgentTokenAuth` middleware: sha256 hash lookup, backward-compat fallback to legacy shared token
+- [x] `POST /api/v1/events` switched to per-agent auth (with `withoutMiddleware` to avoid double auth)
+- [x] `agent_codename` body override on events endpoint
+- [x] Nginx fix: added `fastcgi_param HTTP_AUTHORIZATION $http_authorization;` to pass bearer tokens to PHP-FPM
+- [x] `agents:seed-roster` command: 6 core agents (The Professor, Tokyo, Bogotá, Nairobi, Lisbon, Palermo)
+
+**Agent Management (Vue/Inertia, replacing Filament):**
+- [x] `/agents` — roster with expand/collapse, edit/delete actions, "New Agent" button
+- [x] `/agents/create` — full creation form (codename, display_name, role, function_area, description, status)
+- [x] `/agents/{id}/edit` — edit form with avatar upload (client-side canvas resize 256×256), token generation modal (one-time reveal), document upload/download/delete
+- [x] `AgentController`: full CRUD + `generateToken`, `uploadDocument`, `deleteDocument`
+- [x] Filament `AgentResource` hidden from admin navigation (retained as fallback)
+
+**Rebrand:**
+- [x] Landing page (`/`) redesigned: logo hero + "You sleep. It sells." tagline
+- [x] Sidebar logo (`AppLogo.vue`) now shows Omni OS logo image
+- [x] Auth card logo (`AppLogoIcon.vue`) now shows Omni OS logo image
+- [x] New favicon (`favicon-32x32.png`) from logo
+- [x] Logo assets: `public/images/omni-logo.png` (full), `public/images/omni-logo-sm.png` (sidebar/thumb)
 
 ### 2026-06-21 — Mining Targets Configuration (Phase 1.1)
 
