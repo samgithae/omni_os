@@ -19,18 +19,27 @@ class TelegramProxyController extends Controller
         $method = $request->method();
         $body = $request->getContent();
 
-        $response = Http::timeout(20)->withOptions([
-            'curl' => [
-                CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-            ],
-        ])->send($method, $url, [
-            'body' => $body,
-            'headers' => [
-                'Content-Type' => $request->header('Content-Type', 'application/json'),
-            ],
-        ]);
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        if ($body) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        }
+        $headers = [];
+        $ct = $request->header('Content-Type');
+        if ($ct) {
+            $headers[] = 'Content-Type: ' . $ct;
+        }
+        if ($headers) {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        }
+        $res = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
-        return response($response->body(), $response->status())
+        return response($res ?: '', $http ?: 502)
             ->header('Content-Type', 'application/json');
     }
 }
