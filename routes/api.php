@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\SuppressionController;
 use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\WebhookController;
+use App\Http\Controllers\Api\TelegramProxyController;
 use App\Http\Middleware\ApiTokenAuth;
 use App\Services\WinLossService;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +23,11 @@ Route::post('webhooks/smtp2go', [WebhookController::class, 'smtp2go']);
 
 // Telegram webhook — receives approval replies (no Bearer token, uses webhook_secret)
 Route::post('webhooks/telegram', [TelegramWebhookController::class, 'handle']);
+
+// Telegram Bot API proxy — Hermes gateway uses this to send/receive Telegram messages
+// through the Laravel app's working Cloudflare proxy connection
+Route::any('telegram-proxy/{path}', [TelegramProxyController::class, 'proxy'])
+    ->where('path', '.*');
 
 Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
 
