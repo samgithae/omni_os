@@ -24,6 +24,12 @@ Route::post('webhooks/smtp2go', [WebhookController::class, 'smtp2go']);
 // Telegram webhook — receives approval replies (no Bearer token, uses webhook_secret)
 Route::post('webhooks/telegram', [TelegramWebhookController::class, 'handle']);
 
+// Telegram Bot API proxy — Hermes gateway sends requests here instead of api.telegram.org
+// The gateway sets extra.base_url to https://omni.hudutech.co.ke/api/telegram-proxy/bot
+// and the library constructs: {base_url}/TOKEN/method
+Route::any('api/telegram-proxy/bot/{path}', [TelegramProxyController::class, 'proxy'])
+    ->where('path', '.*');
+
 Route::prefix('v1')->middleware(ApiTokenAuth::class)->group(function () {
 
     // Telegram Bot API proxy — Hermes gateway uses this to send/receive Telegram messages
