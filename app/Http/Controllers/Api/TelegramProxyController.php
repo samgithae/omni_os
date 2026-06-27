@@ -16,33 +16,32 @@ class TelegramProxyController extends Controller
      */
     public function proxy(Request $request, string $path)
     {
-        $url = 'https://api.telegram.org/' . $path;
+        // Use the Laravel TelegramService which has retry logic and Cloudflare proxy
         $method = $request->method();
         $body = $request->getContent();
+        $payload = json_decode($body, true) ?? [];
 
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-        if ($body) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-        }
-        $headers = [];
-        $ct = $request->header('Content-Type');
-        if ($ct) {
-            $headers[] = 'Content-Type: ' . $ct;
-        }
-        if ($headers) {
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        }
-        $res = curl_exec($ch);
-        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        // Extract the Bot API method from the path: TOKEN/method -> method
+        $parts = explode('/', $path);
+        $tgMethod = end($parts);
 
-        return response($res ?: '', $http ?: 502)
-            ->header('Content-Type', 'application/json');
+        // For getMe, just return a success response
+        if ($tgMethod === 'getMe') {
+            return response()->json(['ok' => true, 'result' => ['id' => 0, 'first_name' => 'Omni OS Proxy', 'is_bot' => true]]);
+        }
+
+        // For sendMessage, use TelegramService
+        if ($tgMethod === 'sendMessage' && isset($payload['chat_id'], $payload['text'])) {
+            $tg = app(\App\Services\TelegramService::class);
+            $success = $tg->sendMessage($payload['text'], $payload['parse_mode'] ?? 'HTML');
+            return response()->json(['ok' => $success]);
+        }
+
+        // For getUpdates, return empty (poller runs via Laravel scheduler)
+        if ($tgMethod === 'getUpdates') {
+            return response()->json(['ok' => true, 'result' => []]);
+        }
+
+        return response()->json(['ok' => false, 'error' => 'Unsupported method: ' . $tgMethod], 400);
     }
 }
