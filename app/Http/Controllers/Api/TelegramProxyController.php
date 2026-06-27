@@ -16,7 +16,7 @@ class TelegramProxyController extends Controller
      */
     public function proxy(Request $request, string $path)
     {
-        $url = 'https://telegram-api.hudutech.co.ke/' . $path;
+        $url = 'https://api.telegram.org/' . $path;
         $method = $request->method();
         $body = $request->getContent();
 
@@ -24,6 +24,8 @@ class TelegramProxyController extends Controller
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 20);
         curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
         if ($body) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
