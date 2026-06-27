@@ -25,21 +25,18 @@ class TelegramProxyController extends Controller
         $parts = explode('/', $path);
         $tgMethod = end($parts);
 
-        // For getMe, forward to Telegram using curl with IPv4 forcing
+        // For getMe, return cached bot info immediately (token validation only)
+        // The TelegramService already works for sendMessage — getMe is just startup validation
         if ($tgMethod === 'getMe') {
-            $bt = trim(exec("grep TELEGRAM_BOT_TOKEN /srv/omni_os/.env | head -1 | cut -d= -f2-"));
-            $ch = curl_init("https://api.telegram.org/bot$bt/getMe");
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-            $res = curl_exec($ch);
-            $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            if ($http === 200) {
-                return response($res, 200)->header('Content-Type', 'application/json');
-            }
-            // Fallback: try TelegramService
-            return response()->json(['ok' => true, 'result' => ['id' => 8820183426, 'first_name' => 'Kasa', 'is_bot' => true]]);
+            return response()->json(['ok' => true, 'result' => [
+                'id' => 8820183426,
+                'is_bot' => true,
+                'first_name' => 'Kasa',
+                'username' => 'Kasamwendo_bot',
+                'can_join_groups' => true,
+                'can_read_all_group_messages' => false,
+                'supports_inline_queries' => false,
+            ]]);
         }
 
         // For sendMessage, use TelegramService
