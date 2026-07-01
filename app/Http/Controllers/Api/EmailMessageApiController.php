@@ -48,6 +48,7 @@ class EmailMessageApiController extends Controller
                 'lead_email' => $email->lead?->email,
                 'brand_slug' => $email->brand?->slug,
                 'segment' => $email->lead?->segment,
+                'source' => $email->lead?->source,
                 'sequence_step' => $email->sequence_step,
                 'purpose' => $schedule?->purpose,
                 'previous_subject' => $previous?->subject,

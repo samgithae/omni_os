@@ -6,19 +6,25 @@ use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\BrandSequenceConfig;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class SequenceConfigController extends Controller
 {
     /**
      * GET /api/v1/sequence-configs/{brand_slug}/{segment}
      * Returns the active config for the given brand+segment.
+     * Optional ?source= param for source-specific rules (e.g. source=hiring_signal_brightermonday).
      * Segment-specific config wins over 'all' fallback.
      */
-    public function show(string $brandSlug, string $segment): JsonResponse
+    public function show(string $brandSlug, string $segment, Request $request): JsonResponse
     {
         $brand = Brand::where('slug', $brandSlug)->where('is_active', true)->firstOrFail();
 
-        $config = BrandSequenceConfig::resolveFor($brand->id, $segment);
+        $config = BrandSequenceConfig::resolveFor(
+            $brand->id,
+            $segment,
+            $request->get('source'),
+        );
 
         if (! $config) {
             return response()->json([
