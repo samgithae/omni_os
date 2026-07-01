@@ -68,6 +68,7 @@ class LeadController extends Controller
             'leads.*.source' => ['nullable', 'string', 'max:100'],
             'leads.*.source_url' => ['nullable', 'string', 'max:1000'],
             'leads.*.confidence' => ['nullable', 'array'],
+            'leads.*.raw_data' => ['nullable', 'array'],
         ]);
 
         $brand = Brand::where('slug', $validated['brand_slug'])->firstOrFail();
@@ -125,11 +126,14 @@ class LeadController extends Controller
                     'source' => $leadData['source'] ?? 'api',
                     'source_url' => $leadData['source_url'] ?? null,
                     'status' => LeadStatus::New->value,
-                    'raw_data' => array_filter([
-                        'confidence' => $confidence,
-                        'import_source' => 'hermes_agent_api',
-                        'imported_at' => now()->toIso8601String(),
-                    ]),
+                    'raw_data' => array_merge(
+                        array_filter([
+                            'confidence' => $confidence,
+                            'import_source' => 'hermes_agent_api',
+                            'imported_at' => now()->toIso8601String(),
+                        ]),
+                        $leadData['raw_data'] ?? [],
+                    ),
                 ]);
 
                 $created++;
@@ -174,6 +178,7 @@ class LeadController extends Controller
             'confidence' => ['nullable', 'array'],
             'enrichment_source' => ['nullable', 'string', 'max:100'],
             'enrichment_notes' => ['nullable', 'string', 'max:2000'],
+            'raw_data' => ['nullable', 'array'],
         ]);
 
         if (isset($validated['email']) && $validated['email'] === null) {
@@ -226,7 +231,7 @@ class LeadController extends Controller
             $updateData['source'] = $validated['enrichment_source'];
         }
 
-        $updateData['raw_data'] = array_merge($lead->raw_data ?? [], [
+        $mergedRawData = array_merge($lead->raw_data ?? [], [
             'enrichment' => [
                 'confidence' => $validated['confidence'] ?? [],
                 'source' => $validated['enrichment_source'] ?? null,
@@ -234,6 +239,16 @@ class LeadController extends Controller
                 'enriched_at' => now()->toIso8601String(),
             ],
         ]);
+
+        // Merge hiring_signal if provided (used by Hiring Deer pipeline)
+        if (isset($validated['raw_data']['hiring_signal'])) {
+            $mergedRawData['hiring_signal'] = array_merge(
+                $mergedRawData['hiring_signal'] ?? [],
+                $validated['raw_data']['hiring_signal'],
+            );
+        }
+
+        $updateData['raw_data'] = $mergedRawData;
 
         $lead->update($updateData);
 

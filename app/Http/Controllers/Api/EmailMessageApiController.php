@@ -18,7 +18,7 @@ class EmailMessageApiController extends Controller
     public function needsContent(Request $request)
     {
         $query = EmailMessage::with([
-            'lead:id,company_name,email,segment',
+            'lead:id,company_name,email,segment,raw_data',
             'brand:id,name,slug',
         ])->needsContent();
 
@@ -52,6 +52,7 @@ class EmailMessageApiController extends Controller
                 'purpose' => $schedule?->purpose,
                 'previous_subject' => $previous?->subject,
                 'previous_sent_at' => $previous?->sent_at?->toIso8601String(),
+                'raw_data' => $email->lead?->raw_data,
             ];
         });
 

@@ -3,9 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\TelegramService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
 class TelegramProxyController extends Controller
 {
@@ -41,8 +40,9 @@ class TelegramProxyController extends Controller
 
         // For sendMessage, use TelegramService
         if ($tgMethod === 'sendMessage' && isset($payload['chat_id'], $payload['text'])) {
-            $tg = app(\App\Services\TelegramService::class);
+            $tg = app(TelegramService::class);
             $success = $tg->sendMessage($payload['text'], $payload['parse_mode'] ?? 'HTML');
+
             return response()->json(['ok' => $success]);
         }
 
@@ -51,6 +51,6 @@ class TelegramProxyController extends Controller
             return response()->json(['ok' => true, 'result' => []]);
         }
 
-        return response()->json(['ok' => false, 'error' => 'Unsupported method: ' . $tgMethod], 400);
+        return response()->json(['ok' => false, 'error' => 'Unsupported method: '.$tgMethod], 400);
     }
 }

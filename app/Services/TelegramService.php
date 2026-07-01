@@ -78,7 +78,7 @@ class TelegramService
         try {
             $response = Http::timeout(15)->withOptions([
                 'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
-            ])->post(self::API_BASE . "/bot{$this->botToken}/{$method}", $payload);
+            ])->post(self::API_BASE."/bot{$this->botToken}/{$method}", $payload);
 
             if ($response->successful()) {
                 return true;
@@ -106,7 +106,7 @@ class TelegramService
             return $this->sendWithRetry($method, $payload, $attempt + 1);
         }
 
-        Log::error("Telegram {$method} failed after " . self::MAX_RETRIES . ' attempts.');
+        Log::error("Telegram {$method} failed after ".self::MAX_RETRIES.' attempts.');
 
         return false;
     }

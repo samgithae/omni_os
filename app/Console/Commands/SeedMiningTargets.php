@@ -122,6 +122,22 @@ class SeedMiningTargets extends Command
         4 => 'monthly',
     ];
 
+    /**
+     * Hiring-signal source targets — 8 Kenyan job boards/sources.
+     * Each source covers Kenya nationally (city=null), runs daily.
+     * Mining code branches on category to select the right scraper class.
+     */
+    private const HIRING_SIGNAL_SOURCES = [
+        ['slug' => 'brightermonday', 'name' => 'BrighterMonday Kenya'],
+        ['slug' => 'fuzu', 'name' => 'Fuzu'],
+        ['slug' => 'myjobmag', 'name' => 'MyJobMag Kenya'],
+        ['slug' => 'corporatestaffing', 'name' => 'Corporate Staffing Services Kenya'],
+        ['slug' => 'glassdoor', 'name' => 'Glassdoor Jobs'],
+        ['slug' => 'company_careers', 'name' => 'Company careers pages'],
+        ['slug' => 'google_jobs', 'name' => 'Google Jobs (schema.org)'],
+        ['slug' => 'linkedin', 'name' => 'LinkedIn Jobs'],
+    ];
+
     public function handle(): int
     {
         $append = $this->option('append');
@@ -144,12 +160,14 @@ class SeedMiningTargets extends Command
         $ujuzi = Brand::where('slug', 'ujuziplus')->first();
         if ($ujuzi && (! $brandSlug || $brandSlug === 'ujuziplus')) {
             $this->seedBrand($ujuzi, $this->ujuziPlusCategories);
+            $this->seedHiringSignalSources($ujuzi);
         }
 
         // Hudutech
         $hudu = Brand::where('slug', 'hudutech')->first();
         if ($hudu && (! $brandSlug || $brandSlug === 'hudutech')) {
             $this->seedBrand($hudu, $this->hudutechCategories);
+            $this->seedHiringSignalSources($hudu);
         }
 
         // Log
@@ -227,5 +245,26 @@ class SeedMiningTargets extends Command
         }
 
         $this->line("Seeded {$count} targets for {$brand->name}");
+    }
+
+    private function seedHiringSignalSources(Brand $brand): void
+    {
+        $count = 0;
+
+        foreach (self::HIRING_SIGNAL_SOURCES as $source) {
+            MiningTarget::create([
+                'brand_id' => $brand->id,
+                'country' => 'KE',
+                'city' => null,
+                'category' => 'hiring_signal_'.$source['slug'],
+                'search_template' => $source['name'],
+                'segment' => 'deer',
+                'cadence' => 'daily',
+                'is_active' => true,
+            ]);
+            $count++;
+        }
+
+        $this->line("Seeded {$count} hiring-signal sources for {$brand->name}");
     }
 }

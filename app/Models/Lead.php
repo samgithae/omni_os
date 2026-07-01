@@ -69,6 +69,7 @@ class Lead extends Model
         'enriched_at',
         'enrichment_notes',
         'score',
+        'hiring_signal_score',
         'source',
         'source_url',
         'raw_data',
@@ -82,6 +83,7 @@ class Lead extends Model
             'enrichment_attempts' => 'integer',
             'enriched_at' => 'datetime',
             'score' => 'integer',
+            'hiring_signal_score' => 'integer',
         ];
     }
 

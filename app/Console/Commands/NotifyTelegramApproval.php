@@ -164,7 +164,7 @@ class NotifyTelegramApproval extends Command
 
         $response = Http::timeout(15)->withOptions([
             'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
-        ])->post('https://telegram-api.hudutech.co.ke/bot' . config('services.telegram.bot_token') . '/sendMessage',
+        ])->post('https://telegram-api.hudutech.co.ke/bot'.config('services.telegram.bot_token').'/sendMessage',
             $payload
         );
     }
@@ -215,7 +215,7 @@ class NotifyTelegramApproval extends Command
 
             $response = Http::timeout(15)->withOptions([
                 'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
-            ])->post('https://telegram-api.hudutech.co.ke/bot' . config('services.telegram.bot_token') . '/sendMessage',
+            ])->post('https://telegram-api.hudutech.co.ke/bot'.config('services.telegram.bot_token').'/sendMessage',
                 $payload
             );
         }
