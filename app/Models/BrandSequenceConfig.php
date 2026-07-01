@@ -53,7 +53,7 @@ class BrandSequenceConfig extends Model
                 $q->where('segment', $segment)
                     ->orWhere('segment', 'all');
             })
-            ->when($source, function ($q, $source) {
+            ->when($source, function ($q, $source) use ($segment) {
                 // When a source is provided, matching source_condition wins over null
                 $q->orderByRaw('CASE
                     WHEN segment = ? AND source_condition IS NOT NULL AND ? LIKE source_condition THEN 0
