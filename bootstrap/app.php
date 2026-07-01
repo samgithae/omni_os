@@ -153,6 +153,13 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(60)
             ->description('Hiring Deer: Enrich newly mined leads')
             ->appendOutputTo(storage_path('logs/hiring-signal-enrichment.log'));
+
+        // Consolidated daily digest — posts one card to activity feed (The Professor)
+        $schedule->command('leads:hiring-signal-digest')
+            ->dailyAt('02:10')
+            ->withoutOverlapping(10)
+            ->description('Hiring Deer: Publish consolidated daily digest to activity feed')
+            ->appendOutputTo(storage_path('logs/hiring-signal-digest.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);

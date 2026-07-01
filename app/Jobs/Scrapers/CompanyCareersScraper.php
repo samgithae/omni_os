@@ -3,6 +3,7 @@
 namespace App\Jobs\Scrapers;
 
 use App\Contracts\JobSourceScraper;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Http;
@@ -57,7 +58,7 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
     /**
      * Constructor.
      *
-     * @param array<int, array{name: string, careers_url: string}>|null $companyPages
+     * @param  array<int, array{name: string, careers_url: string}>|null  $companyPages
      */
     public function __construct(?array $companyPages = null)
     {
@@ -120,6 +121,7 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
 
                 if (! $response->successful()) {
                     Log::info('CompanyCareersScraper: non-200 for '.$company['name'].' — '.$response->status());
+
                     continue;
                 }
 
@@ -136,6 +138,7 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
                 usleep(300_000); // 0.3s
             } catch (\Exception $e) {
                 Log::warning('CompanyCareersScraper: error fetching '.$company['name'].': '.$e->getMessage());
+
                 continue;
             }
         }
@@ -152,8 +155,7 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
      *   2. If no structured data found, fall back to keyword scanning for
      *      common job listing patterns in the HTML.
      *
-     * @param string $html
-     * @param array{name: string, careers_url: string} $company
+     * @param  array{name: string, careers_url: string}  $company
      * @return array<int, array<string, mixed>>
      */
     protected function extractJobListings(string $html, array $company): array
@@ -166,14 +168,14 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
 
         // Strategy 2: Fall back to keyword scanning
         Log::info('CompanyCareersScraper: No JSON-LD found for '.$company['name'].', using keyword scan');
+
         return $this->keywordScan($html, $company);
     }
 
     /**
      * Parse JSON-LD script tags for schema.org/JobPosting entries.
      *
-     * @param string $html
-     * @param array{name: string, careers_url: string} $company
+     * @param  array{name: string, careers_url: string}  $company
      * @return array<int, array<string, mixed>>
      */
     protected function parseJsonLd(string $html, array $company): array
@@ -243,8 +245,7 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
      * Looks for common HTML patterns: <a> tags with job-related class names,
      * heading elements near "careers" or "jobs" text, etc.
      *
-     * @param string $html
-     * @param array{name: string, careers_url: string} $company
+     * @param  array{name: string, careers_url: string}  $company
      * @return array<int, array<string, mixed>>
      */
     protected function keywordScan(string $html, array $company): array
@@ -254,8 +255,8 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
 
         // Use DOMDocument to find links/headings that look like job listings
         libxml_use_internal_errors(true);
-        $dom = new \DOMDocument();
-        $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_NOWARNING | LIBXML_NOERROR | LIBXML_PARSEHUGE);
+        $dom = new \DOMDocument;
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html, LIBXML_NOWARNING | LIBXML_NOERROR | LIBXML_PARSEHUGE);
         libxml_clear_errors();
 
         $xpath = new \DOMXPath($dom);
@@ -309,8 +310,8 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
     protected function isNavigationLink(string $text): bool
     {
         $navTerms = ['home', 'about', 'contact', 'privacy', 'terms', 'faq',
-                     'sitemap', 'login', 'register', 'sign in', 'careers',
-                     'all jobs', 'search', 'apply', 'submit',
+            'sitemap', 'login', 'register', 'sign in', 'careers',
+            'all jobs', 'search', 'apply', 'submit',
         ];
         $lower = strtolower(trim($text));
         foreach ($navTerms as $term) {
@@ -318,6 +319,7 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
                 return true;
             }
         }
+
         return false;
     }
 
@@ -340,6 +342,7 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
 
         // Relative path
         $basePath = dirname($parts['path'] ?? '/');
+
         return "{$scheme}://{$host}{$basePath}/{$href}";
     }
 
@@ -351,16 +354,18 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
         foreach ($this->companyPages as $page) {
             if ($page['name'] === $companyName) {
                 $parsed = parse_url($page['careers_url']);
+
                 return ($parsed['scheme'] ?? 'https').'://'.($parsed['host'] ?? '');
             }
         }
+
         return null;
     }
 
     /**
      * Parse a raw listing into the standard structured format.
      *
-     * @param array<string, mixed> $rawListing
+     * @param  array<string, mixed>  $rawListing
      * @return array{company_name: string, website: ?string, job_title: string, posting_date: ?string, job_url: string, source: string}
      */
     public function parseListing(array $rawListing): array
@@ -368,7 +373,7 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
         $postingDate = $rawListing['date'] ?? null;
         if ($postingDate !== null && $postingDate !== '') {
             try {
-                $postingDate = \Carbon\Carbon::parse($postingDate)->format('Y-m-d');
+                $postingDate = Carbon::parse($postingDate)->format('Y-m-d');
             } catch (\Exception $e) {
                 $postingDate = null;
             }
@@ -404,7 +409,7 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
      * Filter the fetched listings by target job titles and 30-day window,
      * exclude unwanted sources, and roll up to one lead per company.
      *
-     * @param array<int, array<string, mixed>> $listings
+     * @param  array<int, array<string, mixed>>  $listings
      * @return array<int, array{company_name: string, website: ?string, job_title: string, posting_date: ?string, job_url: string, source: string}>
      */
     public function filterAndRollUp(array $listings): array
@@ -434,7 +439,7 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
             // Check 30-day window
             if ($entry['posting_date'] !== null) {
                 try {
-                    $postingDate = \Carbon\Carbon::parse($entry['posting_date']);
+                    $postingDate = Carbon::parse($entry['posting_date']);
                     if ($postingDate->lt(now()->subDays(30))) {
                         continue;
                     }
@@ -508,6 +513,7 @@ class CompanyCareersScraper implements JobSourceScraper, ShouldQueue
                 return true;
             }
         }
+
         return false;
     }
 }

@@ -192,7 +192,9 @@ const rightNavItems: NavItem[] = [
                 <div class="ml-auto flex items-center space-x-2">
                     <!-- Brand Switcher -->
                     <BrandSwitcher
-                        :active-brand-id="page.props.activeBrandId as number | null"
+                        :active-brand-id="
+                            page.props.activeBrandId as number | null
+                        "
                         :brands="page.props.brands as any[]"
                     />
 

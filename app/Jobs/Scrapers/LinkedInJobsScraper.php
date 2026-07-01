@@ -3,6 +3,7 @@
 namespace App\Jobs\Scrapers;
 
 use App\Contracts\JobSourceScraper;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Http;
@@ -139,14 +140,14 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
     {
         $cookies = [];
         if ($this->sessionToken !== null) {
-            $cookies[] = 'li_at=' . $this->sessionToken;
+            $cookies[] = 'li_at='.$this->sessionToken;
         }
         if ($this->jsessionId !== null) {
-            $cookies[] = 'JSESSIONID="' . $this->jsessionId . '"';
+            $cookies[] = 'JSESSIONID="'.$this->jsessionId.'"';
         }
         // Always set a base user session cookie
         $cookies[] = 'lang=v=2&lang=en-us';
-        $cookies[] = 'bcookie="v=2&' . uniqid('', true) . '"';
+        $cookies[] = 'bcookie="v=2&'.uniqid('', true).'"';
 
         return implode('; ', $cookies);
     }
@@ -168,6 +169,7 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
         if (empty($this->sessionToken) || empty($this->jsessionId)) {
             Log::warning('LinkedInJobsScraper: LINKEDIN_SESSION_TOKEN or LINKEDIN_JSESSIONID not configured. Returning empty results.');
             $this->hasNext = false;
+
             return [];
         }
 
@@ -181,7 +183,7 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
                     ])
                     ->withCookies([
                         'li_at' => $this->sessionToken,
-                        'JSESSIONID' => '"' . $this->jsessionId . '"',
+                        'JSESSIONID' => '"'.$this->jsessionId.'"',
                         'lang' => 'v=2&lang=en-us',
                     ], 'www.linkedin.com')
                     ->timeout(30)
@@ -198,6 +200,7 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
                     }
 
                     $this->currentPage++;
+
                     continue;
                 }
 
@@ -245,15 +248,12 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
      *
      * LinkedIn's HTML structure changes frequently, so this uses multiple
      * fallback selectors to stay resilient.
-     *
-     * @param string $html
-     * @param string $pageUrl
      */
     protected function parseSearchResults(string $html, string $pageUrl): void
     {
         libxml_use_internal_errors(true);
-        $dom = new \DOMDocument();
-        $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_NOWARNING | LIBXML_NOERROR | LIBXML_PARSEHUGE);
+        $dom = new \DOMDocument;
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html, LIBXML_NOWARNING | LIBXML_NOERROR | LIBXML_PARSEHUGE);
         libxml_clear_errors();
 
         $xpath = new \DOMXPath($dom);
@@ -269,6 +269,7 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
         if ($jobCards === false || $jobCards->length === 0) {
             // Try JSON embedded in the page (LinkedIn often embeds data in script tags)
             $this->parseEmbeddedJson($html, $pageUrl);
+
             return;
         }
 
@@ -287,9 +288,7 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
     /**
      * Extract data from a single LinkedIn job card DOM element.
      *
-     * @param \DOMXPath $xpath
-     * @param \DOMElement $card
-     * @param string $pageUrl
+     * @param  \DOMElement  $card
      * @return array<string, mixed>|null
      */
     protected function extractCardData(\DOMXPath $xpath, $card, string $pageUrl): ?array
@@ -314,7 +313,7 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
         if ($titleNode->nodeName === 'a') {
             $href = $titleNode->getAttribute('href');
             if (! empty($href)) {
-                $jobUrl = str_starts_with($href, 'http') ? $href : $this->apiBase . $href;
+                $jobUrl = str_starts_with($href, 'http') ? $href : $this->apiBase.$href;
             }
         }
 
@@ -355,9 +354,6 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
      *
      * LinkedIn sometimes stores job data in <script> tags with
      * data-based state or server-declosed data structures.
-     *
-     * @param string $html
-     * @param string $pageUrl
      */
     protected function parseEmbeddedJson(string $html, string $pageUrl): void
     {
@@ -405,13 +401,13 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
     {
         return str_contains($html, 'aria-label="Next"') ||
                str_contains($html, 'jobs-search-pagination__next-button') ||
-               str_contains($html, '"start":' . (($this->currentPage) * 25));
+               str_contains($html, '"start":'.(($this->currentPage) * 25));
     }
 
     /**
      * Parse a raw LinkedIn listing into the standard structured format.
      *
-     * @param array<string, mixed> $rawListing
+     * @param  array<string, mixed>  $rawListing
      * @return array{company_name: string, website: ?string, job_title: string, posting_date: ?string, job_url: string, source: string}
      */
     public function parseListing(array $rawListing): array
@@ -440,9 +436,6 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
      *   - "1 month ago"
      *   - "Today"
      *   - "Yesterday"
-     *
-     * @param string|null $relative
-     * @return string|null
      */
     protected function parseRelativeDate(?string $relative): ?string
     {
@@ -482,7 +475,7 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
 
         // Try Carbon parsing as a last resort
         try {
-            return \Carbon\Carbon::parse($relative)->format('Y-m-d');
+            return Carbon::parse($relative)->format('Y-m-d');
         } catch (\Exception $e) {
             return null;
         }
@@ -508,7 +501,7 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
      * Filter the fetched listings by target job titles and 30-day window,
      * exclude unwanted sources, and roll up to one lead per company.
      *
-     * @param array<int, array<string, mixed>> $listings
+     * @param  array<int, array<string, mixed>>  $listings
      * @return array<int, array{company_name: string, website: ?string, job_title: string, posting_date: ?string, job_url: string, source: string}>
      */
     public function filterAndRollUp(array $listings): array
@@ -538,7 +531,7 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
             // Check 30-day window
             if ($entry['posting_date'] !== null) {
                 try {
-                    $postingDate = \Carbon\Carbon::parse($entry['posting_date']);
+                    $postingDate = Carbon::parse($entry['posting_date']);
                     if ($postingDate->lt(now()->subDays(30))) {
                         continue;
                     }
@@ -612,6 +605,7 @@ class LinkedInJobsScraper implements JobSourceScraper, ShouldQueue
                 return true;
             }
         }
+
         return false;
     }
 }

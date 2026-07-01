@@ -3,6 +3,7 @@
 namespace App\Jobs\Scrapers;
 
 use App\Contracts\JobSourceScraper;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Http;
@@ -59,7 +60,7 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
     /**
      * Constructor.
      *
-     * @param array<int, array{name: string, website: string}>|null $companySites
+     * @param  array<int, array{name: string, website: string}>|null  $companySites
      */
     public function __construct(?array $companySites = null)
     {
@@ -133,6 +134,7 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
                 $careersUrl = $this->discoverCareersPage($company['website']);
                 if ($careersUrl === null) {
                     Log::info('GoogleJobsScraper: No careers page found for '.$company['name']);
+
                     continue;
                 }
 
@@ -144,6 +146,7 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
                 usleep(500_000); // 0.5s
             } catch (\Exception $e) {
                 Log::warning('GoogleJobsScraper: error processing '.$company['name'].': '.$e->getMessage());
+
                 continue;
             }
         }
@@ -153,9 +156,6 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
 
     /**
      * Try to discover the careers page URL for a given company website.
-     *
-     * @param string $website
-     * @return string|null
      */
     protected function discoverCareersPage(string $website): ?string
     {
@@ -188,8 +188,7 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
     /**
      * Scrape a careers page for JobPosting schema data.
      *
-     * @param string $careersUrl
-     * @param array{name: string, website: string} $company
+     * @param  array{name: string, website: string}  $company
      * @return array<int, array<string, mixed>>
      */
     protected function scrapeCareersPage(string $careersUrl, array $company): array
@@ -243,9 +242,7 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
     /**
      * Parse JSON-LD script tags for schema.org/JobPosting entries.
      *
-     * @param string $html
-     * @param array{name: string, website: string} $company
-     * @param string $pageUrl
+     * @param  array{name: string, website: string}  $company
      * @return array<int, array<string, mixed>>
      */
     protected function parseJsonLd(string $html, array $company, string $pageUrl): array
@@ -308,8 +305,6 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
     /**
      * Find links to individual job pages from a careers listing page.
      *
-     * @param string $html
-     * @param string $baseUrl
      * @return array<int, string>
      */
     protected function findJobPageLinks(string $html, string $baseUrl): array
@@ -317,8 +312,8 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
         $urls = [];
 
         libxml_use_internal_errors(true);
-        $dom = new \DOMDocument();
-        $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_NOWARNING | LIBXML_NOERROR | LIBXML_PARSEHUGE);
+        $dom = new \DOMDocument;
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html, LIBXML_NOWARNING | LIBXML_NOERROR | LIBXML_PARSEHUGE);
         libxml_clear_errors();
 
         $xpath = new \DOMXPath($dom);
@@ -365,8 +360,7 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
     /**
      * Scrape an individual job listing page for JSON-LD schema data.
      *
-     * @param string $jobUrl
-     * @param array{name: string, website: string} $company
+     * @param  array{name: string, website: string}  $company
      * @return array<int, array<string, mixed>>
      */
     protected function scrapeIndividualJobPage(string $jobUrl, array $company): array
@@ -391,9 +385,7 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
     /**
      * Fallback keyword scan when no structured data or job links found.
      *
-     * @param string $html
-     * @param array{name: string, website: string} $company
-     * @param string $pageUrl
+     * @param  array{name: string, website: string}  $company
      * @return array<int, array<string, mixed>>
      */
     protected function keywordScanFallback(string $html, array $company, string $pageUrl): array
@@ -401,8 +393,8 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
         $listings = [];
 
         libxml_use_internal_errors(true);
-        $dom = new \DOMDocument();
-        $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_NOWARNING | LIBXML_NOERROR | LIBXML_PARSEHUGE);
+        $dom = new \DOMDocument;
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html, LIBXML_NOWARNING | LIBXML_NOERROR | LIBXML_PARSEHUGE);
         libxml_clear_errors();
 
         $xpath = new \DOMXPath($dom);
@@ -458,13 +450,14 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
         }
 
         $basePath = dirname($parts['path'] ?? '/');
+
         return "{$scheme}://{$host}{$basePath}/{$href}";
     }
 
     /**
      * Parse a raw listing into the standard structured format.
      *
-     * @param array<string, mixed> $rawListing
+     * @param  array<string, mixed>  $rawListing
      * @return array{company_name: string, website: ?string, job_title: string, posting_date: ?string, job_url: string, source: string}
      */
     public function parseListing(array $rawListing): array
@@ -472,7 +465,7 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
         $postingDate = $rawListing['date'] ?? null;
         if ($postingDate !== null && $postingDate !== '') {
             try {
-                $postingDate = \Carbon\Carbon::parse($postingDate)->format('Y-m-d');
+                $postingDate = Carbon::parse($postingDate)->format('Y-m-d');
             } catch (\Exception $e) {
                 $postingDate = null;
             }
@@ -508,7 +501,7 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
      * Filter the fetched listings by target job titles and 30-day window,
      * exclude unwanted sources, and roll up to one lead per company.
      *
-     * @param array<int, array<string, mixed>> $listings
+     * @param  array<int, array<string, mixed>>  $listings
      * @return array<int, array{company_name: string, website: ?string, job_title: string, posting_date: ?string, job_url: string, source: string}>
      */
     public function filterAndRollUp(array $listings): array
@@ -538,7 +531,7 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
             // Check 30-day window
             if ($entry['posting_date'] !== null) {
                 try {
-                    $postingDate = \Carbon\Carbon::parse($entry['posting_date']);
+                    $postingDate = Carbon::parse($entry['posting_date']);
                     if ($postingDate->lt(now()->subDays(30))) {
                         continue;
                     }
@@ -612,6 +605,7 @@ class GoogleJobsScraper implements JobSourceScraper, ShouldQueue
                 return true;
             }
         }
+
         return false;
     }
 }

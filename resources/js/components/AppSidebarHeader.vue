@@ -31,8 +31,8 @@ const page = usePage();
         <!-- Brand Switcher — right-aligned -->
         <div class="ml-auto">
             <BrandSwitcher
-                :active-brand-id="(page.props.activeBrandId as number | null)"
-                :brands="(page.props.brands as any[])"
+                :active-brand-id="page.props.activeBrandId as number | null"
+                :brands="page.props.brands as any[]"
             />
         </div>
     </header>

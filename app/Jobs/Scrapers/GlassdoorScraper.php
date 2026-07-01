@@ -3,6 +3,7 @@
 namespace App\Jobs\Scrapers;
 
 use App\Contracts\JobSourceScraper;
+use Carbon\Carbon;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Bus\Queueable;
@@ -124,8 +125,8 @@ class GlassdoorScraper implements JobSourceScraper, ShouldQueue
     protected function parsePageHtml(string $html): void
     {
         libxml_use_internal_errors(true);
-        $dom = new DOMDocument();
-        $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_NOWARNING | LIBXML_NOERROR);
+        $dom = new DOMDocument;
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html, LIBXML_NOWARNING | LIBXML_NOERROR);
         libxml_clear_errors();
 
         $xpath = new DOMXPath($dom);
@@ -174,7 +175,7 @@ class GlassdoorScraper implements JobSourceScraper, ShouldQueue
         $jobTitle = trim($titleNode->textContent);
         $jobUrl = $titleNode->getAttribute('href');
         if (! empty($jobUrl) && ! str_starts_with($jobUrl, 'http')) {
-            $jobUrl = 'https://www.glassdoor.com' . $jobUrl;
+            $jobUrl = 'https://www.glassdoor.com'.$jobUrl;
         }
 
         // Extract company name
@@ -220,7 +221,7 @@ class GlassdoorScraper implements JobSourceScraper, ShouldQueue
     /**
      * Parse a raw Glassdoor listing into the standard structured format.
      *
-     * @param array<string, mixed> $rawListing
+     * @param  array<string, mixed>  $rawListing
      * @return array{company_name: string, website: ?string, job_title: string, posting_date: ?string, job_url: string, source: string}
      */
     public function parseListing(array $rawListing): array
@@ -267,6 +268,7 @@ class GlassdoorScraper implements JobSourceScraper, ShouldQueue
 
         if (preg_match('/^(\d+)\s*d(?:ay)?s?\+?$/', $relative, $m)) {
             $days = (int) $m[1];
+
             return now()->subDays($days)->format('Y-m-d');
         }
 
@@ -297,7 +299,7 @@ class GlassdoorScraper implements JobSourceScraper, ShouldQueue
      * Filter the fetched listings by target job titles and 30-day window,
      * exclude unwanted sources, and roll up to one lead per company.
      *
-     * @param array<int, array<string, mixed>> $listings
+     * @param  array<int, array<string, mixed>>  $listings
      * @return array<int, array{company_name: string, website: ?string, job_title: string, posting_date: ?string, job_url: string, source: string}>
      */
     public function filterAndRollUp(array $listings): array
@@ -326,7 +328,7 @@ class GlassdoorScraper implements JobSourceScraper, ShouldQueue
 
             // Check 30-day window
             if ($entry['posting_date'] !== null) {
-                $postingDate = \Carbon\Carbon::parse($entry['posting_date']);
+                $postingDate = Carbon::parse($entry['posting_date']);
                 if ($postingDate->lt(now()->subDays(30))) {
                     continue;
                 }
@@ -399,6 +401,7 @@ class GlassdoorScraper implements JobSourceScraper, ShouldQueue
                 return true;
             }
         }
+
         return false;
     }
 }
