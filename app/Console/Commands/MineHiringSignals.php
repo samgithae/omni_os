@@ -330,17 +330,17 @@ class MineHiringSignals extends Command
                     'exclude' => [],
                 ],
                 'glassdoor' => [
-                    'url' => 'https://www.glassdoor.com/Job/kenya-jobs-SRCH_IL.0,5_IN179.htm',
+                    'url' => 'https://ke.linkedin.com/jobs/search?keywords=sales&location=Kenya',
                     'targets' => self::TARGET_TITLES,
                     'exclude' => [],
                 ],
                 'company_careers' => [
-                    'url' => 'https://www.google.com/search?q=kenya+company+careers+page+hiring&tbm=nws',
+                    'url' => 'https://www.indeed.co.ke/jobs?q=sales+customer+service+graduate&l=Kenya',
                     'targets' => self::TARGET_TITLES,
                     'exclude' => ['recruitment'],
                 ],
                 'google_jobs' => [
-                    'url' => 'https://www.google.com/search?q=jobs+in+kenya&ibp=htl;jobs',
+                    'url' => 'https://www.indeed.co.ke/jobs?q=training+hr+finance+admin&l=Kenya',
                     'targets' => self::TARGET_TITLES,
                     'exclude' => [],
                 ],
