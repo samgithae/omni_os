@@ -31,6 +31,8 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         'sole proprietor', 'freelance platform',
     ];
 
+    private const int MAX_PAGES = 5;
+
     private int $currentPage = 1;
 
     private bool $hasMorePages = true;
@@ -45,7 +47,7 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
     {
         $this->companies = [];
 
-        while ($this->hasMorePages && count($this->companies) < 100) {
+        while ($this->hasMorePages && $this->currentPage <= self::MAX_PAGES && count($this->companies) < 100) {
             $url = $this->buildPageUrl($this->currentPage);
             Log::info("BrighterMondayScraper: Fetching {$url}");
 
