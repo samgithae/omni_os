@@ -92,7 +92,7 @@ class PollTelegramApprovals extends Command
                 "https://api.telegram.org/bot{$this->botToken}/getUpdates",
                 [
                     'offset' => $this->lastUpdateId + 1,
-                    'timeout' => 30,
+                    'timeout' => 10,
                     'allowed_updates' => ['message', 'callback_query'],
                 ]
             );

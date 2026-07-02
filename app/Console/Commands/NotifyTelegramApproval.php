@@ -32,7 +32,7 @@ class NotifyTelegramApproval extends Command
         $query = EmailMessage::query()
             ->where('approval_status', 'pending')
             ->where('status', 'draft')
-            ->with(['lead:id,company_name,email,segment,city,brand_id', 'brand:id,name,slug,color']);
+            ->with(['lead:id,company_name,email,segment,subcategory,city,brand_id', 'brand:id,name,slug,color']);
 
         if ($brandSlug = $this->option('brand')) {
             $brand = Brand::where('slug', $brandSlug)->first();
@@ -71,20 +71,27 @@ class NotifyTelegramApproval extends Command
         $failedBrands = [];
 
         foreach ($byBrand as $brandName => $emails) {
-            // Send the summary message first
-            $summarySent = $this->sendSummaryMessage($telegram, $brandName, $emails);
+            // ⬇︎ Split deer segment emails by subcategory for separate approval
+            $subcategoryGroups = $emails->groupBy(fn ($e) => $e->lead?->subcategory ?? 'general');
 
-            // Send detailed sample messages for N leads
-            $sampleCount = (int) $this->option('samples');
-            $samplesSent = $this->sendSampleSequences($telegram, $brandName, $emails, $sampleCount);
+            foreach ($subcategoryGroups as $subcategory => $group) {
+                $subcategoryLabel = $subcategory === 'general' ? 'General' : ucfirst($subcategory);
 
-            if ($summarySent && $samplesSent) {
-                $brandIds = $emails->pluck('id')->toArray();
-                $sentIds = array_merge($sentIds, $brandIds);
-                $sent += count($brandIds);
-            } else {
-                $failedBrands[] = $brandName;
-                $this->error("Telegram delivery failed for {$brandName}; these emails were not marked as notified.");
+                // Send the summary message first
+                $summarySent = $this->sendSummaryMessage($telegram, $brandName, $group, $subcategoryLabel);
+
+                // Send detailed sample messages for N leads
+                $sampleCount = (int) $this->option('samples');
+                $samplesSent = $this->sendSampleSequences($telegram, $brandName, $group, $sampleCount);
+
+                if ($summarySent && $samplesSent) {
+                    $groupIds = $group->pluck('id')->toArray();
+                    $sentIds = array_merge($sentIds, $groupIds);
+                    $sent += count($groupIds);
+                } else {
+                    $failedBrands[] = $brandName.' ('.$subcategoryLabel.')';
+                    $this->error("Telegram delivery failed for {$brandName} / {$subcategoryLabel}; these emails were not marked as notified.");
+                }
             }
         }
 
@@ -126,13 +133,15 @@ class NotifyTelegramApproval extends Command
     /**
      * Send the summary message: total count, list of leads, batch approve/reject.
      */
-    private function sendSummaryMessage(TelegramService $telegram, string $brandName, $emails): bool
+    private function sendSummaryMessage(TelegramService $telegram, string $brandName, $emails, string $subcategoryLabel = ''): bool
     {
         $totalEmails = $emails->count();
         $uniqueLeads = $emails->pluck('lead.company_name')->unique()->filter()->values();
         $brandName = e($brandName);
 
-        $text = "📬 <b>Approval Request — {$brandName}</b>\n";
+        $subLabel = $subcategoryLabel ? " [{$subcategoryLabel}]" : '';
+
+        $text = "📬 <b>Approval Request — {$brandName}{$subLabel}</b>\n";
         $text .= "━━━━━━━━━━━━━━━━━━━━\n\n";
         $text .= "📊 <b>{$totalEmails}</b> emails pending approval in THIS batch\n";
         $text .= "🏢 <b>{$uniqueLeads->count()}</b> leads in this batch\n\n";
