@@ -157,8 +157,8 @@ class GenericJobBoardScraper implements JobSourceScraper, ShouldQueue
                 continue;
             }
 
-            // Skip lines that are clearly descriptions (too long, contain common description words)
-            if (strlen($trimmed) > 100 || preg_match('/\b(looking for|seeking|will be responsible|the successful candidate|we are\b)/i', $trimmed)) {
+            // Skip lines that are clearly descriptions (too long)
+            if (strlen($trimmed) > 100) {
                 continue;
             }
 
@@ -188,16 +188,27 @@ class GenericJobBoardScraper implements JobSourceScraper, ShouldQueue
                 $title = trim($m[1]);
                 $url = $m[2];
 
+                // If the title contains " at ", split: "Job Title at Company Name"
+                // (MyJobMag format)
+                $company = $lastCandidate;
+                $atPos = mb_stripos($title, ' at ');
+                if ($atPos !== false) {
+                    $company = trim(substr($title, $atPos + 4));
+                    $title = trim(substr($title, 0, $atPos));
+                }
+
                 // If we have a previous listing pending, save it
                 if (! empty($currentTitle) && ! empty($lastCandidate)) {
                     $results[] = $this->makeListing($lastCandidate, $currentTitle, $currentUrl, $currentDate);
                 }
 
-                // Start new listing: the lastCandidate before this title is the company
+                // Start new listing
                 $currentTitle = $title;
                 $currentUrl = $url;
                 $currentDate = '';
-                // Don't reset lastCandidate — it stays as the company for this title
+                if (! empty($company) && $company !== $lastCandidate) {
+                    $lastCandidate = $company;
+                }
                 continue;
             }
 
