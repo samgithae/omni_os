@@ -153,8 +153,8 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
     {
         $listings = [];
 
-        // Find the start of actual listings
-        $start = strpos($markdown, '## Jobs in Kenya');
+        // Find the start of actual listings (after "Jobs Found")
+        $start = strpos($markdown, 'Jobs Found');
         if ($start === false) {
             return $listings;
         }
@@ -166,12 +166,13 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         foreach ($blocks as $block) {
             $lines = explode("\n", trim($block));
             $companyName = '';
+            $jobTitle = '';
+            $jobUrl = '';
             $locationType = '';
             $category = '';
             $postingDate = date('Y-m-d');
-            $description = '';
 
-            $phase = 'header'; // header → company → location → category → new → date → description
+            $phase = 'before'; // before → title → company → location → category → date → done
 
             foreach ($lines as $line) {
                 $trimmed = trim($line);
@@ -184,43 +185,45 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
                     'Stay productive - get the latest updates on Jobs & News',
                     'Stop receiving the latest updates on Jobs & News',
                     'This action will pause all job alerts. Are you sure?',
-                    'Cancel', 'Proceed',
+                    'Cancel', 'Proceed', 'Activate',
                     'Job Hunting? Use AI to Boost Your Career',
-                ]) || str_starts_with($trimmed, '![Image') || str_starts_with($trimmed, '1.') || str_starts_with($trimmed, '3.')) {
+                    'No Thanks',
+                ]) || str_starts_with($trimmed, '![Image') || str_starts_with($trimmed, '1,')
+                    || str_starts_with($trimmed, 'Filters') || str_starts_with($trimmed, 'Any ')
+                    || str_starts_with($trimmed, 'http') || str_starts_with($trimmed, 'No Thanks')) {
                     continue;
                 }
 
-                // Skip the "Search results" line
-                if (str_contains($trimmed, 'Search results')) {
+                // Job title: [Title](url "Title") pattern
+                if ($phase === 'before' && preg_match('/^\[([^\]]+)\]\(([^)]+)\)/', $trimmed, $m)) {
+                    $jobTitle = trim($m[1]);
+                    $jobUrl = $m[2];
+                    $phase = 'company';
                     continue;
                 }
 
-                if ($phase === 'header') {
-                    // First meaningful text after FEATURED/header is the company name
-                    if (empty($companyName) && ! str_contains($trimmed, '|')) {
-                        // Check if this looks like a company (not a URL, not a description)
-                        if (! str_starts_with($trimmed, 'http') && strlen($trimmed) < 100 && ! str_contains($trimmed, 'looking for')) {
-                            $companyName = $trimmed;
-                            $phase = 'location';
-                            continue;
-                        }
-                    }
+                // Company name: line with link or plain text
+                if ($phase === 'company' && preg_match('/^\[([^\]]+)\]\(([^)]+)\)/', $trimmed, $m)) {
+                    // This is actually a company link
+                    $companyName = trim($m[1]);
+                    $phase = 'location';
+                    continue;
+                }
+                if ($phase === 'company' && empty($companyName) && ! str_contains($trimmed, '|')) {
+                    $companyName = $trimmed;
+                    $phase = 'location';
+                    continue;
                 }
 
+                // Location/Type: contains |
                 if ($phase === 'location' && str_contains($trimmed, '|')) {
                     $locationType = $trimmed;
-                    $phase = 'category';
-                    continue;
-                }
-
-                if ($phase === 'category' && ! str_contains($trimmed, 'looking for') && ! str_contains($trimmed, 'will be') && strlen($trimmed) < 60) {
-                    $category = $trimmed;
                     $phase = 'date';
                     continue;
                 }
 
-                // Detect date
-                if (preg_match('/^(Today|Yesterday|\d+\s+days?\s+ago)$/i', $trimmed, $dm)) {
+                // Date: Today, Yesterday, X days ago
+                if ($phase === 'date' && preg_match('/^(Today|Yesterday|\d+\s+days?\s+ago)$/i', $trimmed, $dm)) {
                     $dateStr = strtolower($dm[1]);
                     if ($dateStr === 'today') {
                         $postingDate = date('Y-m-d');
@@ -229,26 +232,17 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
                     } elseif (preg_match('/(\d+)\s+day/', $dateStr, $dd)) {
                         $postingDate = date('Y-m-d', strtotime('-'.(int)$dd[1].' days'));
                     }
-                    $phase = 'description';
+                    $phase = 'done';
                     continue;
                 }
-
-                // Everything after date is part of description (which contains the job title)
-                if ($phase === 'description' || $phase === 'date') {
-                    $description .= ' '.$trimmed;
-                    $phase = 'description';
-                }
             }
-
-            // Extract job title from description — typically the first meaningful role mention
-            $jobTitle = $this->extractJobTitle($description, $category);
 
             if (! empty($companyName) && ! empty($jobTitle)) {
                 $listings[] = [
                     'company_name' => $companyName,
                     'job_title' => $jobTitle,
                     'posting_date' => $postingDate,
-                    'job_url' => '',
+                    'job_url' => $jobUrl,
                     'company_description' => $category.' '.$locationType,
                 ];
             }
