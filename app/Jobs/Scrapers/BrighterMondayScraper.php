@@ -38,6 +38,9 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
     /** @var array<string, array{job_titles: string[], count: int, posting_date: ?string, job_url: string}> */
     private array $companies = [];
 
+    /** @var array<string, true> Tracks listing URLs already seen to detect pagination loops */
+    private array $seenListingUrls = [];
+
     public function fetchListings(): array
     {
         $this->companies = [];
@@ -72,6 +75,26 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
                     if ($parsed !== null) {
                         $this->addCompanyLead($parsed);
                     }
+                }
+
+                // Check for pagination loop: if all listing URLs on this page
+                // were already seen on a previous page, stop paginating.
+                $allSeen = true;
+                $newCount = 0;
+                foreach ($listings as $listing) {
+                    $url = $listing['job_url'] ?? '';
+                    if (! $url) {
+                        continue;
+                    }
+                    if (! isset($this->seenListingUrls[$url])) {
+                        $this->seenListingUrls[$url] = true;
+                        $allSeen = false;
+                        $newCount++;
+                    }
+                }
+                if ($allSeen && $newCount === 0) {
+                    $this->hasMorePages = false;
+                    break;
                 }
 
                 $this->currentPage++;
