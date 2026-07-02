@@ -85,6 +85,12 @@ trait UsesJinaReader
             return date('Y-m-d', strtotime('-'.((int)$m[1] * 30).' days'));
         }
 
+        // Try parsing absolute date formats like "Jul 1, 2026"
+        $parsed = strtotime($ds);
+        if ($parsed !== false && $parsed > 0) {
+            return date('Y-m-d', $parsed);
+        }
+
         return date('Y-m-d');
     }
 }

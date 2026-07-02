@@ -150,8 +150,8 @@ class GenericJobBoardScraper implements JobSourceScraper, ShouldQueue
                 continue;
             }
 
-            // Job title as markdown link: [Title](url)
-            if (preg_match('/^\[([^\]]+)\]\(([^)]+)\)/', $trimmed, $m)) {
+            // Job title as markdown link: [Title](url) or ## [Title](url)
+            if (preg_match('/^#*\s*\[([^\]]+)\]\(([^)]+)\)/', $trimmed, $m)) {
                 $title = trim($m[1]);
                 $url = $m[2];
 
@@ -187,6 +187,12 @@ class GenericJobBoardScraper implements JobSourceScraper, ShouldQueue
             // Also try to extract date if it contains date keywords
             if (preg_match('/(Today|Yesterday|\d+\s+(day|week|month)s?\s+ago)/i', $trimmed, $dm)) {
                 $currentDate = $dm[1];
+                continue;
+            }
+
+            // Posted: Date format (e.g. "Posted: Jul 1, 2026")
+            if (preg_match('/Posted:\s*(.+)/i', $trimmed, $dm)) {
+                $currentDate = trim($dm[1]);
                 continue;
             }
         }
