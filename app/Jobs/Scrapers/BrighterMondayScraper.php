@@ -3,8 +3,6 @@
 namespace App\Jobs\Scrapers;
 
 use App\Contracts\JobSourceScraper;
-use DOMDocument;
-use DOMXPath;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
@@ -14,7 +12,13 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
 {
     use Queueable;
 
+    private const JINA_READER = 'https://r.jina.ai';
+
     private const BASE_URL = 'https://www.brightermonday.co.ke/jobs';
+
+    private const MAX_PAGES = 5;
+
+    private const MAX_LISTINGS = 80;
 
     private const TARGET_TITLES = [
         'sales rep', 'sales executive', 'business development officer', 'business development',
@@ -44,113 +48,83 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         'sole proprietor', 'freelance platform',
     ];
 
-    private const int MAX_PAGES = 5;
+    /** @var array<string, true> */
+    private array $seenSlugs = [];
 
     private int $currentPage = 1;
 
     private bool $hasMorePages = true;
 
-    /** @var array<string, array{job_titles: string[], count: int, posting_date: ?string, job_url: string}> */
-    private array $companies = [];
-
-    /** @var array<string, true> Tracks listing URLs already seen to detect pagination loops */
-    private array $seenListingUrls = [];
-
     public function fetchListings(): array
     {
-        $this->companies = [];
-        $this->seenListingUrls = [];
+        $this->seenSlugs = [];
+        $listings = [];
 
-        $rawListings = [];
-
-        while ($this->hasMorePages && $this->currentPage <= self::MAX_PAGES && count($rawListings) < 100) {
-            $url = $this->buildPageUrl($this->currentPage);
-            Log::info("BrighterMondayScraper: Fetching {$url}");
+        for ($page = 1; $page <= self::MAX_PAGES && count($listings) < self::MAX_LISTINGS; $page++) {
+            $url = self::BASE_URL.($page > 1 ? '?page='.$page : '');
+            Log::info("BrighterMondayScraper: Fetching {$url} via Jina Reader");
 
             try {
                 $response = Http::withHeaders([
-                    'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language' => 'en-US,en;q=0.5',
-                ])->timeout(30)->get($url);
+                    'Accept' => 'application/json',
+                    'X-Return-Format' => 'markdown',
+                    'X-Engine' => 'reader',
+                ])->timeout(60)->get(self::JINA_READER.'/'.urlencode($url));
 
                 if (! $response->successful()) {
-                    Log::warning("BrighterMondayScraper: HTTP {$response->status()} on page {$this->currentPage}");
-                    $this->hasMorePages = false;
+                    Log::warning("BrighterMondayScraper: Jina Reader HTTP {$response->status()} on page {$page}");
                     break;
                 }
 
-                $html = $response->body();
-                $listings = $this->parseListingsFromHtml($html);
+                $markdown = $response->body();
+                $pageListings = $this->parseListingsFromMarkdown($markdown);
 
-                if (empty($listings)) {
-                    $this->hasMorePages = false;
+                if (empty($pageListings)) {
                     break;
                 }
 
-                foreach ($listings as $listing) {
-                    $rawListings[] = $listing;
-                }
-
-                // Check for pagination loop: if all listing URLs on this page
-                // were already seen on a previous page, stop paginating.
-                $allSeen = true;
+                // Dedup by listing slug
                 $newCount = 0;
-                foreach ($listings as $listing) {
-                    $url = $listing['job_url'] ?? '';
-                    if (! $url) {
-                        continue;
-                    }
-                    if (! isset($this->seenListingUrls[$url])) {
-                        $this->seenListingUrls[$url] = true;
-                        $allSeen = false;
+                foreach ($pageListings as $listing) {
+                    $slug = $this->listingSlug($listing);
+                    if (! isset($this->seenSlugs[$slug])) {
+                        $this->seenSlugs[$slug] = true;
+                        $listings[] = $listing;
                         $newCount++;
                     }
                 }
-                if ($allSeen && $newCount === 0) {
-                    $this->hasMorePages = false;
+
+                if ($newCount === 0) {
+                    // No new listings — likely a pagination loop
                     break;
                 }
-
-                $this->currentPage++;
             } catch (\Exception $e) {
-                Log::error("BrighterMondayScraper: Error on page {$this->currentPage}: {$e->getMessage()}");
-                $this->hasMorePages = false;
+                Log::error("BrighterMondayScraper: Error on page {$page}: {$e->getMessage()}");
                 break;
             }
         }
 
-        return $rawListings;
+        return $listings;
     }
 
     public function parseListing(array $rawListing): ?array
     {
         $companyName = $rawListing['company_name'] ?? '';
         $jobTitle = $rawListing['job_title'] ?? '';
-        $postingDate = $rawListing['posting_date'] ?? null;
+        $postingDate = $rawListing['posting_date'] ?? date('Y-m-d');
         $jobUrl = $rawListing['job_url'] ?? '';
-        $companyDescription = $rawListing['company_description'] ?? '';
 
-        // Normalise and check title
         $titleLower = mb_strtolower(trim($jobTitle));
         if (! $this->isTargetTitle($titleLower)) {
             return null;
         }
 
-        // Filter out internship-only roles (allow grad/management trainee)
         if ($this->isInternshipOnly($titleLower, $jobTitle)) {
             return null;
         }
 
-        // Check company for exclusion patterns
         $companyLower = mb_strtolower(trim($companyName));
-        $descLower = mb_strtolower(trim($companyDescription));
-        if ($this->isExcludedSource($companyLower, $descLower)) {
-            return null;
-        }
-
-        // Check posting date is within 30 days
-        if ($postingDate && ! $this->isWithinDateRange($postingDate)) {
+        if ($this->isExcludedSource($companyLower)) {
             return null;
         }
 
@@ -174,121 +148,83 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         return 'brightermonday';
     }
 
-    private function buildPageUrl(int $page): string
-    {
-        if ($page === 1) {
-            return self::BASE_URL;
-        }
-
-        return self::BASE_URL.'?page='.$page;
-    }
-
-    private function parseListingsFromHtml(string $html): array
+    /**
+     * Parse job listings from Jina Reader markdown output.
+     */
+    private function parseListingsFromMarkdown(string $markdown): array
     {
         $listings = [];
 
-        $dom = new DOMDocument;
-        @$dom->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NOWARNING | LIBXML_NOERROR);
-        $xpath = new DOMXPath($dom);
+        // Split into sections by company name pattern: "**COMPANY_NAME**" followed by job info
+        // BrighterMonday via Jina returns entries like:
+        // "**Company Name**\n\nTitle | Location | Type | Salary\n\nDescription..."
+        $lines = explode("\n", $markdown);
+        $currentJob = null;
 
-        // Current BM site: cards with data-cy="listing-cards-components"
-        $jobNodes = $xpath->query("//div[@data-cy='listing-cards-components']");
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
 
-        if ($jobNodes === false || $jobNodes->length === 0) {
-            return $listings;
-        }
-
-        foreach ($jobNodes as $node) {
-            try {
-                $listing = $this->extractJobFromNode($xpath, $node);
-                if ($listing !== null) {
-                    $listings[] = $listing;
+            // Detect company name: bold text at start of line
+            if (preg_match('/^\*\*([^*]+)\*\*$/', $trimmed, $m)) {
+                // Save previous job if exists
+                if ($currentJob !== null && ! empty($currentJob['company_name'])) {
+                    $listings[] = $currentJob;
                 }
-            } catch (\Exception $e) {
+                $currentJob = [
+                    'company_name' => trim($m[1]),
+                    'job_title' => '',
+                    'posting_date' => date('Y-m-d'),
+                    'job_url' => '',
+                    'company_description' => '',
+                ];
                 continue;
             }
+
+            if ($currentJob === null) {
+                continue;
+            }
+
+            // Detect job title: a line followed by location/type info
+            // Pattern: "Job Title" on its own line, or "    - Job Title"
+            if (empty($currentJob['job_title']) && preg_match('/^###\s*(.+)/', $trimmed, $m)) {
+                $currentJob['job_title'] = trim($m[1]);
+                continue;
+            }
+
+            // Detect location/type line: "Location | Type | Salary"
+            if (! empty($currentJob['job_title']) && preg_match('/^(.+?)\s*\|/', $trimmed, $m)) {
+                $currentJob['company_description'] = trim($m[1]);
+                continue;
+            }
+
+            // Detect relative date: "X days ago", "Today", "Yesterday"
+            if (preg_match('/\b(Today|Yesterday|\d+\s+days?\s+ago)\b/i', $trimmed, $dm)) {
+                $dateStr = strtolower($dm[1]);
+                if ($dateStr === 'today') {
+                    $currentJob['posting_date'] = date('Y-m-d');
+                } elseif ($dateStr === 'yesterday') {
+                    $currentJob['posting_date'] = date('Y-m-d', strtotime('-1 day'));
+                } elseif (preg_match('/(\d+)\s+day/', $dateStr, $dd)) {
+                    $currentJob['posting_date'] = date('Y-m-d', strtotime('-'.(int)$dd[1].' days'));
+                }
+                continue;
+            }
+        }
+
+        // Don't forget the last job
+        if ($currentJob !== null && ! empty($currentJob['company_name'])) {
+            $listings[] = $currentJob;
         }
 
         return $listings;
     }
 
-    private function extractJobFromNode(DOMXPath $xpath, \DOMNode $node): ?array
+    /**
+     * Generate a unique slug for a listing for dedup.
+     */
+    private function listingSlug(array $listing): string
     {
-        // Job title: find the listing-title-link anchor, then the p inside it
-        $titleNode = $xpath->query(".//a[@data-cy='listing-title-link']//p", $node);
-        $jobTitle = '';
-        $jobUrl = '';
-
-        if ($titleNode !== false && $titleNode->length > 0) {
-            $jobTitle = trim($titleNode->item(0)->textContent);
-            // Get URL from the parent anchor
-            $linkNode = $xpath->query(".//a[@data-cy='listing-title-link']", $node);
-            if ($linkNode !== false && $linkNode->length > 0) {
-                $href = $linkNode->item(0)->getAttribute('href');
-                if (! str_starts_with($href, 'http')) {
-                    $href = 'https://www.brightermonday.co.ke'.$href;
-                }
-                $jobUrl = $href;
-            }
-        }
-
-        if (empty($jobTitle)) {
-            return null;
-        }
-
-        // Company name: p.text-blue-700.text-loading-animate
-        $companyNode = $xpath->query(".//p[contains(@class, 'text-blue-700')]", $node);
-        $companyName = '';
-        if ($companyNode !== false && $companyNode->length > 0) {
-            $companyName = trim($companyNode->item(0)->textContent);
-        }
-
-        // Location: first span with bg-brand-secondary-100 class
-        $location = '';
-        $locationNode = $xpath->query(".//span[contains(@class, 'bg-brand-secondary-100')]", $node);
-        if ($locationNode !== false && $locationNode->length > 0) {
-            $location = trim($locationNode->item(0)->textContent);
-        }
-
-        // Category: second p.text-gray-500 or last one
-        $category = '';
-        $catNode = $xpath->query(".//p[contains(@class, 'text-gray-500')]", $node);
-        if ($catNode !== false && $catNode->length > 0) {
-            $category = trim($catNode->item($catNode->length - 1)->textContent);
-        }
-
-        // No posting date visible on the listing cards — mark as today
-        $postingDate = date('Y-m-d');
-
-        return [
-            'company_name' => $companyName,
-            'job_title' => $jobTitle,
-            'posting_date' => $postingDate,
-            'job_url' => $jobUrl,
-            'company_description' => $category.' '.$location,
-        ];
-    }
-
-    private function addCompanyLead(array $parsed): void
-    {
-        $key = mb_strtolower(trim($parsed['company_name']));
-
-        if (isset($this->companies[$key])) {
-            $this->companies[$key]['count']++;
-            if (! in_array($parsed['job_title'], $this->companies[$key]['job_titles'], true)) {
-                $this->companies[$key]['job_titles'][] = $parsed['job_title'];
-            }
-        } else {
-            $this->companies[$key] = [
-                'company_name' => $parsed['company_name'],
-                'website' => $parsed['website'],
-                'job_titles' => [$parsed['job_title']],
-                'count' => 1,
-                'posting_date' => $parsed['posting_date'],
-                'job_url' => $parsed['job_url'],
-                'source' => $parsed['source'],
-            ];
-        }
+        return mb_strtolower(trim(($listing['company_name'] ?? '').'|'.($listing['job_title'] ?? '')));
     }
 
     private function isTargetTitle(string $titleLower): bool
@@ -310,41 +246,14 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         return $isInternship && ! $isTrainee;
     }
 
-    private function isExcludedSource(string $companyLower, string $descriptionLower): bool
+    private function isExcludedSource(string $companyLower): bool
     {
-        $combined = $companyLower.' '.$descriptionLower;
-
         foreach (self::EXCLUDE_PATTERNS as $pattern) {
-            if (str_contains($combined, $pattern)) {
+            if (str_contains($companyLower, $pattern)) {
                 return true;
             }
         }
 
         return false;
-    }
-
-    private function isWithinDateRange(string $dateString): bool
-    {
-        try {
-            if (preg_match('/(\d+)\s*(hour|day|week|month)s?\s*ago/i', $dateString, $matches)) {
-                $value = (int) $matches[1];
-                $unit = strtolower($matches[2]);
-
-                return match ($unit) {
-                    'hour' => true,
-                    'day' => $value <= 30,
-                    'week' => $value <= 4,
-                    'month' => $value <= 1,
-                    default => false,
-                };
-            }
-
-            $date = new \DateTime($dateString);
-            $diff = $date->diff(new \DateTime);
-
-            return $diff->days <= 30;
-        } catch (\Exception $e) {
-            return true;
-        }
     }
 }
