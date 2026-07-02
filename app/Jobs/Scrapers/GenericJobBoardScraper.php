@@ -151,7 +151,8 @@ class GenericJobBoardScraper implements JobSourceScraper, ShouldQueue
             }
 
             // Job title as markdown link: [Title](url) or ## [Title](url)
-            if (preg_match('/^#*\s*\[([^\]]+)\]\(([^)]+)\)/', $trimmed, $m)) {
+            // Skip image links ![Image](url)
+            if (! str_starts_with($trimmed, '!') && preg_match('/^#*\s*\[([^\]]+)\]\(([^)]+)\)/', $trimmed, $m)) {
                 $title = trim($m[1]);
                 $url = $m[2];
 
