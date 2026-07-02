@@ -66,9 +66,7 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
 
             try {
                 $response = Http::withHeaders([
-                    'Accept' => 'application/json',
                     'X-Return-Format' => 'markdown',
-                    'X-Engine' => 'reader',
                 ])->timeout(60)->get(self::JINA_READER.'/'.urlencode($url));
 
                 if (! $response->successful()) {
