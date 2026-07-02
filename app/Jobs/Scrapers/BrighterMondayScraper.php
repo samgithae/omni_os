@@ -23,6 +23,19 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         'relationship officer', 'branch officer', 'branch manager', 'operations officer',
         'loan officer', 'telesales agent', 'collections officer', 'account manager',
         'retail assistant', 'cashier', 'front office officer',
+        'sales and marketing', 'marketing executive', 'marketing officer',
+        'medical representative', 'medical rep', 'pharmaceutical sales',
+        'hr officer', 'hr executive', 'hr assistant', 'human resource',
+        'brand manager', 'brand officer', 'digital marketing',
+        'travel consultant', 'travel advisor',
+        'finance officer', 'finance manager', 'accountant',
+        'administrative officer', 'admin officer', 'office administrator',
+        'programme coordinator', 'program coordinator', 'project officer',
+        'procurement officer', 'supply chain', 'logistics officer',
+        'credit officer', 'risk officer', 'compliance officer',
+        'training officer', 'learning and development', 'l&d officer',
+        'quality assurance', 'quality control',
+        'technical training', 'vocational training',
     ];
 
     private const EXCLUDE_PATTERNS = [
