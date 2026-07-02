@@ -155,68 +155,146 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
     {
         $listings = [];
 
-        // Split into sections by company name pattern: "**COMPANY_NAME**" followed by job info
-        // BrighterMonday via Jina returns entries like:
-        // "**Company Name**\n\nTitle | Location | Type | Salary\n\nDescription..."
-        $lines = explode("\n", $markdown);
-        $currentJob = null;
-
-        foreach ($lines as $line) {
-            $trimmed = trim($line);
-
-            // Detect company name: bold text at start of line
-            if (preg_match('/^\*\*([^*]+)\*\*$/', $trimmed, $m)) {
-                // Save previous job if exists
-                if ($currentJob !== null && ! empty($currentJob['company_name'])) {
-                    $listings[] = $currentJob;
-                }
-                $currentJob = [
-                    'company_name' => trim($m[1]),
-                    'job_title' => '',
-                    'posting_date' => date('Y-m-d'),
-                    'job_url' => '',
-                    'company_description' => '',
-                ];
-                continue;
-            }
-
-            if ($currentJob === null) {
-                continue;
-            }
-
-            // Detect job title: a line followed by location/type info
-            // Pattern: "Job Title" on its own line, or "    - Job Title"
-            if (empty($currentJob['job_title']) && preg_match('/^###\s*(.+)/', $trimmed, $m)) {
-                $currentJob['job_title'] = trim($m[1]);
-                continue;
-            }
-
-            // Detect location/type line: "Location | Type | Salary"
-            if (! empty($currentJob['job_title']) && preg_match('/^(.+?)\s*\|/', $trimmed, $m)) {
-                $currentJob['company_description'] = trim($m[1]);
-                continue;
-            }
-
-            // Detect relative date: "X days ago", "Today", "Yesterday"
-            if (preg_match('/\b(Today|Yesterday|\d+\s+days?\s+ago)\b/i', $trimmed, $dm)) {
-                $dateStr = strtolower($dm[1]);
-                if ($dateStr === 'today') {
-                    $currentJob['posting_date'] = date('Y-m-d');
-                } elseif ($dateStr === 'yesterday') {
-                    $currentJob['posting_date'] = date('Y-m-d', strtotime('-1 day'));
-                } elseif (preg_match('/(\d+)\s+day/', $dateStr, $dd)) {
-                    $currentJob['posting_date'] = date('Y-m-d', strtotime('-'.(int)$dd[1].' days'));
-                }
-                continue;
-            }
+        // Find the start of actual listings
+        $start = strpos($markdown, '## Jobs in Kenya');
+        if ($start === false) {
+            return $listings;
         }
+        $body = substr($markdown, $start);
 
-        // Don't forget the last job
-        if ($currentJob !== null && ! empty($currentJob['company_name'])) {
-            $listings[] = $currentJob;
+        // Split by "Easy apply" to get individual listing blocks
+        $blocks = explode('Easy apply', $body);
+
+        foreach ($blocks as $block) {
+            $lines = explode("\n", trim($block));
+            $companyName = '';
+            $locationType = '';
+            $category = '';
+            $postingDate = date('Y-m-d');
+            $description = '';
+
+            $phase = 'header'; // header → company → location → category → new → date → description
+
+            foreach ($lines as $line) {
+                $trimmed = trim($line);
+                if (empty($trimmed)) {
+                    continue;
+                }
+
+                // Skip known noise lines
+                if (in_array($trimmed, ['FEATURED', 'New', 'Activate Notifications', 'Deactivate Notifications',
+                    'Stay productive - get the latest updates on Jobs & News',
+                    'Stop receiving the latest updates on Jobs & News',
+                    'This action will pause all job alerts. Are you sure?',
+                    'Cancel', 'Proceed',
+                    'Job Hunting? Use AI to Boost Your Career',
+                ]) || str_starts_with($trimmed, '![Image') || str_starts_with($trimmed, '1.') || str_starts_with($trimmed, '3.')) {
+                    continue;
+                }
+
+                // Skip the "Search results" line
+                if (str_contains($trimmed, 'Search results')) {
+                    continue;
+                }
+
+                if ($phase === 'header') {
+                    // First meaningful text after FEATURED/header is the company name
+                    if (empty($companyName) && ! str_contains($trimmed, '|')) {
+                        // Check if this looks like a company (not a URL, not a description)
+                        if (! str_starts_with($trimmed, 'http') && strlen($trimmed) < 100 && ! str_contains($trimmed, 'looking for')) {
+                            $companyName = $trimmed;
+                            $phase = 'location';
+                            continue;
+                        }
+                    }
+                }
+
+                if ($phase === 'location' && str_contains($trimmed, '|')) {
+                    $locationType = $trimmed;
+                    $phase = 'category';
+                    continue;
+                }
+
+                if ($phase === 'category' && ! str_contains($trimmed, 'looking for') && ! str_contains($trimmed, 'will be') && strlen($trimmed) < 60) {
+                    $category = $trimmed;
+                    $phase = 'date';
+                    continue;
+                }
+
+                // Detect date
+                if (preg_match('/^(Today|Yesterday|\d+\s+days?\s+ago)$/i', $trimmed, $dm)) {
+                    $dateStr = strtolower($dm[1]);
+                    if ($dateStr === 'today') {
+                        $postingDate = date('Y-m-d');
+                    } elseif ($dateStr === 'yesterday') {
+                        $postingDate = date('Y-m-d', strtotime('-1 day'));
+                    } elseif (preg_match('/(\d+)\s+day/', $dateStr, $dd)) {
+                        $postingDate = date('Y-m-d', strtotime('-'.(int)$dd[1].' days'));
+                    }
+                    $phase = 'description';
+                    continue;
+                }
+
+                // Everything after date is part of description (which contains the job title)
+                if ($phase === 'description' || $phase === 'date') {
+                    $description .= ' '.$trimmed;
+                    $phase = 'description';
+                }
+            }
+
+            // Extract job title from description — typically the first meaningful role mention
+            $jobTitle = $this->extractJobTitle($description, $category);
+
+            if (! empty($companyName) && ! empty($jobTitle)) {
+                $listings[] = [
+                    'company_name' => $companyName,
+                    'job_title' => $jobTitle,
+                    'posting_date' => $postingDate,
+                    'job_url' => '',
+                    'company_description' => $category.' '.$locationType,
+                ];
+            }
         }
 
         return $listings;
+    }
+
+    /**
+     * Extract job title from description text.
+     */
+    private function extractJobTitle(string $description, string $category): string
+    {
+        // Common patterns: "We are looking for a [TITLE]", "seeking a [TITLE]", "The [TITLE] will"
+        $patterns = [
+            '/\b(looking for|seeking|hiring|recruit(?:ing|))\s+(?:a|an|experienced|skilled|proactive|detail-oriented|qualified|professional|results-driven|mature|organized|responsible)?\s*([A-Z][A-Za-z\s\/&-]+?)(?:\s+to\s|\s+with\s|\s+for\s|\.|,)/',
+            '/\b(The|Our)\s+([A-Z][A-Za-z\s\/&-]+?)\s+(will be responsible|will|is responsible|reports|manages)/',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $description, $m)) {
+                $title = trim($m[count($m) === 3 ? 2 : 2]);
+                // Clean up
+                $title = preg_replace('/\s+/', ' ', $title);
+                if (strlen($title) > 5 && strlen($title) < 100) {
+                    return $title;
+                }
+            }
+        }
+
+        // Fallback: use the category as a hint
+        // Return a meaningful prefix of the description
+        $words = explode(' ', trim($description));
+        $titleWords = [];
+        foreach ($words as $w) {
+            if (ctype_upper($w[0] ?? '') && strlen($w) > 2) {
+                $titleWords[] = $w;
+                if (count($titleWords) >= 5) break;
+            } elseif (! empty($titleWords)) {
+                break;
+            }
+        }
+
+        return ! empty($titleWords) ? implode(' ', $titleWords) : $category;
     }
 
     /**
