@@ -52,7 +52,7 @@ class IdentifyIncompleteSequences extends Command
         $totalRequiredSteps = 0;
 
         foreach ($leads as $lead) {
-            $config = BrandSequenceConfig::resolveFor($lead->brand_id, $lead->segment);
+            $config = BrandSequenceConfig::resolveFor($lead->brand_id, $lead->segment, $lead->subcategory);
 
             if (! $config) {
                 $this->line("  [SKIP] Lead {$lead->id} ({$lead->company_name}) — no sequence config for brand {$lead->brand->name}/{$lead->segment}");
@@ -108,7 +108,7 @@ class IdentifyIncompleteSequences extends Command
                     $lead->id,
                     $lead->company_name,
                     $lead->brand->name,
-                    $lead->segment,
+                    $lead->segment.'/'.$lead->subcategory,
                     $item['config']->sequence_steps,
                     '['.implode(',', $item['existing_steps']).']',
                     '['.implode(',', $item['missing_steps']).']',

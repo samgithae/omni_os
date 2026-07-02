@@ -317,7 +317,7 @@ class Lead extends Model
      */
     public function hasCompleteEmailSequence(): ?bool
     {
-        $config = BrandSequenceConfig::resolveFor($this->brand_id, $this->segment);
+        $config = BrandSequenceConfig::resolveFor($this->brand_id, $this->segment, $this->subcategory);
 
         if (! $config) {
             return null;
@@ -338,7 +338,7 @@ class Lead extends Model
      */
     public function missingEmailSequenceSteps(): array
     {
-        $config = BrandSequenceConfig::resolveFor($this->brand_id, $this->segment);
+        $config = BrandSequenceConfig::resolveFor($this->brand_id, $this->segment, $this->subcategory);
 
         if (! $config) {
             return [];

@@ -13,8 +13,8 @@ class SequenceConfigController extends Controller
     /**
      * GET /api/v1/sequence-configs/{brand_slug}/{segment}
      * Returns the active config for the given brand+segment.
-     * Optional ?source= param for source-specific rules (e.g. source=hiring_signal_brightermonday).
-     * Segment-specific config wins over 'all' fallback.
+     * Optional ?subcategory= param for subcategory-specific rules (e.g. subcategory=hiring).
+     * Segment+subcategory-specific config wins over segment+general fallback.
      */
     public function show(string $brandSlug, string $segment, Request $request): JsonResponse
     {
@@ -23,7 +23,7 @@ class SequenceConfigController extends Controller
         $config = BrandSequenceConfig::resolveFor(
             $brand->id,
             $segment,
-            $request->get('source'),
+            $request->get('subcategory'),
         );
 
         if (! $config) {

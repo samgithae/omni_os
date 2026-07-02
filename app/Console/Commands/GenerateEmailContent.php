@@ -35,7 +35,7 @@ class GenerateEmailContent extends Command
         $noMessages = 0;
 
         foreach ($leads as $lead) {
-            $config = BrandSequenceConfig::resolveFor($lead->brand_id, $lead->segment);
+            $config = BrandSequenceConfig::resolveFor($lead->brand_id, $lead->segment, $lead->subcategory);
 
             if (! $config) {
                 $noConfig++;

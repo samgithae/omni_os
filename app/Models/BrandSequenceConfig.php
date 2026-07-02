@@ -11,7 +11,7 @@ class BrandSequenceConfig extends Model
     use BelongsToBrand;
 
     protected $fillable = [
-        'brand_id', 'segment', 'source_condition', 'prompt_text', 'sequence_steps', 'is_active',
+        'brand_id', 'segment', 'subcategory', 'source_condition', 'prompt_text', 'sequence_steps', 'is_active',
     ];
 
     protected function casts(): array
@@ -40,31 +40,29 @@ class BrandSequenceConfig extends Model
     }
 
     /**
-     * Resolve config for a brand+segment+source with cascading fallback:
-     *   1. Exact segment + source_condition LIKE match
-     *   2. Exact segment + null source_condition (generic segment config)
+     * Resolve config for a brand+segment+subcategory with cascading fallback:
+     *   1. Exact segment + requested subcategory (e.g. deer + hiring)
+     *   2. Exact segment + 'general' (fallback for leads without a specific subcategory)
      *   3. 'all' segment fallback
+     *
+     * If no subcategory is provided, defaults to 'general'.
      */
-    public static function resolveFor(int $brandId, string $segment, ?string $source = null): ?self
+    public static function resolveFor(int $brandId, string $segment, ?string $subcategory = null): ?self
     {
+        $subcategory = $subcategory ?: 'general';
+
         return static::active()
             ->where('brand_id', $brandId)
-            ->where(function ($q) use ($segment, $source) {
+            ->where(function ($q) use ($segment) {
                 $q->where('segment', $segment)
                     ->orWhere('segment', 'all');
             })
-            ->when($source, function ($q, $source) use ($segment) {
-                // When a source is provided, matching source_condition wins over null
-                $q->orderByRaw('CASE
-                    WHEN segment = ? AND source_condition IS NOT NULL AND ? LIKE source_condition THEN 0
-                    WHEN segment = ? AND source_condition IS NULL THEN 1
-                    WHEN segment = ? THEN 2
-                    ELSE 3
-                END', [$segment, $source, $segment, 'all']);
-            }, function ($q) use ($segment) {
-                // No source provided: existing behaviour — segment-specific wins, then 'all'
-                $q->orderByRaw('CASE WHEN segment = ? THEN 0 ELSE 1 END', [$segment]);
-            })
+            ->orderByRaw('CASE
+                WHEN segment = ? AND subcategory = ? THEN 0
+                WHEN segment = ? AND subcategory = \'general\' THEN 1
+                WHEN segment = ? THEN 2
+                ELSE 3
+            END', [$segment, $subcategory, $segment, 'all'])
             ->first();
     }
 }

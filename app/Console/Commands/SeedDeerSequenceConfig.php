@@ -13,16 +13,10 @@ class SeedDeerSequenceConfig extends Command
 
     public function handle(): int
     {
-        // ── Generic Deer config (no source_condition — applies to all Deer) ──
-        $genericDeer = BrandSequenceConfig::where('brand_id', 2)
-            ->where('segment', 'deer')
-            ->whereNull('source_condition')
-            ->first();
-
-        if (! $genericDeer) {
-            BrandSequenceConfig::create([
-                'brand_id' => 2,
-                'segment' => 'deer',
+        // ── Generic Deer config (subcategory='general' — applies to all general Deer leads) ──
+        BrandSequenceConfig::updateOrCreate(
+            ['brand_id' => 2, 'segment' => 'deer', 'subcategory' => 'general'],
+            [
                 'source_condition' => null,
                 'sequence_steps' => 4,
                 'is_active' => true,
@@ -66,30 +60,22 @@ class SeedDeerSequenceConfig extends Command
                     ."- No em dashes or bracket placeholders\n"
                     ."- SACCO Email 1 not opening with SASRA\n"
                     ."- Feels like consultant, not salesperson\n",
-            ]);
-            $this->info('Created generic deer sequence config.');
-        } else {
-            $this->info('Generic deer config already exists.');
-        }
+            ]
+        );
+        $this->info('Generic deer sequence config ready.');
 
-        // ── Hiring Deer config (source_condition='hiring_signal_%' — only Hiring Deer leads) ──
-        $hiringDeer = BrandSequenceConfig::where('brand_id', 2)
-            ->where('segment', 'deer')
-            ->where('source_condition', 'hiring_signal_%')
-            ->first();
-
-        if (! $hiringDeer) {
-            BrandSequenceConfig::create([
-                'brand_id' => 2,
-                'segment' => 'deer',
+        // ── Hiring Deer config (subcategory='hiring' — only Hiring Deer leads) ──
+        BrandSequenceConfig::updateOrCreate(
+            ['brand_id' => 2, 'segment' => 'deer', 'subcategory' => 'hiring'],
+            [
                 'source_condition' => 'hiring_signal_%',
                 'sequence_steps' => 4,
                 'is_active' => true,
                 'prompt_text' => "# UjuziPlus Email Sequence Playbook — HIRING DEER\n"
                     ."\n"
                     ."## SCOPE\n"
-                    ."This config ONLY applies to leads with `source` starting with\n"
-                    ."`hiring_signal_` (Hiring Deer pipeline). For other Deer leads,\n"
+                    ."This config ONLY applies to leads with `subcategory = 'hiring'`\n"
+                    ."(Hiring Deer pipeline). For other Deer leads (`subcategory = 'general'`),\n"
                     ."the generic deer config applies.\n"
                     ."\n"
                     ."## OVERVIEW\n"
@@ -155,11 +141,9 @@ class SeedDeerSequenceConfig extends Command
                     ."- hiring_signal context woven naturally, not pasted\n"
                     ."- Hiring lead is NOT a SACCO — skip SACCO rules\n"
                     ."- Feels like consultant, not salesperson\n",
-            ]);
-            $this->info('Created hiring-deer sequence config.');
-        } else {
-            $this->info('Hiring-deer config already exists.');
-        }
+            ]
+        );
+        $this->info('Hiring deer sequence config ready.');
 
         return self::SUCCESS;
     }

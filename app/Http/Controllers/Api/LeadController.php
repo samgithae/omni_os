@@ -312,7 +312,7 @@ class LeadController extends Controller
         $results = [];
 
         foreach ($leads as $lead) {
-            $config = BrandSequenceConfig::resolveFor($lead->brand_id, $lead->segment);
+            $config = BrandSequenceConfig::resolveFor($lead->brand_id, $lead->segment, $lead->subcategory);
 
             if (! $config) {
                 continue;
@@ -380,7 +380,7 @@ class LeadController extends Controller
             return response()->json(['error' => 'Lead email is on the suppression list. Skipped.'], 422);
         }
 
-        $config = BrandSequenceConfig::resolveFor($lead->brand_id, $lead->segment);
+        $config = BrandSequenceConfig::resolveFor($lead->brand_id, $lead->segment, $lead->subcategory);
 
         if (! $config) {
             return response()->json(['error' => 'No active sequence config found for this brand+segment.'], 422);
