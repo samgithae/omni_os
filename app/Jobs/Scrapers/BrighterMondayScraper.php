@@ -195,20 +195,27 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         $jobNodes = $xpath->query("//div[@data-cy='listing-cards-components']");
 
         if ($jobNodes === false || $jobNodes->length === 0) {
+            Log::warning("BrighterMondayScraper: No card divs found via data-cy selector");
             return $listings;
         }
+
+        Log::info("BrighterMondayScraper: Found ".$jobNodes->length." card divs");
 
         foreach ($jobNodes as $node) {
             try {
                 $listing = $this->extractJobFromNode($xpath, $node);
                 if ($listing !== null) {
                     $listings[] = $listing;
+                } else {
+                    Log::warning("BrighterMondayScraper: extractJobFromNode returned null for a card");
                 }
             } catch (\Exception $e) {
+                Log::error("BrighterMondayScraper: extractJobFromNode exception: ".$e->getMessage());
                 continue;
             }
         }
 
+        Log::info("BrighterMondayScraper: Extracted ".count($listings)." listings from ".$jobNodes->length." cards");
         return $listings;
     }
 
