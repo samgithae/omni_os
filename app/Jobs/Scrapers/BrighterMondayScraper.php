@@ -59,9 +59,11 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
     public function fetchListings(): array
     {
         $this->companies = [];
+        $this->seenListingUrls = [];
 
-        while ($this->hasMorePages && $this->currentPage <= self::MAX_PAGES && count($this->companies) < 100) {
-            $url = $this->buildPageUrl($this->currentPage);
+        $rawListings = [];
+
+        while ($this->hasMorePages && $this->currentPage <= self::MAX_PAGES && count($rawListings) < 100) {
             Log::info("BrighterMondayScraper: Fetching {$url}");
 
             try {
@@ -86,10 +88,7 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
                 }
 
                 foreach ($listings as $listing) {
-                    $parsed = $this->parseListing($listing);
-                    if ($parsed !== null) {
-                        $this->addCompanyLead($parsed);
-                    }
+                    $rawListings[] = $listing;
                 }
 
                 // Check for pagination loop: if all listing URLs on this page
@@ -120,7 +119,7 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
             }
         }
 
-        return array_values($this->companies);
+        return $rawListings;
     }
 
     public function parseListing(array $rawListing): ?array
