@@ -64,6 +64,7 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         $rawListings = [];
 
         while ($this->hasMorePages && $this->currentPage <= self::MAX_PAGES && count($rawListings) < 100) {
+            $url = $this->buildPageUrl($this->currentPage);
             Log::info("BrighterMondayScraper: Fetching {$url}");
 
             try {
