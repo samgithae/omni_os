@@ -96,55 +96,54 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(30)
             ->description('Monitor lead mining pipeline: check Hermes mining crons are producing leads');
 
-        // Hiring Signal Pipeline — Phase 1: Tokyo mines job boards (daily, starting 00:00 EAT)
-        // Staggered per source to spread load, completes by ~02:00
-        // Then Phase 2: Bogotá enrichment runs on newly mined leads
+        // Hiring Signal Pipeline — Phase 1: Mines job boards every 3 hours (staggered per source)
+        // Catches companies posting jobs in the last 30 days. Phase 2 enrichment runs daily.
         $schedule->command('leads:mine-hiring-signals --source=brightermonday')
-            ->dailyAt('00:00')
+            ->cron('0 */3 * * *')
             ->withoutOverlapping(30)
-            ->description('Hiring Deer: Mine BrighterMonday Kenya')
+            ->description('Hiring Deer: Mine BrighterMonday Kenya (every 3h)')
             ->appendOutputTo(storage_path('logs/hiring-signal-mining.log'));
 
         $schedule->command('leads:mine-hiring-signals --source=fuzu')
-            ->dailyAt('00:10')
+            ->cron('10 */3 * * *')
             ->withoutOverlapping(30)
-            ->description('Hiring Deer: Mine Fuzu')
+            ->description('Hiring Deer: Mine Fuzu (every 3h)')
             ->appendOutputTo(storage_path('logs/hiring-signal-mining.log'));
 
         $schedule->command('leads:mine-hiring-signals --source=myjobmag')
-            ->dailyAt('00:20')
+            ->cron('20 */3 * * *')
             ->withoutOverlapping(30)
-            ->description('Hiring Deer: Mine MyJobMag Kenya')
+            ->description('Hiring Deer: Mine MyJobMag Kenya (every 3h)')
             ->appendOutputTo(storage_path('logs/hiring-signal-mining.log'));
 
         $schedule->command('leads:mine-hiring-signals --source=corporatestaffing')
-            ->dailyAt('00:30')
+            ->cron('30 */3 * * *')
             ->withoutOverlapping(30)
-            ->description('Hiring Deer: Mine Corporate Staffing Services')
+            ->description('Hiring Deer: Mine Corporate Staffing Services (every 3h)')
             ->appendOutputTo(storage_path('logs/hiring-signal-mining.log'));
 
         $schedule->command('leads:mine-hiring-signals --source=glassdoor')
-            ->dailyAt('00:40')
+            ->cron('40 */3 * * *')
             ->withoutOverlapping(30)
-            ->description('Hiring Deer: Mine Glassdoor Jobs')
+            ->description('Hiring Deer: Mine Glassdoor Jobs (every 3h)')
             ->appendOutputTo(storage_path('logs/hiring-signal-mining.log'));
 
         $schedule->command('leads:mine-hiring-signals --source=company_careers')
-            ->dailyAt('00:50')
+            ->cron('50 */3 * * *')
             ->withoutOverlapping(60)
-            ->description('Hiring Deer: Crawl company careers pages')
+            ->description('Hiring Deer: Crawl company careers pages (every 3h)')
             ->appendOutputTo(storage_path('logs/hiring-signal-mining.log'));
 
         $schedule->command('leads:mine-hiring-signals --source=google_jobs')
-            ->dailyAt('01:20')
+            ->cron('5 */3 * * *')
             ->withoutOverlapping(30)
-            ->description('Hiring Deer: Scan Google Jobs (schema.org)')
+            ->description('Hiring Deer: Scan Google Jobs (schema.org) (every 3h)')
             ->appendOutputTo(storage_path('logs/hiring-signal-mining.log'));
 
         $schedule->command('leads:mine-hiring-signals --source=linkedin')
-            ->dailyAt('01:35')
+            ->cron('15 */3 * * *')
             ->withoutOverlapping(30)
-            ->description('Hiring Deer: Mine LinkedIn Jobs')
+            ->description('Hiring Deer: Mine LinkedIn Jobs (every 3h)')
             ->appendOutputTo(storage_path('logs/hiring-signal-mining.log'));
 
         // Phase 2: Enrichment — runs on newly mined Hiring Deer leads (after Tokyo finishes)

@@ -179,6 +179,7 @@ class MineHiringSignals extends Command
                             'source_url' => $data['source_url'],
                             'source' => 'hiring_signal_'.$data['source'],
                             'segment' => 'deer',
+                            'subcategory' => 'hiring',
                             'raw_data' => $rawData,
                         ];
                         $stats['companies_qualified']++;
@@ -216,6 +217,7 @@ class MineHiringSignals extends Command
                         'source' => $leadData['source'],
                         'source_url' => $leadData['source_url'],
                         'segment' => $leadData['segment'],
+                        'subcategory' => 'hiring',
                         'status' => 'new',
                         'raw_data' => $leadData['raw_data'],
                     ]);
