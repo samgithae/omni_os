@@ -24,6 +24,7 @@ interface ConfigData {
     brand_id: number;
     brand: BrandInfo | null;
     segment: string;
+    subcategory: string;
     sequence_steps: number;
     prompt_text: string;
     is_active: boolean;
@@ -39,6 +40,7 @@ const isEditing = props.config !== null;
 const form = ref({
     brand_id: props.config?.brand_id || props.brands[0]?.id || '',
     segment: props.config?.segment || 'all',
+    subcategory: props.config?.subcategory || 'general',
     sequence_steps: props.config?.sequence_steps || 4,
     prompt_text: props.config?.prompt_text || '',
     is_active: props.config?.is_active ?? true,
@@ -126,6 +128,23 @@ function submit() {
                         <option value="elephant">Elephant</option>
                     </select>
                 </div>
+            </div>
+
+            <!-- Subcategory -->
+            <div>
+                <label class="mb-1 block text-xs font-medium text-gray-700"
+                    >Subcategory</label
+                >
+                <input
+                    v-model="form.subcategory"
+                    type="text"
+                    class="w-full rounded border-gray-200 text-sm"
+                    :class="{ 'border-red-400': errors.subcategory }"
+                    placeholder="general"
+                />
+                <p v-if="errors.subcategory" class="mt-1 text-xs text-red-500">
+                    {{ errors.subcategory }}
+                </p>
             </div>
 
             <!-- Steps + Active -->

@@ -28,6 +28,7 @@ interface LeadData {
     segment: string;
     status: string;
     category: string | null;
+    subcategory: string | null;
     city: string | null;
     country: string;
     score: number;
@@ -170,6 +171,14 @@ function toggle() {
                 </div>
             </div>
 
+            <!-- Subcategory -->
+            <span
+                class="w-28 shrink-0 truncate text-xs text-gray-500"
+                :title="lead.subcategory || undefined"
+            >
+                {{ lead.subcategory || '—' }}
+            </span>
+
             <!-- Status badge -->
             <span
                 class="shrink-0 rounded px-2 py-0.5 text-[10px] font-medium capitalize"
@@ -260,6 +269,9 @@ function toggle() {
                     </div>
                     <div v-if="lead.category" class="text-gray-700">
                         {{ lead.category }}
+                    </div>
+                    <div v-if="lead.subcategory" class="text-gray-700">
+                        Subcategory: {{ lead.subcategory }}
                     </div>
                     <div v-if="lead.email_confidence" class="text-gray-700">
                         Email:

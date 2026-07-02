@@ -90,6 +90,7 @@ class LeadController extends Controller
                     'segment' => $lead->segment,
                     'status' => $lead->status,
                     'category' => $lead->category,
+                    'subcategory' => $lead->subcategory,
                     'city' => $lead->city,
                     'country' => $lead->country,
                     'score' => $lead->score,

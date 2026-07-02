@@ -24,6 +24,7 @@ interface ConfigData {
     brand_id: number;
     brand: BrandInfo | null;
     segment: string;
+    subcategory: string;
     sequence_steps: number;
     prompt_text: string;
     is_active: boolean;
@@ -172,6 +173,7 @@ function segmentColor(seg: string): string {
                     >
                         <th class="px-4 py-2">Brand</th>
                         <th class="px-4 py-2">Segment</th>
+                        <th class="px-4 py-2">Subcategory</th>
                         <th class="px-4 py-2">Steps</th>
                         <th class="px-4 py-2">Active</th>
                         <th class="px-4 py-2">Updated</th>
@@ -194,6 +196,9 @@ function segmentColor(seg: string): string {
                             >
                                 {{ cfg.segment }}
                             </span>
+                        </td>
+                        <td class="px-4 py-2.5 text-gray-600">
+                            {{ cfg.subcategory }}
                         </td>
                         <td class="px-4 py-2.5 text-gray-600">
                             {{ cfg.sequence_steps }}

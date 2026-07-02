@@ -43,6 +43,7 @@ class SequenceConfigController extends Controller
         $validated = $request->validate([
             'brand_id' => 'required|exists:brands,id',
             'segment' => 'required|in:all,rabbit,deer,mouse,elephant',
+            'subcategory' => 'required|string|max:255',
             'prompt_text' => 'required|string',
             'sequence_steps' => 'required|integer|min:1|max:10',
             'is_active' => 'boolean',
@@ -67,6 +68,7 @@ class SequenceConfigController extends Controller
         $validated = $request->validate([
             'brand_id' => 'required|exists:brands,id',
             'segment' => 'required|in:all,rabbit,deer,mouse,elephant',
+            'subcategory' => 'required|string|max:255',
             'prompt_text' => 'required|string',
             'sequence_steps' => 'required|integer|min:1|max:10',
             'is_active' => 'boolean',

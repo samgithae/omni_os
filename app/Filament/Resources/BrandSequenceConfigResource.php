@@ -54,6 +54,11 @@ class BrandSequenceConfigResource extends Resource
                             ->required()
                             ->default('all'),
 
+                        Forms\Components\TextInput::make('subcategory')
+                            ->required()
+                            ->default('general')
+                            ->maxLength(255),
+
                         Forms\Components\TextInput::make('sequence_steps')
                             ->label('Number of Emails in Sequence')
                             ->numeric()
@@ -88,6 +93,8 @@ class BrandSequenceConfigResource extends Resource
                     ->label('Brand')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('segment')
+                    ->badge(),
+                Tables\Columns\TextColumn::make('subcategory')
                     ->badge(),
                 Tables\Columns\TextColumn::make('sequence_steps')
                     ->label('Steps'),

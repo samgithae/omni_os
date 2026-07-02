@@ -33,6 +33,7 @@ interface LeadData {
     segment: string;
     status: string;
     category: string | null;
+    subcategory: string | null;
     city: string | null;
     country: string;
     score: number;
@@ -216,6 +217,7 @@ const sortDirection = computed(() => props.filters.direction || 'desc');
                     />
                 </button>
             </div>
+            <div class="w-28 truncate">Subcategory</div>
             <button
                 class="flex w-20 cursor-pointer items-center justify-end gap-0.5 hover:text-gray-600"
                 @click="sortBy('status')"
