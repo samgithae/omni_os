@@ -152,39 +152,47 @@ class GenericJobBoardScraper implements JobSourceScraper, ShouldQueue
                 continue;
             }
 
+            // Strip markdown list markers (*, -, digits) for parsing
+            $content = preg_replace('/^[\s*\-]*\d*\.?\s*/', '', $trimmed);
+
             // Skip image lines and known noise
-            if (str_starts_with($trimmed, '![') || $this->isNoise($trimmed)) {
+            if (str_starts_with($content, '![') || $this->isNoise($content)) {
                 continue;
             }
 
             // Skip lines that are clearly descriptions (too long)
-            if (strlen($trimmed) > 100) {
+            if (strlen($content) > 100) {
                 continue;
             }
 
             // Skip navigation/footer links
-            if (preg_match('/^## (Top cities|Finance Manager|Job details)/', $trimmed)) {
+            if (preg_match('/^## (Top cities|Finance Manager|Job details)/', $content)) {
                 continue;
             }
-            if (preg_match('/^© /', $trimmed)) {
+            if (preg_match('/^© /', $content)) {
                 continue;
             }
-            if (preg_match('/^\d+ days? left to apply/', $trimmed)) {
+            if (preg_match('/^\d+ days? left to apply/', $content)) {
                 continue;
             }
-            if (preg_match('/^(Join Fuzu|About the job|Company|Contract|Apply by)/', $trimmed)) {
+            if (preg_match('/^(Join Fuzu|About the job|Company|Contract|Apply by)/', $content)) {
+                continue;
+            }
+            if (preg_match('/^(Discover more|Youth employment|Nairobi job|Industry specific|Career development|Maps|City|Education|Primary|Geographic)/', $content)) {
                 continue;
             }
 
             // Detect date patterns
-            $date = $this->extractDate($trimmed);
+            $date = $this->extractDate($content);
             if ($date !== null) {
                 $currentDate = $date;
                 continue;
             }
 
             // Detect job title as markdown link: [Title](url) or ## [Title](url)
-            if (preg_match('/^#*\s*\[([^\]]+)\]\(([^)]+)\)/i', $trimmed, $m)) {
+            // Strip remaining bullets for MyJobMag format: * ## [Title]
+            $stripped = preg_replace('/^[\s*\-]*/', '', $content);
+            if (preg_match('/^#*\s*\[([^\]]+)\]\(([^)]+)\)/i', $stripped, $m)) {
                 $title = trim($m[1]);
                 $url = $m[2];
 
