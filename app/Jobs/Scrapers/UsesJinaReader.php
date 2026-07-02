@@ -85,10 +85,18 @@ trait UsesJinaReader
             return date('Y-m-d', strtotime('-'.((int)$m[1] * 30).' days'));
         }
 
-        // Try parsing absolute date formats like "Jul 1, 2026"
+        // Try parsing absolute date formats like "Jul 1, 2026" or "29/Jun/2026"
         $parsed = strtotime($ds);
         if ($parsed !== false && $parsed > 0) {
             return date('Y-m-d', $parsed);
+        }
+
+        // Try slashed date format: 29/Jun/2026
+        if (preg_match('#^(\d{1,2})/([A-Za-z]+)/(\d{4})$#', $ds, $m)) {
+            $parsed = strtotime($m[1].' '.$m[2].' '.$m[3]);
+            if ($parsed !== false) {
+                return date('Y-m-d', $parsed);
+            }
         }
 
         return date('Y-m-d');

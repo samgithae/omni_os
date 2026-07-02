@@ -191,7 +191,12 @@ class GenericJobBoardScraper implements JobSourceScraper, ShouldQueue
 
             // Detect job title as markdown link: [Title](url) or ## [Title](url)
             // Strip remaining bullets for MyJobMag format: * ## [Title]
+            // Also handle: 1. **[Title](url)** (JobWebKenya)
             $stripped = preg_replace('/^[\s*\-]*/', '', $content);
+            // Remove numbered list markers: "1. " or "1) "
+            $stripped = preg_replace('/^\d+[\.\)]\s*/', '', $stripped);
+            // Remove bold markers around links: **[Title](url)**
+            $stripped = preg_replace('/\*\*/', '', $stripped);
             if (preg_match('/^#*\s*\[([^\]]+)\]\(([^)]+)\)/i', $stripped, $m)) {
                 $title = trim($m[1]);
                 $url = $m[2];
@@ -280,6 +285,11 @@ class GenericJobBoardScraper implements JobSourceScraper, ShouldQueue
         // "Posted: Date" format
         if (preg_match('/Posted:\s*(.+)/i', $text, $m)) {
             return trim($m[1]);
+        }
+
+        // "Date DD/MMM/YYYY" format (JobWebKenya: "Date 29/Jun/2026")
+        if (preg_match('/\bDate\s+(\d{1,2}\/[A-Za-z]+\/\d{4})\b/i', $text, $m)) {
+            return $m[1];
         }
 
         return null;
