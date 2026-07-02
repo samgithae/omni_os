@@ -25,8 +25,18 @@ class GenericJobBoardScraper implements JobSourceScraper, ShouldQueue
     /** @var array<int, array<string, mixed>> */
     private array $listings = [];
 
+    /** Known noise lines to skip */
+    private const NOISE_LINES = [
+        'FEATURED', 'New', 'Easy apply', 'Apply', 'Save', 'Share',
+        'Only on Fuzu',
+        'Activate Notifications', 'Deactivate Notifications',
+        'Stay productive', 'Stop receiving', 'This action will',
+        'Cancel', 'Proceed', 'Activate', 'No Thanks', 'Try It Now',
+        'Search results',
+    ];
+
     /**
-     * @param string $sourceName Internal source identifier (e.g. 'fuzu', 'myjobmag')
+     * @param string $sourceName Internal source identifier
      * @param string $baseUrl URL to scrape
      * @param array $targetTitles List of target job title keywords
      * @param array $excludePatterns Company name exclusion patterns
@@ -120,19 +130,18 @@ class GenericJobBoardScraper implements JobSourceScraper, ShouldQueue
 
     /**
      * Parse job listings from Jina Reader markdown output.
-     * Handles common job board markdown structures.
+     * Handles multiple job board markdown structures:
+     *   - BrighterMonday: FEATURED → [Title] → Company → Location → Date
+     *   - Fuzu: Company → ## [Title] → Posted: Date
+     *   - Others: various combinations
      */
     private function parseListingsFromMarkdown(string $markdown): array
     {
         $results = [];
-
-        // Split by common listing separators
-        // Most job boards via Jina render listings as:
-        // [Job Title](url) or **Job Title**
-        // followed by Company Name, Location, Date
-
         $lines = explode("\n", $markdown);
-        $currentCompany = '';
+
+        // Track the most recent non-noise text line as a potential company name
+        $lastCandidate = '';
         $currentTitle = '';
         $currentUrl = '';
         $currentDate = '';
@@ -143,72 +152,118 @@ class GenericJobBoardScraper implements JobSourceScraper, ShouldQueue
                 continue;
             }
 
-            // Skip common noise
-            if (str_starts_with($trimmed, '![Image') || str_starts_with($trimmed, 'http')
-                || in_array($trimmed, ['FEATURED', 'New', 'Easy apply', 'Apply', 'Save', 'Share'])
-                || preg_match('/^\d+,\d+\s+(Jobs|Found)/', $trimmed)) {
+            // Skip image lines and known noise
+            if (str_starts_with($trimmed, '![') || $this->isNoise($trimmed)) {
                 continue;
             }
 
-            // Job title as markdown link: [Title](url) or ## [Title](url)
-            // Skip image links ![Image](url)
-            if (! str_starts_with($trimmed, '!') && preg_match('/^#*\s*\[([^\]]+)\]\(([^)]+)\)/', $trimmed, $m)) {
-                $title = trim($m[1]);
-                $url = $m[2];
-
-                // If we have a previous entry, save it
-                if (! empty($currentCompany) && ! empty($currentTitle)) {
-                    $results[] = [
-                        'company_name' => $currentCompany,
-                        'job_title' => $currentTitle,
-                        'posting_date' => $this->parseRelativeDate($currentDate),
-                        'job_url' => $currentUrl,
-                    ];
-                }
-
-                $currentTitle = $title;
-                $currentUrl = $url;
-                $currentCompany = '';
-                $currentDate = '';
+            // Skip lines that are clearly descriptions (too long, contain common description words)
+            if (strlen($trimmed) > 100 || preg_match('/\b(looking for|seeking|will be responsible|the successful candidate|we are\b)/i', $trimmed)) {
                 continue;
             }
 
-            // If we have a title but no company yet, this line might be the company
-            if (! empty($currentTitle) && empty($currentCompany) && strlen($trimmed) < 80) {
-                $currentCompany = $trimmed;
+            // Skip navigation/footer links
+            if (preg_match('/^## (Top cities|Finance Manager|Job details)/', $trimmed)) {
+                continue;
+            }
+            if (preg_match('/^© /', $trimmed)) {
+                continue;
+            }
+            if (preg_match('/^\d+ days? left to apply/', $trimmed)) {
+                continue;
+            }
+            if (preg_match('/^(Join Fuzu|About the job|Company|Contract|Apply by)/', $trimmed)) {
                 continue;
             }
 
             // Detect date patterns
-            if (preg_match('/^(Today|Yesterday|\d+\s+(day|week|month)s?\s+ago)$/i', $trimmed, $dm)) {
-                $currentDate = $dm[1];
+            $date = $this->extractDate($trimmed);
+            if ($date !== null) {
+                $currentDate = $date;
                 continue;
             }
 
-            // Also try to extract date if it contains date keywords
-            if (preg_match('/(Today|Yesterday|\d+\s+(day|week|month)s?\s+ago)/i', $trimmed, $dm)) {
-                $currentDate = $dm[1];
+            // Detect job title as markdown link: [Title](url) or ## [Title](url)
+            if (preg_match('/^#*\s*\[([^\]]+)\]\(([^)]+)\)/i', $trimmed, $m)) {
+                $title = trim($m[1]);
+                $url = $m[2];
+
+                // If we have a previous listing pending, save it
+                if (! empty($currentTitle) && ! empty($lastCandidate)) {
+                    $results[] = $this->makeListing($lastCandidate, $currentTitle, $currentUrl, $currentDate);
+                }
+
+                // Start new listing: the lastCandidate before this title is the company
+                $currentTitle = $title;
+                $currentUrl = $url;
+                $currentDate = '';
+                // Don't reset lastCandidate — it stays as the company for this title
                 continue;
             }
 
-            // Posted: Date format (e.g. "Posted: Jul 1, 2026")
-            if (preg_match('/Posted:\s*(.+)/i', $trimmed, $dm)) {
-                $currentDate = trim($dm[1]);
+            // This line is a candidate — company name or other metadata
+            // If we have an active title, the first candidate is the company name
+            if (! empty($currentTitle) && empty($lastCandidate)) {
+                $lastCandidate = $trimmed;
                 continue;
+            }
+
+            // If no active title and this looks like a company name, save as candidate
+            if (empty($currentTitle) && strlen($trimmed) < 80 && ! str_contains($trimmed, '|')) {
+                $lastCandidate = $trimmed;
             }
         }
 
         // Don't forget the last listing
-        if (! empty($currentCompany) && ! empty($currentTitle)) {
-            $results[] = [
-                'company_name' => $currentCompany,
-                'job_title' => $currentTitle,
-                'posting_date' => $this->parseRelativeDate($currentDate),
-                'job_url' => $currentUrl,
-            ];
+        if (! empty($currentTitle) && ! empty($lastCandidate)) {
+            $results[] = $this->makeListing($lastCandidate, $currentTitle, $currentUrl, $currentDate);
         }
 
         return $results;
+    }
+
+    /**
+     * Build a listing array.
+     */
+    private function makeListing(string $company, string $title, string $url, string $date): array
+    {
+        return [
+            'company_name' => $company,
+            'job_title' => $title,
+            'posting_date' => $this->parseRelativeDate($date),
+            'job_url' => $url,
+        ];
+    }
+
+    /**
+     * Check if a line is noise.
+     */
+    private function isNoise(string $text): bool
+    {
+        foreach (self::NOISE_LINES as $n) {
+            if (str_contains($text, $n)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Extract date from a line. Returns date string or null.
+     */
+    private function extractDate(string $text): ?string
+    {
+        // "Today", "Yesterday", "X days ago", "X weeks ago", "X months ago"
+        if (preg_match('/^(Today|Yesterday|\d+\s+(day|week|month)s?\s+ago)$/i', $text, $m)) {
+            return $m[1];
+        }
+
+        // "Posted: Date" format
+        if (preg_match('/Posted:\s*(.+)/i', $text, $m)) {
+            return trim($m[1]);
+        }
+
+        return null;
     }
 
     private function matchesTargetTitle(string $titleLower): bool
