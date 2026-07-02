@@ -7,7 +7,6 @@ use App\Models\EmailMessage;
 use App\Services\ActivityLogger;
 use App\Services\TelegramService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
 
 class NotifyTelegramApproval extends Command
 {
@@ -68,22 +67,31 @@ class NotifyTelegramApproval extends Command
 
         $sent = 0;
 
-        // Store the batch of email IDs being sent to Telegram
-        // so "APPROVE ALL" only applies to THIS batch, not all pending emails
-        $allIds = $newEmails->pluck('id')->toArray();
-        cache()->forever('telegram_pending_batch', $allIds);
-        $this->info('Stored batch of '.count($allIds).' email IDs for scoped approval.');
-        $totalInBatch = count($allIds);
+        $sentIds = [];
+        $failedBrands = [];
 
         foreach ($byBrand as $brandName => $emails) {
             // Send the summary message first
-            $this->sendSummaryMessage($telegram, $brandName, $emails);
+            $summarySent = $this->sendSummaryMessage($telegram, $brandName, $emails);
 
             // Send detailed sample messages for N leads
             $sampleCount = (int) $this->option('samples');
-            $this->sendSampleSequences($telegram, $brandName, $emails, $sampleCount);
+            $samplesSent = $this->sendSampleSequences($telegram, $brandName, $emails, $sampleCount);
 
-            $sent += $emails->count();
+            if ($summarySent && $samplesSent) {
+                $brandIds = $emails->pluck('id')->toArray();
+                $sentIds = array_merge($sentIds, $brandIds);
+                $sent += count($brandIds);
+            } else {
+                $failedBrands[] = $brandName;
+                $this->error("Telegram delivery failed for {$brandName}; these emails were not marked as notified.");
+            }
+        }
+
+        if ($sentIds !== []) {
+            // "APPROVE ALL" must only apply to IDs whose notification was delivered.
+            cache()->forever('telegram_pending_batch', $sentIds);
+            $this->info('Stored batch of '.count($sentIds).' email IDs for scoped approval.');
         }
 
         // Log to activity feed
@@ -94,27 +102,35 @@ class NotifyTelegramApproval extends Command
             'metadata' => [
                 'total' => $allEmails->count(),
                 'sent_to_telegram' => $sent,
-                'brands' => $byBrand->keys()->toArray(),
+                'brands' => array_values(array_diff($byBrand->keys()->toArray(), $failedBrands)),
+                'failed_brands' => $failedBrands,
             ],
-            'severity' => 'info',
+            'severity' => $failedBrands === [] ? 'info' : 'warning',
         ]);
 
         // Record notified IDs so we don't re-notify the same emails
         $alreadyNotified = cache(self::NOTIFIED_CACHE_KEY, []);
-        cache()->forever(self::NOTIFIED_CACHE_KEY, array_unique(array_merge($alreadyNotified, $allIds)));
+        cache()->forever(self::NOTIFIED_CACHE_KEY, array_unique(array_merge($alreadyNotified, $sentIds)));
+
+        if ($failedBrands !== []) {
+            $this->error("Sent {$sent} email approval requests to Telegram; delivery failed for ".count($failedBrands).' brand(s).');
+
+            return 1;
+        }
 
         $this->info("Sent {$sent} email approval requests to Telegram.");
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**
      * Send the summary message: total count, list of leads, batch approve/reject.
      */
-    private function sendSummaryMessage(TelegramService $telegram, string $brandName, $emails): void
+    private function sendSummaryMessage(TelegramService $telegram, string $brandName, $emails): bool
     {
         $totalEmails = $emails->count();
         $uniqueLeads = $emails->pluck('lead.company_name')->unique()->filter()->values();
+        $brandName = e($brandName);
 
         $text = "📬 <b>Approval Request — {$brandName}</b>\n";
         $text .= "━━━━━━━━━━━━━━━━━━━━\n\n";
@@ -124,11 +140,24 @@ class NotifyTelegramApproval extends Command
 
         // List all leads with their email counts
         $text .= "<b>Leads in this batch:</b>\n";
+        $omittedLeads = 0;
         foreach ($uniqueLeads as $idx => $company) {
             $leadEmails = $emails->filter(fn ($e) => $e->lead?->company_name === $company);
             $steps = $leadEmails->pluck('sequence_step')->sort()->map(fn ($s) => "S{$s}")->implode(', ');
             $emailIds = $leadEmails->pluck('id')->map(fn ($id) => (string) $id)->implode(', ');
-            $text .= '  '.($idx + 1).". <b>{$company}</b> [{$steps}] IDs: {$emailIds}\n";
+            $line = '  '.($idx + 1).'. <b>'.e($company)."</b> [{$steps}] IDs: {$emailIds}\n";
+
+            // Telegram limits message text to 4096 characters after parsing.
+            if (mb_strlen(strip_tags($text.$line)) > 3200) {
+                $omittedLeads = $uniqueLeads->count() - $idx;
+                break;
+            }
+
+            $text .= $line;
+        }
+
+        if ($omittedLeads > 0) {
+            $text .= "  … and {$omittedLeads} more leads (all {$totalEmails} IDs remain in this approval batch).\n";
         }
 
         $text .= "\n💡 <b>How to approve:</b>\n";
@@ -154,30 +183,21 @@ class NotifyTelegramApproval extends Command
             ];
         }
 
-        $payload = [
-            'chat_id' => config('services.telegram.chat_id'),
-            'text' => $text,
-            'parse_mode' => 'HTML',
-            'disable_web_page_preview' => true,
-            'reply_markup' => ['inline_keyboard' => $keyboard],
-        ];
+        $replyMarkup = $keyboard === [] ? null : ['inline_keyboard' => $keyboard];
 
-        $response = Http::timeout(15)->withOptions([
-            'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
-        ])->post('https://telegram-api.hudutech.co.ke/bot'.config('services.telegram.bot_token').'/sendMessage',
-            $payload
-        );
+        return $telegram->sendMessage($text, 'HTML', $replyMarkup);
     }
 
     /**
      * Send detailed sample sequences for N leads — showing subject + body preview.
      */
-    private function sendSampleSequences(TelegramService $telegram, string $brandName, $emails, int $sampleCount): void
+    private function sendSampleSequences(TelegramService $telegram, string $brandName, $emails, int $sampleCount): bool
     {
         // Group by lead
         $byLead = $emails->groupBy('lead.company_name');
 
         $samples = $byLead->take($sampleCount);
+        $allSent = true;
 
         foreach ($samples as $company => $leadEmails) {
             $lead = $leadEmails->first()?->lead;
@@ -185,14 +205,14 @@ class NotifyTelegramApproval extends Command
                 continue;
             }
 
-            $text = "📄 <b>Sample: {$company}</b>\n";
+            $text = '📄 <b>Sample: '.e($company)."</b>\n";
             $text .= "━━━━━━━━━━━━━━━━━━━━\n";
-            $text .= "Email: <code>{$lead->email}</code>\n";
-            $text .= "Segment: {$lead->segment} | City: ".($lead->city ?? '—')."\n\n";
+            $text .= 'Email: <code>'.e($lead->email)."</code>\n";
+            $text .= 'Segment: '.e($lead->segment).' | City: '.e($lead->city ?? '—')."\n\n";
 
             foreach ($leadEmails->sortBy('sequence_step') as $email) {
                 $text .= "<b>── Step {$email->sequence_step} (ID: {$email->id}) ──</b>\n";
-                $text .= "<b>Subject:</b> {$email->subject}\n\n";
+                $text .= '<b>Subject:</b> '.e($email->subject)."\n\n";
 
                 // Body preview (strip HTML, show first ~300 chars)
                 $body = strip_tags($email->body ?? '');
@@ -201,23 +221,16 @@ class NotifyTelegramApproval extends Command
                 if (mb_strlen($body) > 400) {
                     $bodyPreview .= '...';
                 }
-                $text .= "{$bodyPreview}\n\n";
+                $text .= e($bodyPreview)."\n\n";
             }
 
             $text .= "💡 Reply <code>APPROVE {$leadEmails->first()->id}</code> to approve the first email.\n";
 
-            $payload = [
-                'chat_id' => config('services.telegram.chat_id'),
-                'text' => $text,
-                'parse_mode' => 'HTML',
-                'disable_web_page_preview' => true,
-            ];
-
-            $response = Http::timeout(15)->withOptions([
-                'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
-            ])->post('https://telegram-api.hudutech.co.ke/bot'.config('services.telegram.bot_token').'/sendMessage',
-                $payload
-            );
+            if (! $telegram->sendMessage($text)) {
+                $allSent = false;
+            }
         }
+
+        return $allSent;
     }
 }

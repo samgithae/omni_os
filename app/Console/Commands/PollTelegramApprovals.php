@@ -89,7 +89,7 @@ class PollTelegramApprovals extends Command
                     CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
                 ],
             ])->get(
-                "https://telegram-api.hudutech.co.ke/bot{$this->botToken}/getUpdates",
+                "https://api.telegram.org/bot{$this->botToken}/getUpdates",
                 [
                     'offset' => $this->lastUpdateId + 1,
                     'timeout' => 30,

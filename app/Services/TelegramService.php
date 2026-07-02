@@ -11,7 +11,7 @@ class TelegramService
 
     private ?string $chatId;
 
-    private const string API_BASE = 'https://telegram-api.hudutech.co.ke';
+    private const string API_BASE = 'https://api.telegram.org';
 
     private const int MAX_RETRIES = 3;
 
@@ -29,7 +29,7 @@ class TelegramService
     /**
      * Send a plain text message to the configured Telegram chat.
      */
-    public function sendMessage(string $text, string $parseMode = 'HTML'): bool
+    public function sendMessage(string $text, string $parseMode = 'HTML', ?array $replyMarkup = null): bool
     {
         if (! $this->isConfigured()) {
             Log::warning('Telegram not configured — message not sent.', ['preview' => substr($text, 0, 200)]);
@@ -43,6 +43,10 @@ class TelegramService
             'parse_mode' => $parseMode,
             'disable_web_page_preview' => true,
         ];
+
+        if ($replyMarkup !== null) {
+            $payload['reply_markup'] = $replyMarkup;
+        }
 
         return $this->sendWithRetry('sendMessage', $payload);
     }
@@ -80,7 +84,8 @@ class TelegramService
                 'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4],
             ])->post(self::API_BASE."/bot{$this->botToken}/{$method}", $payload);
 
-            if ($response->successful()) {
+            $data = $response->json();
+            if ($response->successful() && is_array($data) && ($data['ok'] ?? false) === true) {
                 return true;
             }
 
@@ -93,6 +98,13 @@ class TelegramService
 
                 return false;
             }
+
+            Log::warning("Telegram {$method} attempt {$attempt} was rejected", [
+                'status' => $response->status(),
+                'telegram_ok' => is_array($data) ? ($data['ok'] ?? null) : null,
+                'error_code' => is_array($data) ? ($data['error_code'] ?? null) : null,
+                'description' => is_array($data) ? ($data['description'] ?? null) : null,
+            ]);
         } catch (\Throwable $e) {
             Log::warning("Telegram {$method} attempt {$attempt} failed", [
                 'error' => $e->getMessage(),

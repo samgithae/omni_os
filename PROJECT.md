@@ -1,1929 +1,942 @@
 # Omni OS — Project Status, Architecture & Developer Guide
 
-> **Living document.** Updated every time a feature is completed.
-> Last updated: 2026-06-25
+> **Living document.** Update this when behavior, schema, operations, or roadmap status changes.
+>
+> Last updated: 2026-07-02
 > Strategy source of truth: `Omni-OS-Strategy-Brief.md` (v1)
-> This document: technical state of the build, what exists, what's next, and how to continue.
+> This document describes the code currently present in this repository. Production counts and external-service state must be verified on the Linux host.
 
 ---
 
 ## Table of Contents
 
 1. [Project Overview](#1-project-overview)
-2. [The Four Brands](#the-four-brands)
-3. [Vision & Strategy Summary](#2-vision--strategy-summary)
-4. [Tech Stack](#3-tech-stack)
-5. [Database Schema](#4-database-schema)
-6. [Eloquent Models](#5-eloquent-models)
-7. [Filament Admin Panel](#6-filament-admin-panel)
-8. [Vue/Inertia Dashboard](#7-vueinertia-dashboard)
-9. [Current Data State](#8-current-data-state)
-10. [Artisan Commands](#9-artisan-commands)
-11. [Development Setup](#10-development-setup)
-12. [File Structure](#11-file-structure)
-13. [What's Done — Phase 0 Foundation](#12-whats-done--phase-0-foundation-complete)
-14. [What's Remaining — Full Roadmap](#13-whats-remaining--full-roadmap)
-15. [Known Issues & Pitfalls](#14-known-issues--pitfalls)
-16. [Architecture Diagrams](#15-architecture-diagrams)
-17. [Changelog](#16-changelog)
-18. [How to Update This Document](#17-how-to-update-this-document)
+2. [Brands and Strategy](#2-brands-and-strategy)
+3. [Current Architecture and Tech Stack](#3-current-architecture-and-tech-stack)
+4. [Database and Models](#4-database-and-models)
+5. [Backend Application](#5-backend-application)
+6. [Web UI and Filament](#6-web-ui-and-filament)
+7. [Routes and APIs](#7-routes-and-apis)
+8. [Commands, Jobs, and Scheduler](#8-commands-jobs-and-scheduler)
+9. [Data and Integrations](#9-data-and-integrations)
+10. [Development and Verification](#10-development-and-verification)
+11. [Deployment and Operations](#11-deployment-and-operations)
+12. [Repository Structure](#12-repository-structure)
+13. [Current Status and Roadmap](#13-current-status-and-roadmap)
+14. [Known Issues and Pitfalls](#14-known-issues-and-pitfalls)
+15. [Recent Changelog](#15-recent-changelog)
+16. [Documentation Maintenance](#16-documentation-maintenance)
 
 ---
 
 ## 1. Project Overview
 
-Omni OS is a multi-brand marketing automation platform built for a solo operator (Sam) running four businesses out of Nairobi, Kenya. The platform is a thin record-keeping + analytics + integrity layer powered by Laravel, Vue/Inertia, Filament, and PostgreSQL. Hermes Agent (an open-source AI agent by Nous Research) does the fuzzy work — mining leads, enriching data, drafting emails, classifying replies. This platform records what happened, enforces guardrails, and provides dashboards.
+Omni OS is a multi-brand marketing operations platform for a solo operator running four businesses from Nairobi. Laravel and PostgreSQL provide the system of record, workflow invariants, scheduling, queues, APIs, and operational UI. Vue/Inertia is the main operator interface; Filament remains an administrative CRUD surface. Hermes Agent is external to this repository and performs fuzzy work such as mining, enrichment, drafting, and classification through Omni OS APIs.
 
-### Core Philosophy (from Strategy Brief)
+### Core principles
 
-- **Marketing execution is the priority.** The platform is a thin record + analytics + integrity layer, NOT the project itself.
-- **Don't rebuild commodity infrastructure.** Use Laravel's batteries (auth, queues, scheduler, Eloquent), Filament for admin UI, Postgres for the DB.
-- **ROI-driven + open-source/self-hosted bias.** One-time costs over recurring; paid APIs only for revenue-generating workflows.
-- **Human-in-the-loop** on all external publishing/sending (Telegram approval gate).
-- **Geography and brand are data, not code.** Expansion = configuration, not a rewrite.
-- **Durability over ban-and-burn.** Stay within platform ToS.
-- **The three DB invariants** (dedup, suppression, idempotency) are non-negotiable and enforced at the database level.
+- Marketing execution is the priority; Omni OS is a record, analytics, and integrity layer.
+- Geography, brand, segment, and sequence behavior are configuration rather than hard-coded campaigns.
+- External sends require human approval.
+- PostgreSQL is authoritative for operational state.
+- Deduplication, suppression, and send idempotency are database-enforced.
+- Commodity infrastructure should remain Laravel/PostgreSQL/Redis/Filament rather than custom replacements.
 
-### Division of Labor
+### Division of labor
 
-```
-Hermes Agent (mine, enrich, draft, classify replies)
-    ↓ calls
-Laravel/Postgres (records, invariants, scheduler/queues)
-    ↓ sends via
-SMTP2GO (email send + open/click tracking)
-    ↓ approval via
-Telegram (human gate before any external send)
-    ↓ visibility via
-Filament admin + Vue dashboard (analytics, dashboards)
+```text
+Hermes / named agents
+  mine, enrich, draft, classify, post activity
+          |
+          | authenticated JSON API
+          v
+Laravel + PostgreSQL
+  records, constraints, scheduler, queues, monitoring
+          |
+          +--> SMTP2GO: outbound mail and engagement webhooks
+          +--> Telegram: approvals, alerts, agent interaction
+          +--> Vue/Inertia + Filament: operator and admin UIs
 ```
 
 ---
 
-## The Four Brands
+## 2. Brands and Strategy
 
-| ID | Brand | Slug | What They Sell | Customer | Market | Primary KPI | Color |
-|----|-------|------|----------------|----------|--------|-------------|-------|
-| 1 | Hudutech Innovations Ltd | `hudutech` | Web & software development, Odoo ERP, CRM, digital transformation | SMEs, schools, NGOs, manufacturers | Kenya | Qualified leads → sales revenue | #1a56db |
-| 2 | UjuziPlus | `ujuziplus` | White-label LMS + professional training, certification prep, corporate training | Trainers/coaches, professionals, institutions, corporates, NGOs | Kenya / Africa | LMS subscriptions + enrollments → corporate training contracts | #059669 |
-| 3 | Phantomflix | `phantomflix` | Licensed reseller of streaming subscriptions, affordable bundled access, M-Pesa payments | Consumers seeking affordable premium entertainment | Kenya + diaspora | Paid subscribers → subscriber retention | #7c3aed |
-| 4 | Phantom Tutors | `phantom-tutors` | Academic tutoring, exam prep, personalized learning support | University/college students, parents, adult learners | US & UK | Student enrollments → retention & referrals | #dc2626 |
+| Brand | Slug | Offer | Primary market | Primary KPI | Strategy |
+|---|---|---|---|---|---|
+| Hudutech Innovations Ltd | `hudutech` | Web/software development, Odoo ERP, CRM, digital transformation | Kenya | Qualified leads to revenue | Deer / elephant |
+| UjuziPlus | `ujuziplus` | White-label LMS, professional and corporate training | Kenya / Africa | Subscriptions, enrollments, corporate contracts | Rabbit to deer |
+| Phantomflix | `phantomflix` | Licensed streaming subscription resale and M-Pesa access | Kenya + diaspora | Paid subscribers and retention | Mouse |
+| Phantom Tutors | `phantom-tutors` | Tutoring, exam preparation, personalized learning | US / UK | Enrollment, retention, referrals | Rabbit |
 
-### Per-Brand Animal (Deal-Size Strategy)
+Brand voice, market, KPI, sender pools, and settings are stored on `brands`. The strategic context-spine concept remains:
 
-| Brand | Animal | Economics | Motion |
-|-------|--------|-----------|--------|
-| Phantomflix | Mouse | ~$10/mo, high volume | Referral/virality, retention is the war |
-| Phantom Tutors | Rabbit | ~$100/mo | Efficient inbound + outbound |
-| UjuziPlus | Rabbit → Deer | ~$100/mo → ~$1k/mo | LMS subs (rabbit) feed corporate contracts (deer) |
-| Hudutech | Deer / Elephant | ~$1k+/mo | Inside sales + automated outbound + relationships |
+```text
+icp/  competitors/  positioning/  messaging/  brand/
+```
 
-### Brand Voices
+Only `icp/ujuziplus.md` currently exists in this repository; fuller per-brand context is still external/missing.
 
-- Hudutech = trusted consultant / digital-transformation expert
-- UjuziPlus = professional, authoritative, career-growth focused
-- Phantomflix = fun, affordable, entertainment-focused
-- Phantom Tutors = friendly mentor / academic success partner
+The long-term content loop remains:
+
+```text
+Source -> Pillar -> Atomize -> Distribute -> Learn
+```
 
 ---
 
-## 2. Vision & Strategy Summary
+## 3. Current Architecture and Tech Stack
 
-### What "Omni OS" Is
+### Runtime
 
-One agent-driven system (Hermes Agent) that makes all four brands consistently visible to their audiences, produced and maintained by a single operator.
-
-### Working Definition of "Omnipresence"
-
-Each brand consistently shows up in the 2-3 places its specific audience actually lives, plus in Google and in AI answers (GEO). It is NOT "appear everywhere." Depth in the right channels beats spray-everywhere. The four audiences barely overlap, so "omnipresent" means four small, sharp presences sharing one engine.
-
-### The Omnipresence Loop (per brand)
-
-```
-Source → Pillar → Atomize → Distribute → Learn
-  ↑                                           |
-  └───────────────────────────────────────────┘
-```
-
-Take one real audience question → produce one substantial pillar asset that answers it → atomize that single asset into channel-native pieces (blog post + LinkedIn + Reddit + email + WhatsApp) → distribute → feed performance back into memory so the system learns.
-
-### GEO / AEO (Get Found by AI Engines)
-
-Pillar assets must be citation-ready for AI search (ChatGPT, Perplexity, Google AI Overviews):
-- First ~200 words directly and completely answer the query
-- Include FAQ section and valid schema markup (FAQPage, Article, Service, LocalBusiness)
-- Ensure pages are crawlable (server-side rendering)
-- GEO is an added layer on solid SEO, not a replacement
-
-### The Hunting Framework (Deal-Size Strategy)
-
-- Mice: ~$10/mo, huge volume, viral/referral/PLG, worst retention
-- Rabbits: ~$100/mo, efficient inbound + outbound, better retention, survivors expand
-- Deer: ~$1k/mo, inside sales + automated outbound + partners, best retention + faster growth
-- Elephants: ~$8k+/mo, ABM, relationships, tenders/RFPs, highest retention
-
-Sequencing validated: start rabbits → add deer → add elephants. ~70% of companies never change what they hunt, so order matters.
-
-### The Context Spine + Refresh Discipline
-
-Per brand: `icp/`, `competitors/`, `positioning/`, `messaging/`, `brand/` (tone of voice + visual identity). Reply outcomes feed a win-loss file → refreshes ICP and messaging on a cadence → next batch is sharper. This IS the "Learn" edge of the loop.
-
-### Phased Roadmap (High-Level)
-
-| Phase | Name | Status | Description |
-|-------|------|--------|-------------|
-| 0 | Foundation | COMPLETE | Postgres + Laravel/Filament + Vue/Inertia + queues/scheduler; move UjuziPlus off Sheets |
-| 1 | UjuziPlus Full Loop | NEXT | Harden + extend + geo-scale the Rabbits/Deer lead pipeline; then layer omnipresence content loop |
-| 2 | Hudutech | AFTER | Most similar B2B motion; reuse pipeline + LinkedIn + Google Business Profile |
-| 3 | B2C Brands | LATER | Phantomflix (community/referral) + Phantom Tutors (short-form, Reddit, Discord) |
-| 4 | Cross-Brand Intelligence | FUTURE | pgvector for CRM memory graph; shared learnings; elephant motion (ABM, tenders) |
-
----
-
-## 3. Tech Stack
-
-### Backend
-
-| Component | Version | Notes |
-|-----------|---------|-------|
-| PHP | 8.4.11 | |
-| Laravel | 13.16.1 | |
-| PostgreSQL | 17.10 | Homebrew, aarch64 — system of record |
-| Redis | 6379 | Cache + queue via `predis/predis` v3.5 (NOT phpredis extension) |
-| Filament | v4.11.7 | Admin panel (CRUD, filters, dashboard widgets) |
-| Laravel Fortify | ^1.37.2 | Auth (passkeys, 2FA) |
-| Inertia.js | v3 | Bridges Laravel and Vue without separate API |
+| Area | Current requirement / package constraint |
+|---|---|
+| PHP | `^8.3` |
+| Laravel | `^13.7` |
+| Filament | `^4.0` |
+| Inertia Laravel adapter | `^3.0` |
+| PostgreSQL | Primary production database |
+| Redis | Cache and queue, using `predis/predis ^3.5` |
+| Authentication | Fortify `^1.37.2`, passkeys, 2FA |
+| Static analysis | Larastan `^3.9`, PHPStan config in `phpstan.neon` |
+| Tests | PHPUnit `^12.5.23` |
 
 ### Frontend
 
-| Component | Version | Notes |
-|-----------|---------|-------|
-| Vue | 3.5 | With Inertia.js |
-| Tailwind CSS | 4.1 | |
-| Vite | 8 | Dev server + bundler |
-| Lucide Icons | ^1.17.0 | UI icons |
-| TypeScript | ^5.2.2 | Strict type checking (`vue-tsc --noEmit` passes clean) |
+| Area | Package constraint |
+|---|---|
+| Vue | `^3.5.13` |
+| Inertia Vue adapter | `^3.0.0` |
+| Tailwind CSS | `^4.1.1` |
+| Vite | `^8.0.0` |
+| TypeScript | `^5.2.2` |
+| UI primitives | Reka UI, class-variance-authority, Lucide, VueUse |
+| Notifications | `vue-sonner` |
 
-### Infrastructure (Planned / External)
+Exact installed versions are lock-file controlled. Do not copy old point versions from this document into operational decisions.
 
-| Component | Status | Purpose |
-|-----------|--------|---------|
-| Cloudflare Tunnel + Access | CONFIG PREPARED | Manual Linux setup only; Access must be created before routing any hostname |
-| SMTP2GO | CONFIG DOCUMENTED | Credentials and env keys documented; send/webhook integration still pending |
-| Hermes Agent | EXTERNAL | AI brain for mining/enrichment/drafting (separate from this codebase) |
-| Metabase | PLANNED | Analytics dashboards (swappable with Vue dashboards later) |
+### Important application configuration
 
-### Key Composer Packages
+- `config/services.php`: SMTP2GO, Cloudflare, backup, GitHub backup, Telegram, business hours, and IMAP.
+- `config/schedule-jobs.php`: metadata used by the jobs-monitoring UI. It is not the scheduler source of truth.
+- `bootstrap/app.php`: route registration, middleware, trusted proxies, CSRF exception for manual job runs, and the actual scheduler.
+- `config/database.php`: PostgreSQL plus Redis/Predis configuration.
+- `config/fortify.php`: registration, reset, verification, 2FA, and passkey behavior.
+- `config/inertia.php`: Inertia SSR/testing settings.
 
-```
-filament/filament: ^4.0
-inertiajs/inertia-laravel: ^3.0
-laravel/fortify: ^1.37.2
-laravel/chisel: ^0.1.0
-laravel/wayfinder: ^0.1.14
-predis/predis: ^3.5
-```
+### Composer scripts
 
-### Key npm devDependencies
+| Script | Purpose |
+|---|---|
+| `composer setup` | Install dependencies, create `.env`, generate key, migrate, install npm packages, build assets |
+| `composer dev` | Run Laravel, queue listener, Pail, and Vite concurrently |
+| `composer lint` / `lint:check` | Run Pint in fix/check mode |
+| `composer types:check` | Run PHPStan |
+| `composer test` | Clear config, run Pint check, PHPStan, and PHPUnit |
+| `composer ci:check` | Run frontend lint/format/type checks, then Composer test pipeline |
 
-```
-vue: ^3.5.13
-@inertiajs/vue3: ^3.0.0
-tailwindcss: ^4.1.1
-@lucide/vue: ^1.17.0
-reka-ui: ^2.9.8
-vite: ^8.0.0
-typescript: ^5.2.2
-```
+### npm scripts
 
-### npm Scripts
-
-```
-dev       → vite (dev server with HMR)
-build     → vite build (production assets)
-build:ssr → vite build && vite build --ssr
-format    → prettier --write resources/
-lint      → eslint . --fix
-types:check → vue-tsc --noEmit
-```
+| Script | Purpose |
+|---|---|
+| `npm run dev` | Vite development server |
+| `npm run build` | Production client build |
+| `npm run build:ssr` | Client and SSR builds |
+| `npm run lint` / `lint:check` | ESLint fix/check |
+| `npm run format` / `format:check` | Prettier fix/check under `resources/` |
+| `npm run types:check` | `vue-tsc --noEmit` |
 
 ---
 
-## 4. Database Schema
+## 4. Database and Models
 
-### Migration Status (all ran successfully)
+There are 28 migration files: three Laravel base migrations, passkeys/2FA, and 24 Omni OS schema changes through 2026-07-01.
 
-```
-0001_01_01_000000_create_users_table .............................. [1] Ran
-0001_01_01_000001_create_cache_table ................................ [1] Ran
-0001_01_01_000002_create_jobs_table ................................. [1] Ran
-2024_01_01_000000_create_passkeys_table ............................. [1] Ran
-2025_06_20_100000_create_brands_table ............................... [1] Ran
-2025_08_14_170933_add_two_factor_columns_to_users_table ............. [1] Ran
-2026_06_20_092930_create_leads_table ................................. [1] Ran
-2026_06_20_092931_create_suppressions_table .......................... [1] Ran
-2026_06_20_092932_create_email_messages_table ........................ [1] Ran
-2026_06_20_092933_create_lead_events_table ........................... [1] Ran
-2026_06_20_092934_create_mining_targets_table ........................ [1] Ran
-2026_06_20_175321_add_approval_workflow_to_email_messages ........... [2] Ran
-2026_06_21_171104_create_activity_events_table ....................... [1] Ran
-2026_06_21_185736_add_enrichment_fields_to_leads_table .............. [1] Ran
-2026_06_22_033002_create_sequence_schedules_table .................... [1] Ran
-2026_06_22_055908_create_webhook_events_table ........................ [1] Ran
-2026_06_22_060302_create_replies_table ............................... [1] Ran
-2026_06_22_082052_add_sender_emails_to_brands_table .................. [1] Ran
-2026_06_22_082851_add_settings_to_brands_table ....................... [1] Ran
-2026_06_22_084427_create_cron_job_runs_table ......................... [1] Ran
-2026_06_22_094956_create_activity_event_comments_table ................ [1] Ran
-2026_06_22_100001_create_brand_sequence_configs_table ................ [1] Ran
-```
+### Application tables
 
-### Tables Overview (22 total)
+| Table | Model | Purpose |
+|---|---|---|
+| `brands` | `Brand` | Brand metadata, sender-email pools, JSON settings |
+| `leads` | `Lead` | Prospects, enrichment state, general score, hiring-signal score, source payload |
+| `suppressions` | `Suppression` | Per-brand do-not-contact records |
+| `email_messages` | `EmailMessage` | Sequence drafts, approval state, scheduling, send and engagement state |
+| `lead_events` | `LeadEvent` | Per-lead event history |
+| `mining_targets` | `MiningTarget` | Brand/geography/category/source mining configuration |
+| `sequence_schedules` | `SequenceSchedule` | Per-brand/segment/step day gaps and purpose |
+| `brand_sequence_configs` | `BrandSequenceConfig` | Drafting prompts and step counts, optionally conditioned by lead source |
+| `webhook_events` | `WebhookEvent` | Raw SMTP2GO webhook persistence and processing status |
+| `replies` | `Reply` | Inbound/outbound conversation records and classifications |
+| `activity_events` | `ActivityEvent` | Operational activity feed, optionally attributed to an agent |
+| `activity_event_comments` | `ActivityEventComment` | Human/agent comments and instruction queue state |
+| `cron_job_runs` | `CronJobRun` | Scheduled/manual job execution history |
+| `agents` | `Agent` | Named agent roster, role/profile, token hash, avatar, status |
+| `agent_documents` | `AgentDocument` | Files attached to agent records |
 
-#### Core Application Tables (13)
+Laravel also creates `users`, `password_reset_tokens`, `sessions`, `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`, and `passkeys`; the `migrations` table is framework-managed.
 
-| Table | Purpose |
-|-------|---------|
-| `brands` | The four brands with metadata (name, slug, description, market, KPI, voice, color, active) |
-| `leads` | All mined leads across all brands |
-| `suppressions` | Do-not-contact list (unsubscribes, bounces, complaints, manual) |
-| `email_messages` | Email outreach tracking with idempotency keys |
-| `lead_events` | Event log for analytics (imported, enriched, emailed, replied, etc.) |
-| `mining_targets` | Geo config for lead mining (country, city, category, search_template, segment, cadence) |
-| `users` | Auth (Fortify, passkeys, 2FA) |
-| `activity_events` | Twitter-style activity feed (Command Center) |
-| `activity_event_comments` | Comments on activity feed events (Hermes auto-responds) |
-| `sequence_schedules` | Drip timing config per brand/segment/step |
-| `webhook_events` | Raw SMTP2GO webhook persistence (opens, clicks, bounces, replies) |
-| `replies` | Classified reply inbox (inbound/outbound, classification, read status) |
-| `brand_sequence_configs` | Per-brand/segment email generation config (prompt_text, sequence_steps) |
-| `cron_job_runs` | Scheduled job execution history (tracking, monitoring, health) |
+### Key schema evolution
 
-#### Laravel Default Tables (9)
+- 2026-06-20: brands, leads, suppressions, email messages, lead events, and mining targets.
+- 2026-06-20/21: email approval workflow, activity events, and enrichment fields.
+- 2026-06-22: sequence schedules, webhook events, replies, brand sender/settings fields, cron tracking, activity comments, and brand sequence configs.
+- 2026-06-25: `hiring_signal_score`, agents, agent documents, and activity-to-agent attribution.
+- 2026-07-01: source-conditioned sequence configs and replacement of the old `(brand_id, segment)` uniqueness rule.
 
-| Table | Purpose |
-|-------|---------|
-| `cache`, `cache_locks` | Redis cache |
-| `jobs`, `failed_jobs`, `job_batches` | Queue jobs |
-| `migrations` | Migration tracking |
-| `passkeys` | Passkey auth |
-| `password_reset_tokens` | Password resets |
-| `sessions` | Session storage |
+### Database invariants
 
-### Schema Details
+1. **Lead email deduplication:** unique `(brand_id, email)` on `leads`.
+2. **Suppression deduplication:** unique `(brand_id, email)` on `suppressions`.
+3. **Sequence idempotency:** unique `(lead_id, sequence_step)` on `email_messages`.
+4. **Schedule uniqueness:** unique `(brand_id, segment, step)` on `sequence_schedules`.
+5. **Agent identity:** unique `codename`; generated API token hashes are unique.
 
-#### `brands` table
+PostgreSQL permits multiple `NULL` values in the lead email unique index. It therefore does **not** deduplicate no-email leads by company or domain. The hiring-signal command’s comment suggesting the email index also provides company-name deduplication is incorrect.
 
-```
-id              bigint, PK, autoincrement
-name            varchar, NOT NULL
-slug            varchar, NOT NULL (unique)
-description     varchar, nullable
-primary_market  varchar, nullable
-primary_kpi     varchar, nullable
-brand_voice     varchar, nullable
-color           varchar, nullable (hex color code)
-is_active       boolean, NOT NULL, default true
-created_at      timestamp, nullable
-updated_at      timestamp, nullable
+### Lead state
+
+Canonical enrichment transitions are defined by `App\Enums\LeadStatus` and guarded by `Lead` helpers:
+
+```text
+new -> enriching -> enriched
+                  \-> no_email_found
 ```
 
-#### `leads` table
+Reply routing can move leads into later sales/outcome statuses such as `interested`, `replied`, `closed`, and `suppressed`. Consult the enum/model before adding a transition.
 
-```
-id                   bigint, PK, autoincrement
-brand_id             bigint, FK → brands.id
-company_name         varchar(255)
-contact_name         varchar, nullable
-email                varchar, nullable
-phone                varchar, nullable
-website              varchar, nullable
-segment              enum: rabbit|deer|mouse|elephant (default: rabbit)
-category             varchar, nullable
-subcategory          varchar, nullable
-country              varchar, default: Kenya
-city                 varchar, nullable
-address              varchar, nullable
-status               varchar, default: new
-enrichment_attempts  integer, default: 0
-email_verified       boolean, default false
-score                integer, default 0
-source               varchar, nullable
-source_url           varchar, nullable
-raw_data             JSONB, nullable (full mining payload)
-created_at           timestamp
-updated_at           timestamp
+### Models and cross-cutting behavior
 
-CONSTRAINTS:
-  UNIQUE(brand_id, email)  -- Invariant #1: Dedup
-  INDEX on brand_id, status, email, source, created_at
-  INDEX on (brand_id, segment), (brand_id, status), (country, city)
-```
+- `BelongsToBrand` and `BrandScope` apply active-brand scoping where used.
+- `BrandSequenceConfig::resolveFor()` selects a source-conditioned prompt first, then falls back to an unconditioned brand/segment prompt.
+- `LeadScoringService` calculates the general 0–100 CRM score.
+- `HiringSignalScoreCalculator` separately calculates a 0–150 job-demand score from vacancies, role types, company size/branches, HR contact, and public email.
+- `ReplyService` routes classified outcomes and creates suppressions where required.
+- `WinLossService` aggregates funnel, engagement, outcome, and dimension metrics.
 
-#### `suppressions` table
+### Seeders
 
-```
-id          bigint, PK, autoincrement
-brand_id    bigint, FK → brands.id
-email       varchar, NOT NULL
-reason      enum: unsubscribe|hard_bounce|complaint|manual
-notes       text, nullable
-created_at  timestamp
-updated_at  timestamp
+- `BrandSeeder`: the four brands and their metadata.
+- `SampleLeadSeeder`: deterministic fake local data—24 leads, eight mining targets, sample events/messages, and one suppression per brand.
+- `DatabaseSeeder`: creates `dev-admin@example.test` with local password `password`, then runs the brand and sample seeders.
 
-CONSTRAINTS:
-  UNIQUE(brand_id, email)  -- Invariant #2: Suppression
-  INDEX on (brand_id, reason)
-```
-
-#### `email_messages` table
-
-```
-id              bigint, PK, autoincrement
-brand_id        bigint, FK → brands.id
-lead_id         bigint, FK → leads.id
-sequence_step   integer, NOT NULL
-subject         varchar, nullable
-body            text, nullable
-status          varchar, default: draft (draft|queued|sent|failed)
-approval_status varchar, default: pending (pending|approved|rejected)
-approved_at     timestamp, nullable
-rejected_at     timestamp, nullable
-approval_notes  text, nullable
-scheduled_for   timestamp, nullable
-sent_at         timestamp, nullable
-opened_at       timestamp, nullable
-clicked_at      timestamp, nullable
-error_message   text, nullable
-created_at      timestamp
-updated_at      timestamp
-
-CONSTRAINTS:
-  UNIQUE(lead_id, sequence_step)  -- Invariant #3: Idempotency
-  INDEX on (brand_id, status), sent_at
-  INDEX on (brand_id, approval_status), (lead_id, approval_status)
-```
-
-### Email Approval Workflow
-
-```
-draft (approval_status=pending)
-  → approved (approval_status=approved, status=queued)
-  → sent (status=sent, sent_at=timestamp)
-  → opened (opened_at=timestamp)
-  → clicked (clicked_at=timestamp)
-
-OR
-
-draft (approval_status=pending)
-  → rejected (approval_status=rejected, rejected_at=timestamp)
-```
-
-The approval workflow integrates with the Telegram approval gate: emails start as `draft` with `approval_status=pending`. When approved (via Filament action or Telegram), status moves to `queued` for the send pipeline. Rejected emails are terminal.
-
-#### `lead_events` table
-
-```
-id          bigint, PK, autoincrement
-lead_id     bigint, FK → leads.id
-brand_id    bigint, FK → brands.id
-event_type  varchar (imported, enriching, enriched, emailed, replied, etc.)
-payload     JSONB, nullable (event-specific data)
-source      varchar, nullable
-created_at  timestamp
-updated_at  timestamp
-
-INDEX on (lead_id, event_type), (brand_id, event_type), created_at
-```
-
-#### `mining_targets` table
-
-```
-id              bigint, PK, autoincrement
-brand_id        bigint, FK → brands.id
-country         varchar
-city            varchar
-category        varchar
-search_template  varchar
-segment         enum: rabbit|deer|mouse|elephant
-cadence         enum: daily|weekly|monthly
-is_active       boolean, default true
-last_mined_at   timestamp, nullable
-created_at      timestamp
-updated_at      timestamp
-
-INDEX on (brand_id, is_active), (country, city), segment
-```
-
-### The Three DB Invariants (from Strategy Brief Section 5.3)
-
-1. **Dedup** — `UNIQUE(brand_id, email)` on leads table prevents duplicate leads per brand. Two crons racing cannot create the same lead twice.
-2. **Suppression** — `UNIQUE(brand_id, email)` on suppressions table. Do-not-contact state the send path MUST check. Unsubscribes / hard bounces can never be re-mailed. This is compliance, too important for case-by-case LLM judgment.
-3. **Idempotency** — `UNIQUE(lead_id, sequence_step)` on email_messages. "Already sent" is a fact in the DB, not a heuristic. Kills double-sends on retry.
-
-### Lead State Machine
-
-```
-new → enriching → enriched
-                  ↘ no_email_found (terminal)
-```
-
-- `new`: Freshly imported, no email yet (needs enrichment)
-- `enriching`: Enrichment in progress (Hermes is looking for email)
-- `enriched`: Email found and verified, ready for outreach
-- `no_email_found`: Enrichment attempted N times, no email found (terminal state — move on)
+Agent roster, mining targets, sender pools, sequence schedules, and deer sequence prompts are command-seeded rather than part of `DatabaseSeeder`.
 
 ---
 
-## 5. Eloquent Models
+## 5. Backend Application
 
-| Model | File | Key Relationships | Scopes |
-|-------|------|-------------------|--------|
-| `Brand` | `app/Models/Brand.php` | hasMany: Lead, Suppression, MiningTarget, EmailMessage | `active()` |
-| `Lead` | `app/Models/Lead.php` | belongsTo: Brand; hasMany: LeadEvent, EmailMessage | `byBrand()`, `bySegment()`, `byStatus()`, `byCountry()`, `byCity()`, `rabbits()`, `deer()`, `enriched()`, `new()` |
-| `Suppression` | `app/Models/Suppression.php` | belongsTo: Brand | `byBrand()`, `unsubscribes()`, `hardBounces()` |
-| `EmailMessage` | `app/Models/EmailMessage.php` | belongsTo: Brand, Lead | `byBrand()`, `sent()`, `draft()`, `pendingApproval()`, `approved()`, `rejected()` + approve()/reject() helpers |
-| `LeadEvent` | `app/Models/LeadEvent.php` | belongsTo: Lead, Brand | — |
-| `MiningTarget` | `app/Models/MiningTarget.php` | belongsTo: Brand | `active()`, `byBrand()`, `byCountry()`, `bySegment()` |
-| `User` | `app/Models/User.php` | — | implements `FilamentUser`, `PasskeyUser` |
+### Controllers
+
+The authenticated web controllers serve:
+
+- dashboard, scored lead list, analytics, inbox/conversations/replies;
+- activity feed, polling, pagination, and comments;
+- agent roster CRUD, token generation, avatar/document management;
+- brands and per-brand settings;
+- email sequence review and bulk/single approval;
+- email message browsing;
+- sequence config and schedule CRUD;
+- suppression and mining-target management;
+- scheduled-job dashboard, history, and manual runs;
+- user profile/security settings.
+
+API controllers cover:
+
+- lead list/bulk creation, enrichment, scoring, and email-content submission;
+- mining target retrieval/update;
+- suppression checks;
+- email creation, approval/rejection, batch sending, and needs-content updates;
+- activity events/comments and instruction polling;
+- classified replies;
+- stats and win-loss;
+- sequence config resolution;
+- SMTP2GO and Telegram webhooks;
+- Telegram Bot API proxying.
+
+### Services
+
+| Service | Responsibility |
+|---|---|
+| `ActivityLogger` | Persist activity events and dispatch notification event |
+| `CommentResponseService` | Generate deterministic agent replies/actions for activity comments |
+| `LeadScoringService` | General lead score and breakdown |
+| `HiringSignalScoreCalculator` | Hiring-specific 0–150 score |
+| `ReplyService` | Classification outcome routing and suppression |
+| `TelegramService` | Telegram API calls, approvals, and notifications |
+| `WinLossService` | Funnel, engagement, and outcome aggregation |
+
+### Queue jobs
+
+| Job | Responsibility |
+|---|---|
+| `ProcessSequenceProgressions` | Create the next `needs_content` sequence step after schedule, suppression, reply, weekday, and daily-send checks |
+| `RespondToComment` | Process activity comments/instructions asynchronously |
+| `SendLeadReply` | Send an operator reply through SMTP2GO and persist outbound conversation state |
+| Eight scraper jobs | Fetch/parse hiring signals from job sources |
+
+Hiring source implementations:
+
+```text
+BrighterMonday, Fuzu, MyJobMag, Corporate Staffing,
+Glassdoor, known company careers pages, Google JobPosting schema,
+LinkedIn via mcporter/linkedin-mcp
+```
+
+Scrapers implement `JobSourceScraper`; several also implement `ShouldQueue`, although the current mining command instantiates and executes them synchronously.
+
+### Events and listeners
+
+- `ActivityEventCreated` is emitted for activity records requesting Telegram notification.
+- `NotifyTelegram` sends those notifications.
+- `TrackCronJobRuns` records scheduler lifecycle events into `cron_job_runs`.
 
 ---
 
-## 6. Filament Admin Panel
+## 6. Web UI and Filament
 
-**URL:** `/admin`
-**Auth:** Same `web` guard as the Vue app (single login for both)
+### Vue/Inertia pages
 
-### Resources (5)
+All operational pages below require authentication unless noted.
 
-| Resource | Path | Features |
-|----------|------|----------|
-| `BrandResource` | `/admin/brands` | CRUD, leads count per brand, color picker, active toggle |
-| `LeadResource` | `/admin/leads` | Full CRUD, view page, filters (brand, segment, status, country, city), badges for segment/status, score column, raw_data viewer, Email Sequence relation manager |
-| `EmailMessageResource` | `/admin/email-messages` | Full CRUD, filters (brand, approval status, send status, sequence step), approve/reject actions, bulk approve, view modal with email body |
-| `SuppressionResource` | `/admin/suppressions` | CRUD, reason badges, brand filter, reason filter |
-| `MiningTargetResource` | `/admin/mining-targets` | CRUD, geo config, cadence, active toggle, segment badges |
+| URL | Page | Purpose |
+|---|---|---|
+| `/` | `Welcome.vue` | Public landing page |
+| `/dashboard` | `Dashboard.vue` | Cross-brand stats, distributions, scores, sequences, recent events |
+| `/leads` | `Leads/Index.vue` | Filtered/sorted scored lead workspace |
+| `/inbox` | `Inbox/Index.vue` | Reply inbox, conversation thread, compose |
+| `/activity` | `Activity.vue` | Polling activity timeline with comments/instructions |
+| `/analytics` | `Analytics/Index.vue` | Funnel, engagement, outcomes, dimensions, brand summary |
+| `/analytics/jobs` | `Analytics/Jobs.vue` | Schedule status, recent runs, manual execution |
+| `/email-sequences` | `EmailSequences/Index.vue` | Primary sequence approval/review workspace |
+| `/email-messages` | `EmailMessages/Index.vue` | Message list/detail |
+| `/agents` | `Agents/Index.vue` | Agent roster and management |
+| `/brands` | `Brands/Index.vue` | Brand list |
+| `/brands/{brand}/edit` | `Brands/Edit.vue` | Brand editing |
+| `/brands/{slug}/settings` | `Brands/Settings.vue` | Operational brand settings |
+| `/mining-targets` | `MiningTargets/Index.vue` | Mining target management |
+| `/sequence-configs` | `SequenceConfigs/Index.vue` | Prompt/step config management |
+| `/sequence-schedules` | `SequenceSchedules/Index.vue` | Sequence timing management |
+| `/suppressions` | `Suppressions/Index.vue` | Suppression management |
+| `/settings/*` | settings pages | Profile, security, appearance |
+| `/login`, `/register`, reset/verify routes | auth pages | Fortify authentication flows |
 
-### Resource Pages
+`SequenceConfigs/Create.vue` does not exist; the create route renders `SequenceConfigs/Edit.vue` in create mode.
 
-```
-BrandResource/Pages:         CreateBrand, EditBrand, ListBrands
-LeadResource/Pages:           CreateLead, EditLead, ListLeads, ViewLead
-LeadResource/RelationManagers: EmailMessagesRelationManager
-EmailMessageResource/Pages:   ListEmailMessages, CreateEmailMessage, ViewEmailMessage, EditEmailMessage
-SuppressionResource/Pages:    CreateSuppression, EditSuppression, ListSuppressions
-MiningTargetResource/Pages:   CreateMiningTarget, EditMiningTarget, ListMiningTargets
-```
+### Shared frontend
 
-### Dashboard Widgets (4)
+- `AppLayout.vue`, sidebar/header variants, and auth/settings layouts provide the shells.
+- `BrandSwitcher.vue` stores the active brand in the session; shared Inertia props expose brands, active brand, auth user, flash state, sidebar state, and unread reply count.
+- Reusable page-specific components exist for leads and email sequences.
+- `resources/js/components/ui/` contains local Reka/shadcn-style primitives.
+- Wayfinder generates typed route helpers during Vite builds.
 
-| Widget | Type | Shows |
-|--------|------|-------|
-| `LeadStatsOverview` | Stats cards | Total leads, new/enriched, suppressed, active brands |
-| `LeadsByBrandChart` | Bar chart | Lead count per brand (brand colors) |
-| `LeadsBySegmentChart` | Doughnut | Rabbit/deer/mouse/elephant distribution |
-| `LeadsByCityChart` | Bar chart | Top 10 cities by lead count |
+### Filament admin
 
-### Filament v4 Compatibility Notes (IMPORTANT)
+Filament is mounted at `/admin`, uses the same web guard, and currently exposes nine resource families:
 
-These are hard-won fixes. If you break them, things crash:
+1. Agents, including attached-document relation management.
+2. Brands.
+3. Brand sequence configs.
+4. Email messages.
+5. Leads, including email-message relation management.
+6. Mining targets.
+7. Sequence schedules.
+8. Suppressions.
+9. Read-only webhook events.
 
-- `form()` method takes `Filament\Schemas\Schema` (NOT `Filament\Forms\Form` as in v3)
-- `Section` is in `Filament\Schemas\Components\Section` (NOT `Filament\Forms\Components\Section`)
-- Actions (EditAction, ViewAction, DeleteAction, BulkActionGroup, DeleteBulkAction) are in `Filament\Actions\*` (NOT `Filament\Tables\Actions\*`)
-- `$navigationIcon` type is `string | BackedEnum | null` (requires `use BackedEnum;`)
-- ChartWidget `$heading` is non-static (`protected ?string $heading`) in v4
+The four dashboard widgets are lead stats plus brand, segment, and city charts.
 
----
-
-## 7. Vue/Inertia Dashboard
-
-**URL:** `/dashboard` (requires auth)
-**Controller:** `App\Http\Controllers\DashboardController`
-
-### Sidebar Navigation
-
-- Dashboard (Inertia route)
-- Leads (links to `/admin/leads` via `<a>` tag, NOT Inertia `<Link>`)
-- Email Sequences (Inertia route at `/email-sequences` — purpose-built Vue page for sequence review)
-- Brands (links to `/admin/brands`)
-- Suppressions (links to `/admin/suppressions`)
-- Mining Targets (links to `/admin/mining-targets`)
-- Full Admin Panel (links to `/admin`)
-
-**IMPORTANT:** Links to `/admin/*` routes MUST use regular `<a>` tags, NOT Inertia `<Link>`. Inertia intercepts clicks and expects JSON responses; Filament returns full HTML, causing errors. This is handled in `NavMain.vue` via an `isExternal()` check.
-
-### Dashboard Content
-
-- 4 stat cards: Total Leads, With Email, Suppressed, Active Brands
-- Leads by Brand (horizontal bars with brand colors)
-- Leads by Segment (progress bars)
-- Leads by Status (progress bars)
-- Top 10 Cities (bar chart)
-- Recent Activity feed (last 20 events)
-- Email Sequences section: total emails, pending/approved/rejected/sent counts, emails by sequence step, approval breakdown, send status badges
-- Quick link buttons to all admin sections (including Email Sequences)
-
-### Data Flow
-
-```
-DashboardController → Inertia::render('Dashboard', $props)
-  → props: stats (lead + email sequence counts), leadsByBrand, leadsBySegment,
-    leadsByStatus, topCities, recentEvents, emailsByStep, emailApprovalBreakdown,
-    emailStatusBreakdown
-  → Dashboard.vue receives as defineProps
-```
-
-### DashboardController Details
-
-The controller (`app/Http/Controllers/DashboardController.php`) queries:
-- `Lead::count()` — total leads
-- `Lead::where('status', 'enriched')->count()` — enriched leads
-- `Lead::where('status', 'new')->count()` — new leads
-- `Lead::where('status', 'no_email_found')->count()` — no email found
-- `Lead::whereNotNull('email')->count()` — leads with email
-- `Suppression::count()` — suppressed count
-- `Brand::where('is_active', true)->count()` — active brands
-- `Lead::where('segment', 'rabbit')->count()` — rabbits
-- `Lead::where('segment', 'deer')->count()` — deer
-- Leads by brand (withCount)
-- Leads by segment (groupBy)
-- Leads by status (groupBy)
-- Top 10 cities (groupBy, orderByDesc, limit 10)
-- Recent 20 events with lead relationship
+When linking from Inertia to Filament, use a normal `<a>` navigation. An Inertia `<Link>` expects an Inertia response and will mishandle Filament HTML.
 
 ---
 
-## 8. Current Data State
+## 7. Routes and APIs
 
-### Canonical Production Dataset (Linux target after restore)
+`php artisan route:list` currently reports 160 total routes, including framework auth/passkey routes and Filament internals.
 
-```
-Leads:          608 total
-  Rabbits:      199
-  Deer:         409
-Suppressions:   265
-```
+### Authenticated web route groups
 
-Linux Postgres is the canonical system of record going forward. Move the real Mac dataset with `pg_dump` -> `pg_restore`, then keep customer PII on Linux only.
+- Dashboard and `POST /brand/switch`.
+- Leads and analytics.
+- Inbox list, conversation JSON, and reply submission.
+- Brand list/edit/settings.
+- Jobs dashboard, history, and manual run.
+- Email sequences with bulk/single approve and reject.
+- Activity list/poll/load-more/comment.
+- Agent CRUD, token generation, document upload/delete.
+- Sequence config CRUD and sequence schedule CRUD.
+- Suppression list/create/delete.
+- Mining target list/create/toggle/delete.
+- Email message list/detail.
+- Profile, password, security, passkey, 2FA, and appearance routes.
 
-### Local Mac Dev Dataset (sample-only after reset)
+### Public integration routes
 
-```
-Users:          1 (dev-admin@example.test)
-Brands:         4
-Leads:          24 sample-only records
-Suppressions:   4 sample-only records
-Lead Events:    44 sample-only records
-Email Messages: 12 sample-only records
-Mining Targets: 4,666 fully-seeded records (UjuziPlus + Hudutech)
-Activity Events: 20 records (10 seeded + 10 activity log entries)
-```
+| Method | Path | Authentication |
+|---|---|---|
+| `POST` | `/api/webhooks/smtp2go` | Webhook-specific validation |
+| `POST` | `/api/webhooks/telegram` | Telegram webhook secret |
+| `ANY` | `/api/telegram-proxy/bot/{path}` | Proxy route; behavior in controller |
+| `GET` | `/up` | Laravel health route |
 
-The Mac dev database now seeds fake/anonymized local data only via `database/seeders/SampleLeadSeeder.php`.
+### `/api/v1` routes
 
-### Email Sequence Data (imported from Google Sheets)
+Most use `ApiTokenAuth` and the `OMNI_API_TOKEN` bearer token.
 
-- Rabbits CSV has `email_1` through `email_5` columns (5-step drip)
-- Deer CSV has `email_1` through `email_3` columns (3-step drip)
-- 259 real email drafts imported (subjects + bodies parsed from CSV)
-- Non-email entries skipped (enrichment markers like "Enriched: 18 Jun 2026", "skipped: no website URL")
-- All 259 emails have `approval_status=pending` — awaiting review
-- Imported via `php artisan emails:import-sequences`
+| Area | Endpoints |
+|---|---|
+| Stats | `GET stats`, `GET stats/winloss` |
+| Leads | `GET leads`, `POST leads/bulk`, `PATCH leads/{lead}/enrich`, `PATCH leads/{lead}/score` |
+| Lead drafting | `GET leads/needs-email-generation`, `POST leads/{lead}/email-content-batch` |
+| Mining | `GET mining-targets`, `PATCH mining-targets/{target}/mined` |
+| Suppression | `GET suppressions/check` |
+| Emails | `GET/POST emails`, approve/reject, `POST emails/send-batch` |
+| Scheduled drafts | `GET email-messages/needs-content`, `PATCH email-messages/{message}/content` |
+| Replies | `POST replies` |
+| Activity | `POST events`, event comments list/create |
+| Instructions | `GET instructions`, `PATCH instructions/{comment}` |
+| Sequence prompts | `GET sequence-configs/{brandSlug}/{segment}` |
+| Telegram proxy | `ANY telegram-proxy/{path}` |
 
-### Data Canonicalization
+`POST /api/v1/events` deliberately removes legacy API-token middleware and uses `AgentTokenAuth`. It accepts a per-agent bearer token and retains legacy-token compatibility in that middleware.
 
-- Canonical move procedure: see `docs/data-canonicalization.md`
-- Recommended transfer path: `pg_dump` on Mac -> restore into Linux Postgres
-- Fallback path: `php artisan leads:import-ujuziplus` and `php artisan emails:import-sequences` on Linux against the CSV exports
-- Temporary caution: if a local dump or CSV export still exists on the Mac, it is still customer data until removed after Linux restore verification
+### Route ordering caution
 
-### Lead Sources
+Within the leads prefix, dynamic `PATCH leads/{lead}/*` routes currently appear before the static `GET leads/needs-email-generation` route, so method differences prevent collision. Preserve explicit HTTP methods and put new static routes before broad dynamic routes where possible.
 
-- **Google Sheets** — UjuziPlus pipeline (Rabbits + Deer sheets)
-- Imported via `php artisan leads:import-ujuziplus`
-- Original CSVs saved at: `storage/app/private/ujuziplus_rabbits.csv`, `storage/app/private/ujuziplus_deer.csv`
-- Google Sheet ID and token path are stored in environment config on the operator's machine, NOT in this document. Check `.env` and the operator's private config files.
-- **Verify the Google Sheet's sharing permissions are restricted** (not "anyone with link"). It should be limited to the operator's Google account only.
-
-### Top Cities (from imported data)
-
-```
-Kisumu: 25, Mombasa: 19, Nairobi: 17, Nakuru: 15, Thika: 7,
-Eldoret: 5, Machakos: 5, Malindi: 4, Naivasha: 3, Meru: 2
-```
-
-### Import Command Details
-
-The `ImportUjuziPlusLeads` command (`app/Console/Commands/ImportUjuziPlusLeads.php`):
-- Reads CSV files from `storage/app/private/`
-- Maps columns: `org_name/company_name`, `email/direct_email/company_email`, `phone/phone_wa`, `website`, `category`, `first_name/contact_name`, `role`
-- Handles Deer sheet data quality issues (misaligned columns):
-  - Truncates `contact_name` to null if > 100 chars (misaligned long text)
-  - Truncates `company_name` to 255 chars max
-  - Nulls `email` if > 255 chars (misaligned data)
-  - Truncates `phone` to 50 chars max
-- Deer sanity check result: the current null-email Deer population is not caused by the `>255` email branch in the source CSV; see `docs/data-canonicalization.md`
-- Extracts city from raw data or infers from company name (checks against known Kenyan cities)
-- Calculates score: email(+30) + phone(+15) + website(+15) + business_insight(+20) + concrete_fact(+10) + deer(+10)
-- Checks suppression column for "yes/true/1" values
-- Creates Lead + LeadEvent records
-- Creates Suppression record if flagged
-- Dedup: checks existing lead by (brand_id, email) before creating
+`routes/debug.php` contains a route that returns API-token values, but it is **not registered** by `bootstrap/app.php`. It must never be included in production routing.
 
 ---
 
-## 9. Artisan Commands
+## 8. Commands, Jobs, and Scheduler
 
-| Command | Description |
-|---------|-------------|
-| `php artisan leads:import-ujuziplus` | Import leads from Google Sheets CSV into Postgres |
-| `php artisan leads:import-ujuziplus --dry-run` | Preview import without writing |
-| `php artisan leads:import-ujuziplus --file=path/to/csv` | Import specific CSV file |
-| `php artisan leads:score` | Recalculate all lead scores |
-| `php artisan leads:score --brand=ujuziplus` | Score leads for a specific brand |
-| `php artisan leads:score --segment=deer --limit=50` | Score specific segment, limited |
-| `php artisan leads:score --dry-run` | Preview scoring without writing |
-| `php artisan leads:enrich-batch` | Batch enrichment: transitions new leads to enriching for Hermes processing |
-| `php artisan leads:backfill-json` | Recover leads from JSON backup to Postgres |
-| `php artisan leads:monitor-mining --hours=2` | Monitor lead mining pipeline: check Hermes mining crons are producing leads |
-| `php artisan emails:import-sequences` | Import email sequences (email_1..email_5) from CSV into email_messages table |
-| `php artisan emails:import-sequences --dry-run` | Preview email import without writing |
-| `php artisan emails:import-sequences --file=path/to/csv` | Import from specific CSV file |
-| `php artisan emails:send-batch` | Send approved/queued emails via SMTP2GO with safe-send discipline |
-| `php artisan emails:send-batch --limit=10` | Limit sends per run |
-| `php artisan emails:send-batch --force` | Skip MX check |
-| `php artisan emails:notify-telegram` | Send pending email approval requests to Telegram with content preview |
-| `php artisan emails:generate-content` | Check for leads needing email sequence generation and log pipeline status |
-| `php artisan emails:identify-incomplete-sequences` | Find enriched leads with incomplete email sequences (missing steps) |
-| `php artisan emails:identify-incomplete-sequences --fix` | Reset partial sequences for re-generation (marks as needs_content) |
-| `php artisan telegram:poll-approvals` | Poll Telegram for approval replies (text commands + inline callbacks) |
-| `php artisan inbox:poll --days=3 --limit=30` | Poll IMAP inbox for lead replies and create Reply records |
-| `php artisan activity:daily-brief` | Generate daily system overview brief with funnel metrics |
-| `php artisan activity:seed-test-data` | Seed sample activity feed events for testing |
-| `php artisan winloss:generate` | Generate win-loss report from reply outcomes and pipeline metrics |
-| `php artisan cron:cleanup-runs --older-than=30` | Mark stuck running cron job records as failed |
-| `php artisan sequence:seed-schedules` | Seed sequence schedule rows (idempotent via updateOrCreate) |
-| `php artisan mining:seed-targets` | Seed mining target geo config for UjuziPlus and Hudutech |
-| `php artisan emails:seed-sender-emails` | Seed brand sender email pools for rotation |
-| `php artisan migrate:fresh --seed` | Reset DB + seed brands + sample-only local dev data |
-| `php artisan serve` | Start Laravel dev server (port 8000) |
-| `php artisan queue:work redis` | Start queue worker manually (production uses Supervisor config) |
-| `php artisan tinker` | Interactive REPL |
+### Application Artisan commands
+
+| Command | Purpose / important options |
+|---|---|
+| `activity:daily-brief` | Post daily funnel/system brief |
+| `activity:seed-test-data` | Seed activity feed test records |
+| `agents:seed-roster` | Idempotently seed six core agents |
+| `cron:cleanup-runs --older-than=30` | Fail orphaned running job records |
+| `emails:generate-content --limit=` | Identify/generate content through the API workflow |
+| `emails:identify-incomplete-sequences [--fix]` | Report/reset partial sequences |
+| `emails:import-sequences [--file=] [--dry-run]` | Import CSV sequence cells |
+| `emails:notify-telegram --limit=` | Send pending approvals to Telegram |
+| `emails:send-batch [--limit=] [--force]` | Send approved queued mail via SMTP2GO |
+| `inbox:poll [--days=3] [--limit=30]` | Poll IMAP and persist replies |
+| `leads:backfill-json` | Recover filtered legacy JSON leads |
+| `leads:enrich-batch [--brand=] [--segment=] [--limit=] [--dry-run]` | Move eligible leads into enrichment |
+| `leads:hiring-signal-digest [--brand=] [--dry-run]` | Post the consolidated Hiring Deer digest |
+| `leads:import-ujuziplus [--file=] [--dry-run]` | Import legacy UjuziPlus CSV data |
+| `leads:mine-hiring-signals [--source=] [--brand=] [--dry-run]` | Run one/all job-signal sources |
+| `leads:monitor-mining [--hours=]` | Monitor external Hermes mining health |
+| `leads:score [--brand=] [--segment=] [--limit=] [--dry-run]` | Recalculate general lead scores |
+| `brands:seed-senders [--brand=]` | Seed per-brand sender pools |
+| `mining:seed-targets [--append] [--brand=]` | Seed geographic and hiring-source targets |
+| `sequence:seed-schedules` | Seed per-brand rabbit/deer timings |
+| `seed:deer-sequence-config` | Seed generic and hiring-source UjuziPlus deer prompts |
+| `telegram:poll-approvals` | Process Telegram text/callback approvals |
+| `winloss:generate [--json]` | Generate and post win-loss report |
+
+Use `php artisan list` and `php artisan help <command>` for authoritative current signatures.
+
+### Scheduler source of truth
+
+The following schedules are defined in `bootstrap/app.php`:
+
+| Schedule | Work |
+|---|---|
+| Every 5 minutes | Telegram approval poll |
+| Every 10 minutes | IMAP reply poll |
+| Every 15 minutes | Send up to 20 approved emails |
+| Every 30 minutes | Content pipeline check, Telegram approval notifications, cron-run cleanup |
+| Every 2 hours | Lead-mining health monitor |
+| Daily 02:30 | Prune failed queue jobs older than 14 days |
+| Daily 03:00 | General lead scoring |
+| Daily 05:00 | Sequence progression job; job itself skips weekends |
+| Daily 07:00 | Activity daily brief |
+| Monday 06:00 | Win-loss report |
+
+Hiring Deer is staggered daily:
+
+| Time (application timezone) | Source/work |
+|---|---|
+| 00:00 | BrighterMonday |
+| 00:10 | Fuzu |
+| 00:20 | MyJobMag |
+| 00:30 | Corporate Staffing |
+| 00:40 | Glassdoor |
+| 00:50 | Known company careers pages |
+| 01:20 | Google Jobs / `JobPosting` schema |
+| 01:35 | LinkedIn |
+| 02:00 | Deer enrichment batch |
+| 02:10 | Consolidated hiring-signal digest |
+
+Every scheduled entry uses the application timezone (default `UTC` unless `APP_TIMEZONE`/config is changed; `config/app.php` currently hard-codes `UTC`). Business timezone is separately configured as `Africa/Nairobi`.
+
+### Agent registry
+
+`agents:seed-roster` creates six codenamed agents:
+
+- The Professor — orchestration/strategy.
+- Tokyo — lead mining.
+- Bogotá — enrichment.
+- Nairobi — drafting.
+- Rio — reply classification.
+- Denver — analytics/learning.
+
+Per-agent bearer tokens are generated once through the UI and only hashes are stored. Activity events can be attributed to agents. Attached documents are stored through the configured filesystem.
+
+### Activity comments and instructions
+
+Humans can comment on activity events. Comments may be marked as instructions and polled through `/api/v1/instructions`; agents acknowledge/update their status. `RespondToComment` and `CommentResponseService` support automated responses/actions.
 
 ---
 
-## 10. Development Setup
+## 9. Data and Integrations
+
+### Data authority
+
+- Linux PostgreSQL is the intended canonical operational database.
+- Local development is sample-only after `migrate:fresh --seed`.
+- Historical production counts in the old document (608, 756, etc.) were snapshots, not reliable current state, and are intentionally not presented as current.
+- Use `docs/data-canonicalization.md` for the one-time Mac-to-Linux transfer and validation procedure.
+- Legacy CSV imports expect private files under `storage/app/private/`; those files are not tracked in the current repository inventory.
+
+### SMTP2GO
+
+Implemented behavior:
+
+- API-based sends, message state updates, sender rotation, MX checks, per-domain warming limits, randomized pacing, and sequence-day enforcement.
+- Raw webhook persistence before processing.
+- Open/click updates.
+- Hard bounce, complaint, and unsubscribe suppression.
+- Reply ingestion when the provider forwards reply events.
+
+Required configuration:
+
+```text
+SMTP2GO_API_KEY
+SMTP2GO_API_ENDPOINT
+SMTP2GO_WEBHOOK_KEY
+MAIL_*
+```
+
+Provider-side webhook and reply-forwarding settings are external state and must be verified in SMTP2GO.
+
+### Telegram
+
+Implemented behavior:
+
+- Approval notifications and inline/text approval handling.
+- Interested-reply and activity alerts.
+- Webhook and polling paths.
+- Laravel proxy routes used by Hermes where direct Telegram connectivity is unreliable.
+
+Required configuration:
+
+```text
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
+TELEGRAM_WEBHOOK_SECRET
+```
+
+### IMAP
+
+`inbox:poll` provides a fallback reply source. Required keys are `IMAP_HOST`, `IMAP_PORT`, `IMAP_USERNAME`, and `IMAP_PASSWORD`. The PHP IMAP extension/runtime availability is an environment prerequisite.
+
+### Hermes and API authentication
+
+- Legacy integrations use `OMNI_API_TOKEN`.
+- Agent activity posting uses per-agent tokens through `AgentTokenAuth`, with legacy compatibility.
+- Hermes itself, its skills, cron definitions, model routing, and most context-spine files are outside this repository.
+
+### Hiring Deer pipeline
+
+The pipeline mines Kenyan job-demand signals for UjuziPlus deer leads:
+
+1. Mining targets whose categories begin `hiring_signal_` select sources.
+2. Scrapers filter target job titles and excluded organizations.
+3. Listings roll up by company within a source run.
+4. Leads are created with `source=hiring_signal_{source}`, `segment=deer`, and signal details in `raw_data`.
+5. A separate score prioritizes demand strength.
+6. Enrichment follows after all source windows.
+7. A daily activity digest summarizes new leads.
+8. Source-conditioned `BrandSequenceConfig` prompts customize drafting for these leads.
+
+LinkedIn requires both `LINKEDIN_ENABLED` and `config/mcporter.json`; those are not represented in `.env.example` and the config file is not present in the tracked inventory.
+
+---
+
+## 10. Development and Verification
 
 ### Prerequisites
 
-- PHP 8.3+ (8.4.11 installed)
-- PostgreSQL 15+ (17.10 installed)
-- Redis (6379)
-- Node.js 20+ (for Vite)
-- Composer
+- PHP 8.3+ and Composer.
+- Node.js compatible with Vite 8 and npm.
+- PostgreSQL for production-like development; SQLite exists as the Laravel starter fallback.
+- Redis when using the repository’s normal cache/queue configuration.
 
-### First-time Setup
+### Setup
 
 ```bash
 cp .env.example .env
-# Edit .env: set DB_CONNECTION=pgsql, DB_HOST=127.0.0.1, DB_PORT=5432,
-#   DB_DATABASE=omni_os, DB_USERNAME=im
-#   Set REDIS_CLIENT=predis (NOT phpredis — extension not installed on Mac)
-#   Set QUEUE_CONNECTION=redis, CACHE_STORE=redis
-php artisan key:generate
 composer install
 npm install
-php artisan migrate
-php artisan db:seed
+php artisan key:generate
+php artisan migrate --seed
+npm run build
 ```
 
-### Running the Dev Servers
+Or run `composer setup`, then review the generated environment before treating it as production-like.
 
-**IMPORTANT:** You need BOTH servers running. Without Vite, the page renders blank/white because CSS and JS are loaded from port 5173.
+For normal development:
 
 ```bash
-# Terminal 1: Laravel backend
-php artisan serve --host=127.0.0.1 --port=8000
-
-# Terminal 2: Vite frontend (CSS/JS hot reload)
-npm run dev
+composer dev
 ```
 
-If you only run `php artisan serve` without `npm run dev`, the page at http://127.0.0.1:8000/ will be white/blank because Vite serves all the CSS and JavaScript from port 5173. For production (no hot reload), you can instead run `npm run build` once to compile assets into `public/`, then only `php artisan serve` is needed.
+That starts Laravel, a queue listener, log tailing, and Vite together. Alternatively run `php artisan serve`, `php artisan queue:work redis`, and `npm run dev` separately.
 
-### Login
+Local login after seeding:
 
-- URL: http://127.0.0.1:8000/login
-- Local dev user: `dev-admin@example.test`
-- Password: configured in `database/seeders/DatabaseSeeder.php` for local development only
+```text
+Email: dev-admin@example.test
+Password: password
+```
 
-### Key URLs
+Never use this seeded account/password in production.
 
-| URL | What |
-|-----|------|
-| http://127.0.0.1:8000/ | Welcome page |
-| http://127.0.0.1:8000/dashboard | Vue dashboard with stats + charts + email sequence stats + score distribution |
-| http://127.0.0.1:8000/leads | Vue lead management with score badges, filters, sorting |
-| http://127.0.0.1:8000/admin | Filament admin panel |
-| http://127.0.0.1:8000/admin/leads | Lead management (sample local data by default; canonical data lives on Linux) |
-| http://127.0.0.1:8000/admin/email-messages | Email sequence management |
-| http://127.0.0.1:8000/admin/brands | Brand management (4 brands) |
-| http://127.0.0.1:8000/admin/suppressions | Suppression list |
-| http://127.0.0.1:8000/admin/mining-targets | Mining target config |
+### Environment groups
 
-### Environment (.env key settings)
+`.env.example` currently covers:
 
-Use `.env.example` as the full blank checklist for required keys.
+- application, API token, logging;
+- database, cache, session, filesystem, queue, Redis;
+- SMTP/mail, Telegram, IMAP;
+- Cloudflare Tunnel/Access;
+- backups and optional GitHub backup;
+- AWS/object storage and optional mail/Slack integrations;
+- frontend application name;
+- business timezone/send-hour values.
 
-Production rules:
-- real production `.env` lives only on Linux and is never committed
-- `APP_ENV=production`
-- `APP_DEBUG=false`
-- `REDIS_CLIENT=predis`
-- `QUEUE_CONNECTION=redis`
-- `CACHE_STORE=redis`
+It does not currently list `LINKEDIN_ENABLED`, although `LinkedInJobsScraper` uses it.
 
-### Manual Linux Deploy
+### Test suite
 
-Deployment is manual only. Do not auto-deploy on push.
+Current tests are starter/auth/settings-heavy:
 
-Trigger:
+- seven Fortify auth feature files;
+- profile and security settings tests;
+- dashboard access;
+- lead status transition behavior;
+- starter feature/unit example tests.
+
+There is no automated coverage for the core email send/webhook pipeline, Telegram flows, agents/instructions, sequence resolution, hiring scrapers, reply routing, or most authenticated CRUD pages.
+
+Run:
 
 ```bash
-# SSH or Tailscale into the Linux box
+composer test
+npm run lint:check
+npm run format:check
+npm run types:check
+```
+
+For the full combined pipeline:
+
+```bash
+composer ci:check
+```
+
+---
+
+## 11. Deployment and Operations
+
+Deployment is manual:
+
+```bash
 cd /srv/omni_os
 bash scripts/deploy.sh
 ```
 
-Committed deploy script:
+The deploy script pulls Git, installs optimized Composer dependencies, installs/builds npm assets, runs migrations, caches Laravel state, upgrades Filament assets, ensures the storage link, and restarts queue workers.
 
-- `scripts/deploy.sh`
-- runs `git pull`, `composer install --no-dev --optimize-autoloader`, `npm ci`, `npm run build`, migrations, caches, Filament assets, storage link, and `queue:restart`
+### Queue
 
-Artifact policy:
+Supervisor template:
 
-- `vendor/`, `node_modules/`, and `public/build/` are gitignored and must be rebuilt on Linux
-- never copy built binaries from Mac to Linux; Mac is ARM and Linux is x86
-- Redis stays on `predis` on both Mac and Linux
-- Git remote points at `git@github.com:samgithae/omni_os.git`; verify the repository visibility is private in GitHub settings
-
-### Linux Queue / Scheduler / Backup
-
-Queue worker:
-
-- Supervisor config is committed at `deploy/supervisor/omni-os-queue-worker.conf`
-- start/update commands:
-
-```bash
-sudo cp deploy/supervisor/omni-os-queue-worker.conf /etc/supervisor/conf.d/
-sudo supervisorctl reread
-sudo supervisorctl update
-sudo supervisorctl start omni-os-queue-worker:*
-sudo supervisorctl status omni-os-queue-worker:*
+```text
+deploy/supervisor/omni-os-queue-worker.conf
 ```
 
-- stop/restart commands:
+It runs two Redis workers under `www-data`. Copy it to `/etc/supervisor/conf.d/`, then reread/update Supervisor.
 
-```bash
-sudo supervisorctl stop omni-os-queue-worker:*
-sudo supervisorctl restart omni-os-queue-worker:*
-```
+### Scheduler
 
-Scheduler:
+Install one Linux cron entry:
 
-- app scheduler hook is wired in `bootstrap/app.php`
-- install Linux cron:
-
-```bash
+```cron
 * * * * * cd /srv/omni_os && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-Backups:
+Use `php artisan schedule:list` after each scheduler change.
 
-- backup script: `scripts/backup-postgres.sh`
-- cron example: `deploy/cron/omni-os.cron.example`
-- backup retention rotates old dumps with `find ... -mtime`
-- set `BACKUP_ROOT` to storage outside the database disk and optionally set `BACKUP_REMOTE_TARGET` for rsync to external/private backup storage
+### Backups
 
-### Cloudflare Tunnel + Access
+- Script: `scripts/backup-postgres.sh`.
+- Cron template: `deploy/cron/omni-os.cron.example`.
+- Supports retention through `BACKUP_RETENTION_DAYS` and optional off-host `rsync` via `BACKUP_REMOTE_TARGET`.
+- Put `BACKUP_ROOT` on storage independent from the database disk.
 
-Committed template:
+### Cloudflare
 
-- `deploy/cloudflare/cloudflared-config.example.yml`
+Template: `deploy/cloudflare/cloudflared-config.example.yml`.
 
-Policy:
+Expose only the Laravel web UI, protect it with Cloudflare Access, and never expose PostgreSQL. `bootstrap/app.php` trusts all proxies, so the deployment perimeter must prevent untrusted direct access to the app.
 
-- expose only the Laravel web UI hostnames
-- dashboard hostname: `CLOUDFLARE_DASHBOARD_HOSTNAME`
-- admin hostname: `CLOUDFLARE_ADMIN_HOSTNAME`
-- create the Cloudflare Access application before routing the tunnel
-- deny by default
-- allow only Sam's Google identity via `CLOUDFLARE_ACCESS_ALLOWED_EMAIL`
-- never expose Postgres through Cloudflare Tunnel
+### Build artifacts
 
-### Route List (67 routes total)
-
-Key routes:
-```
-GET  /                         → Welcome (Inertia)
-GET  /dashboard                → DashboardController (auth required)
-GET  /admin                    → Filament dashboard
-GET  /admin/brands             → Brand CRUD
-GET  /admin/leads              → Lead CRUD + view
-GET  /admin/suppressions       → Suppression CRUD
-GET  /admin/mining-targets     → Mining target CRUD
-GET  /email-sequences           → EmailSequenceController@index (Vue page, auth required)
-GET  /email-sequences/approve   → EmailSequenceController@bulkApprove (POST, auth)
-GET  /email-sequences/reject    → EmailSequenceController@bulkReject (POST, auth)
-GET  /email-sequences/{id}/approve → EmailSequenceController@approve (POST, auth)
-GET  /email-sequences/{id}/reject  → EmailSequenceController@reject (POST, auth)
-GET  /login                    → Fortify login
-POST /login                    → Fortify authenticate
-POST /logout                   → Fortify logout
-GET  /settings/profile         → User profile settings
-GET  /settings/security        → Security settings (2FA, passkeys)
-```
+`vendor/`, `node_modules/`, and `public/build/` are rebuild-only and must not be copied between ARM Mac and x86 Linux.
 
 ---
 
-## 11. File Structure
+## 12. Repository Structure
 
-```
+```text
 omni_os/
-├── Omni-OS-Strategy-Brief.md          # Strategy source of truth (v1) — READ THIS FIRST
-├── Omni-OS-Strategy-Brief.md.pdf      # PDF version of strategy brief
-├── PROJECT.md                         # THIS FILE — technical status & developer guide
-├── .env                               # Environment config (secrets — don't commit)
-├── .env.example                       # Template for .env
-├── composer.json                      # PHP dependencies
-├── composer.lock                      # PHP dependency lock
-├── package.json                       # JS dependencies + scripts
-├── package-lock.json                  # JS dependency lock
-├── vite.config.ts                     # Vite configuration
-├── tsconfig.json                      # TypeScript config
-├── eslint.config.js                   # ESLint config
-├── phpunit.xml                        # PHPUnit config
-├── phpstan.neon                       # PHPStan config
-├── pint.json                          # Laravel Pint formatter config
-├── components.json                    # shadcn/ui config
-├── artisan                            # Laravel CLI entry point
-│
 ├── app/
-│   ├── Console/
-│   │   └── Commands/
-│   │       ├── ImportUjuziPlusLeads.php       # Google Sheets CSV → Postgres lead importer
-│   │       ├── ImportEmailSequences.php       # Google Sheets CSV → Postgres email sequence importer
-│   │       ├── BackfillJson.php               # JSON-to-Postgres lead recovery
-│   │       ├── EnrichLeadsBatch.php           # Batch enrichment: new → enriching
-│   │       ├── GenerateDailyBrief.php         # Daily system overview brief
-│   │       ├── GenerateEmailContent.php       # Pipeline check: logs needs-generation count
-│   │       ├── GenerateWinLossReport.php      # Win-loss report generator
-│   │       ├── IdentifyIncompleteSequences.php # Find leads with missing email steps
-│   │       ├── MonitorLeadMining.php          # Mining pipeline health monitor
-│   │       ├── NotifyTelegramApproval.php     # Send approval requests to Telegram
-│   │       ├── PollInboxReplies.php           # IMAP inbox poller for replies
-│   │       ├── PollTelegramApprovals.php     # Poll Telegram for APPROVE/REJECT commands
-│   │       ├── ScoreLeadsBatch.php            # Batch lead scoring
-│   │       ├── SeedActivityEvents.php         # Seed test activity events
-│   │       ├── SeedMiningTargets.php         # Seed mining target geo config
-│   │       ├── SeedSenderEmails.php           # Seed brand sender email pools
-│   │       ├── SeedSequenceSchedules.php      # Seed sequence schedule rows
-│   │       ├── SendEmailBatch.php             # Send approved emails via SMTP2GO
-│   │       └── CleanupCronJobRuns.php         # Mark stuck running cron jobs as failed
-│   │
-│   ├── Filament/
-│   │   ├── Resources/
-│   │   │   ├── BrandResource.php            # Brand CRUD
-│   │   │   │   └── Pages/
-│   │   │   │       ├── CreateBrand.php
-│   │   │   │       ├── EditBrand.php
-│   │   │   │       └── ListBrands.php
-│   │   │   ├── LeadResource.php             # Lead CRUD + filters + view + email relation manager
-│   │   │   │   ├── Pages/
-│   │   │   │   │   ├── CreateLead.php
-│   │   │   │   │   ├── EditLead.php
-│   │   │   │   │   ├── ListLeads.php
-│   │   │   │   │   └── ViewLead.php          # Shows email sequence via relation manager
-│   │   │   │   └── RelationManagers/
-│   │   │   │       └── EmailMessagesRelationManager.php  # Email sequence inline on lead view
-│   │   │   ├── EmailMessageResource.php      # Email sequence CRUD + approve/reject
-│   │   │   │   └── Pages/
-│   │   │   │       ├── ListEmailMessages.php
-│   │   │   │       ├── CreateEmailMessage.php
-│   │   │   │       ├── ViewEmailMessage.php
-│   │   │   │       └── EditEmailMessage.php
-│   │   │   ├── SuppressionResource.php      # Suppression CRUD
-│   │   │   │   └── Pages/
-│   │   │   │       ├── CreateSuppression.php
-│   │   │   │       ├── EditSuppression.php
-│   │   │   │       └── ListSuppressions.php
-│   │   │   └── MiningTargetResource.php     # Mining config CRUD
-│   │   │       └── Pages/
-│   │   │           ├── CreateMiningTarget.php
-│   │   │           ├── EditMiningTarget.php
-│   │   │           └── ListMiningTargets.php
-│   │   └── Widgets/
-│   │       ├── LeadStatsOverview.php      # Stat cards widget
-│   │       ├── LeadsByBrandChart.php      # Bar chart widget
-│   │       ├── LeadsBySegmentChart.php    # Doughnut chart widget
-│   │       └── LeadsByCityChart.php       # Top 10 cities widget
-│   │
-│   ├── Enums/
-│   │   ├── LeadStatus.php           # Lead state machine
-│   │   ├── ActivityEventType.php    # Controlled vocabulary for activity feed
-│   │   └── ActivitySeverity.php     # info/success/warning/error
-│   │
-│   ├── Events/
-│   │   └── ActivityEventCreated.php # Fired when notify_telegram=true
-│   │
-│   ├── Listeners/
-│   │   └── NotifyTelegram.php       # Stub — future Telegram delivery
-│   │
-│   ├── Services/
-│   │   └── ActivityLogger.php       # Activity::log() — posts to feed
-│   │
+│   ├── Console/Commands/       # 23 command classes
+│   ├── Contracts/              # scraper contract
+│   ├── Enums/                  # lead/activity/email/comment vocabularies
+│   ├── Events/ + Listeners/    # activity Telegram + cron tracking
+│   ├── Filament/               # nine resource families + four widgets
 │   ├── Http/
-│   │   └── Controllers/
-│   │       ├── Controller.php
-│   │       ├── DashboardController.php    # Vue dashboard data provider
-│   │       ├── ActivityController.php     # Activity feed (index, poll, loadMore)
-│   │       ├── EmailSequenceController.php # Email sequences Vue page (index, approve, reject)
-│   │       ├── Api/                       # API controllers
-│   │       │   ├── EmailController.php
-│   │       │   ├── LeadController.php
-│   │       │   ├── MiningTargetController.php
-│   │       │   ├── StatsController.php
-│   │       │   ├── SuppressionController.php
-│   │       │   ├── WebhookController.php
-│   │       │   └── ActivityEventController.php  # POST /api/v1/events
-│   │       └── Settings/
-│   │           ├── ProfileController.php
-│   │           └── SecurityController.php
-│   │
-│   ├── Models/
-│   │   ├── Brand.php
-│   │   ├── Lead.php
-│   │   ├── Suppression.php
-│   │   ├── EmailMessage.php
-│   │   ├── LeadEvent.php
-│   │   ├── MiningTarget.php
-│   │   ├── ActivityEvent.php         # Activity feed model
-│   │   └── User.php
-│   │
-│   └── Providers/
-│       └── Filament/
-│           └── AdminPanelProvider.php     # Filament panel configuration
-│
+│   │   ├── Controllers/        # web, API, and settings controllers
+│   │   ├── Middleware/         # API/agent auth + Inertia/appearance
+│   │   └── Requests/           # settings/activity/reply validation
+│   ├── Jobs/                   # sequence, replies, comments, eight scrapers
+│   ├── Livewire/               # Filament brand switcher
+│   ├── Models/                 # 16 application models + scopes/concerns
+│   ├── Providers/
+│   └── Services/
+├── bootstrap/app.php           # routing, middleware, actual scheduler
+├── config/                     # Laravel + services + jobs UI metadata
 ├── database/
-│   ├── migrations/
-│   │   ├── 0001_01_01_000000_create_users_table.php
-│   │   ├── 0001_01_01_000001_create_cache_table.php
-│   │   ├── 0001_01_01_000002_create_jobs_table.php
-│   │   ├── 2024_01_01_000000_create_passkeys_table.php
-│   │   ├── 2025_06_20_100000_create_brands_table.php
-│   │   ├── 2025_08_14_170933_add_two_factor_columns_to_users_table.php
-│   │   ├── 2026_06_20_092930_create_leads_table.php
-│   │   ├── 2026_06_20_092931_create_suppressions_table.php
-│   │   ├── 2026_06_20_092932_create_email_messages_table.php
-│   │   ├── 2026_06_20_092933_create_lead_events_table.php
-│   │   ├── 2026_06_20_092934_create_mining_targets_table.php
-│   │   ├── 2026_06_20_175321_add_approval_workflow_to_email_messages.php
-│   │   └── 2026_06_21_171104_create_activity_events_table.php  # Activity feed
-│   └── seeders/
-│       ├── DatabaseSeeder.php             # Orchestrates all seeders
-│       └── BrandSeeder.php               # Seeds 4 brands with full metadata
-│
+│   ├── migrations/             # 28 migration files
+│   ├── seeders/                # brands, sample data, root seeder
+│   └── factories/
+├── deploy/
+│   ├── cloudflare/
+│   ├── cron/
+│   └── supervisor/
+├── docs/data-canonicalization.md
+├── icp/ujuziplus.md
 ├── resources/
+│   ├── css/app.css
 │   ├── js/
-│   │   ├── pages/
-│   │   │   ├── Dashboard.vue              # Real dashboard with stats + charts
-│   │   │   ├── Activity.vue               # Twitter-style activity feed
-│   │   │   ├── Welcome.vue                # Landing page
-│   │   │   ├── EmailSequences/             # Email sequence review workspace
-│   │   │   │   ├── Index.vue              # Main page (stats, filters, lead list, bulk actions)
-│   │   │   │   └── components/
-│   │   │   │       ├── StatsBar.vue        # Aggregate stats with click-to-filter
-│   │   │   │       ├── FilterBar.vue       # Brand/segment/approval/progress/search
-│   │   │   │       ├── LeadSequenceRow.vue  # Compact lead row with brand accent + expand
-│   │   │   │       ├── SequenceTimeline.vue # 5-step horizontal progress indicator (signature component)
-│   │   │   │       ├── ExpandedSequence.vue # Vertical email list with approve/reject/preview
-│   │   │   │       ├── EmailPreview.vue    # Sandboxed HTML email body preview
-│   │   │   │       └── BulkActionBar.vue   # Sticky bottom bar for batch approve/reject
-│   │   │   ├── auth/                       # Login, register, forgot password
-│   │   │   └── settings/                   # User settings (profile, security, appearance)
-│   │   ├── components/
-│   │   │   ├── NavMain.vue                 # Sidebar nav (Inertia + external links)
-│   │   │   ├── AppSidebar.vue              # Sidebar config (5 nav items)
-│   │   │   ├── AppLogo.vue                 # "Omni OS" branding
-│   │   │   └── ui/                         # Reusable UI components
-│   │   └── ...
-│   └── ...
-│
+│   │   ├── components/         # app shell and reusable UI
+│   │   ├── composables/
+│   │   ├── layouts/
+│   │   ├── lib/
+│   │   ├── pages/              # auth, settings, and operational pages
+│   │   └── types/
+│   └── views/
 ├── routes/
-│   ├── web.php                             # Home + dashboard + email-sequences + activity routes
-│   ├── api.php                             # API v1 (leads, emails, mining, events, webhooks)
-│   └── settings.php                        # Settings routes (profile, security)
-│
-├── config/                                 # Laravel config files (14 files)
-├── bootstrap/                              # App bootstrap
-├── public/                                 # Public assets (favicon, index.php)
-├── storage/
-│   ├── app/
-│   │   └── private/
-│   │       ├── ujuziplus_rabbits.csv        # Exported Rabbits sheet (258 rows)
-│   │       └── ujuziplus_deer.csv           # Exported Deer sheet (431 rows)
-│   ├── framework/                           # Laravel framework storage
-│   └── logs/                               # Application logs
-│
-├── tests/                                  # Test suite
-├── vendor/                                  # Composer dependencies
-└── node_modules/                            # npm dependencies
+│   ├── api.php
+│   ├── console.php
+│   ├── debug.php               # intentionally not registered
+│   ├── settings.php
+│   └── web.php
+├── scripts/
+│   ├── backup-postgres.sh
+│   └── deploy.sh
+├── tests/
+├── .env.example
+├── composer.json / composer.lock
+├── package.json / package-lock.json
+├── pnpm-workspace.yaml
+├── vite.config.ts
+├── tsconfig.json
+├── eslint.config.js
+├── phpstan.neon
+├── phpunit.xml
+├── pint.json
+├── components.json
+├── Omni-OS-Strategy-Brief.md
+├── Omni-OS-Strategy-Brief (1).md
+├── PROJECT.md
+├── omni_logo.png / omni_logo_min.png
+└── INV_2026_00002.pdf
+```
+
+### Unexpected root files
+
+The working tree contains seven stray filenames apparently produced by malformed `tee`/Tinker shell commands:
+
+```text
+0,
+=, now()->subDay())->count();
+echo 'Sent since yesterday: ' . \$since . '\n';
+\$total = DB::table('email_messages')->where('status', 'sent')->count();
+echo 'Total sent all time: ' . \$total . '\n';
+"
+
+=, now()->subDay())->count();
+echo '\n';
+echo 'Total sent all time: ' . DB::table('email_messages')->where('status', 'sent')->count();
+echo '\n';
+"
+
+=, now()->subDay())->count() . '\n';
+echo 'Total sent all time: ' . DB::table('email_messages')->where('status', 'sent')->count() . '\n';
+"
+```
+
+The multi-line text above represents three filenames plus `0,`, not source files. They are untracked/stray artifacts and should be deleted in a separate cleanup after confirming they contain no needed data. They are intentionally excluded from the structural tree.
+
+`Omni-OS-Strategy-Brief (1).md`, the invoice PDF, and duplicate root logo files may also be intentional local artifacts; confirm before deleting or tracking them.
+
+---
+
+## 13. Current Status and Roadmap
+
+### Implemented
+
+- Four-brand model, active-brand context, and brand settings.
+- PostgreSQL core schema with lead, suppression, and sequence invariants.
+- Auth with registration, verification, password reset, 2FA, and passkeys.
+- Vue/Inertia operator UI for dashboard, leads, email sequences/messages, inbox, activity, analytics/jobs, agents, brands, suppressions, mining, schedules, and prompts.
+- Filament fallback/admin CRUD and webhook inspection.
+- UjuziPlus CSV lead and sequence import paths.
+- Lead enrichment state machine and API workflow.
+- General lead scoring and analytics/win-loss reporting.
+- SMTP2GO send path, pacing, sequence enforcement, raw webhook storage, and suppression handling.
+- Telegram approval/notification/webhook/polling/proxy paths.
+- IMAP reply polling, reply classification routing, inbox, and outbound responses.
+- Sequence scheduling and source-conditioned drafting prompts.
+- Agent roster, per-agent tokens, documents, activity attribution, comments, and instruction polling.
+- Hiring Deer mining across eight source implementations, dedicated scoring, enrichment window, and daily digest.
+- Manual Linux deployment, Supervisor queue workers, scheduler cron, backup tooling, and Cloudflare templates.
+
+### Partially implemented or operationally dependent
+
+- Hermes mining/enrichment/drafting/classification is external and must be deployed/configured separately.
+- Scraper success depends on third-party HTML, anti-bot behavior, network access, and LinkedIn MCP configuration.
+- SMTP2GO webhooks, tracking, and reply forwarding require provider-side configuration.
+- Telegram reliability depends on bot/webhook/polling and network configuration.
+- Job-monitoring definitions do not yet cover all actual scheduled work.
+- The test suite does not substantively cover most business-critical workflows.
+
+### Next engineering priorities
+
+1. Add integration tests around suppression, approval, sequence timing, send idempotency, webhooks, reply routing, and source-conditioned config resolution.
+2. Fix no-email hiring-lead deduplication using a normalized company/domain key rather than relying on `(brand_id, email)`.
+3. Synchronize `config/schedule-jobs.php` with `bootstrap/app.php`, ideally from a single schedule definition.
+4. Move LinkedIn environment access into config, add keys to `.env.example`, and document/provision `mcporter.json`.
+5. Validate each hiring scraper with fixtures and explicit source-health telemetry.
+6. Expand and version the per-brand context spine.
+7. Verify production SMTP2GO, Telegram, IMAP, queue, scheduler, backup restore, and Cloudflare Access behavior.
+
+### Strategic roadmap
+
+- **UjuziPlus:** harden the existing rabbit/deer loop, prove reply-to-revenue learning, then add the pillar/atomize/distribute content loop.
+- **Hudutech:** reuse the proven B2B pipeline, add Hudutech-specific prompts/context and local-intent channels.
+- **Phantomflix / Phantom Tutors:** implement separate B2C, geography, consent, channel, and compliance playbooks.
+- **Cross-brand intelligence:** later add CRM/contact graph and pgvector only after the operational loops produce useful learning data.
+
+---
+
+## 14. Known Issues and Pitfalls
+
+### Confirmed code/documentation issues
+
+- `config/schedule-jobs.php` is stale: it says Telegram runs every minute while the actual scheduler runs every five minutes, and it omits Hiring Deer jobs. The jobs UI therefore does not fully describe the scheduler.
+- `LinkedInJobsScraper` calls `env('LINKEDIN_ENABLED')` outside config, which can fail under `config:cache`; `.env.example` lacks this key.
+- The hiring mining command does not reliably deduplicate leads with `NULL` email. PostgreSQL’s email unique index permits multiple nulls.
+- The scheduler’s displayed times use Laravel’s application timezone, currently hard-coded to UTC in `config/app.php`, while comments and operator expectations often say EAT. Set scheduler timezone explicitly before relying on those labels.
+- `CommentResponseService` still says approved mail sends in the next “business-hours window,” while send behavior and prior documentation have changed over time. Verify the current intended policy and align copy/config/code.
+- `routes/debug.php` exposes secrets if registered. Keep it unregistered or delete it.
+- The malformed root files listed above remain cleanup debt.
+
+### Operational cautions
+
+- Running only `php artisan serve` without Vite development assets or a completed production build can produce an unstyled/nonfunctional page.
+- Keep `REDIS_CLIENT=predis` unless the deployment deliberately installs/configures PhpRedis.
+- Inertia links must not be used for Filament destinations.
+- Filament v4 uses `Filament\Schemas\Schema`, schema components under `Filament\Schemas\Components`, and actions under `Filament\Actions`.
+- Filter option arrays must remove null labels.
+- The UjuziPlus deer CSV importer contains defensive truncation/nulling for historically misaligned columns.
+- `trustProxies('*')` assumes the origin cannot be reached by untrusted clients.
+- Never commit `.env`, Google tokens, SMTP/Telegram credentials, agent plaintext tokens, customer CSVs, database dumps, or private agent context.
+
+### Compliance guardrails
+
+- Apply suppression before every external send and provide a working opt-out.
+- Keep human approval for external publishing/sending.
+- Treat WhatsApp as opt-in only.
+- Follow platform terms for job boards, LinkedIn, Reddit, and other mined/distribution channels.
+- Phantom Tutors must remain legitimate tutoring/exam support, not assignment completion.
+- Compliance differs across Kenya, US, and UK markets; obtain current legal advice before production expansion.
+
+---
+
+## 15. Recent Changelog
+
+### 2026-07-02 — Documentation audit
+
+- Reconciled this guide with the complete current repository inventory.
+- Added agents, documents, comments/instructions, source-conditioned sequence configs, Hiring Deer commands/jobs/schedules, current Vue pages, current API routes, and deployment files.
+- Replaced stale point-in-time production counts with explicit verification guidance.
+- Corrected Filament resource, model, migration, route, and command inventories.
+- Documented malformed root filenames and confirmed known code/config inconsistencies.
+
+### 2026-07-01 — Hiring intelligence and source-conditioned drafting
+
+- Added the Hiring Deer pipeline with eight source implementations.
+- Added deterministic 0–150 hiring-signal scoring and a daily digest.
+- Added UjuziPlus deer prompt rules for hiring-signal leads.
+- Added `source_condition` to `brand_sequence_configs` and resolution fallback.
+- Replaced old brand/segment-only sequence config uniqueness.
+- Wired LinkedIn job search through mcporter/linkedin-mcp.
+
+### 2026-06-25 — Agent registry and rebrand
+
+- Added agents, agent documents, agent activity attribution, per-agent tokens, Filament resources, and Vue roster management.
+- Added six core agent personas.
+- Rebranded the landing page, sidebar/auth logo, and favicon assets.
+- Added/fixed Telegram proxy paths and reliability work.
+
+### 2026-06-22 — Operational pipeline expansion
+
+- Added sequence schedules/progression, `needs_content`, source prompt configuration, and Hermes drafting endpoints.
+- Added webhook persistence, reply records, inbox, outbound reply job, and IMAP polling.
+- Added general lead scoring, analytics, win-loss reporting, cron monitoring, and activity comments/instructions.
+- Added sender pools and per-brand JSON settings.
+- Retired Google Sheets as the intended operational system of record.
+
+### 2026-06-20–21 — Foundation and first full loop
+
+- Created Laravel/Vue/Inertia/Filament/PostgreSQL foundation and core schema.
+- Added sample-safe local seeding and canonicalization documentation.
+- Imported legacy UjuziPlus leads/sequences and built approval UI.
+- Added activity feed, enrichment, SMTP2GO send/tracking, Telegram approval, and reply classification.
+- Added manual deployment, queue, scheduler, backup, and Cloudflare templates.
+
+Git history is authoritative for commit-level details:
+
+```bash
+git log --oneline -30
 ```
 
 ---
 
-## 12. What's Done — Phase 0 Foundation (COMPLETE)
-
-### Infrastructure & Stack
-
-- [x] Laravel 13 + Vue 3/Inertia + Tailwind 4 + PostgreSQL 17 stack running
-- [x] Redis configured with predis (phpredis extension not available on Mac)
-- [x] TypeScript strict mode passing (`vue-tsc --noEmit` clean)
-- [x] AppLogo rebranded to "Omni OS"
-
-### Database & Models
-
-- [x] User seeder with Sam's credentials
-- [x] Brand model + BrandSeeder (4 brands with full metadata: name, slug, description, market, KPI, voice, color)
-- [x] Core database schema: 5 custom migrations (leads, suppressions, email_messages, lead_events, mining_targets)
-- [x] Three DB invariants enforced at schema level:
-  - Dedup: `UNIQUE(brand_id, email)` on leads
-  - Suppression: `UNIQUE(brand_id, email)` on suppressions
-  - Idempotency: `UNIQUE(lead_id, sequence_step)` on email_messages
-- [x] Six Eloquent models with relationships, scopes, and casts
-- [x] Lead state machine: `new → enriching → enriched | no_email_found`
-
-### Admin Panel (Filament v4)
-
-- [x] Filament v4 admin panel installed and configured
-- [x] Five Filament resources: Brand, Lead, Suppression, MiningTarget, EmailMessage
-- [x] Four dashboard widgets: stats overview, brand chart, segment chart, city chart
-- [x] Lead resource with view page, filters (brand, segment, status, country, city), badges, score column
-- [x] EmailMessage resource with approval workflow (approve/reject actions, bulk approve, filters by approval status, send status, sequence step)
-- [x] EmailMessages relation manager on Lead view page (shows email sequence inline with approve/reject)
-- [x] Fixed Filament v4 compatibility issues (Schema import, Actions namespace, navigationIcon type, ChartWidget heading)
-
-### Vue/Inertia Frontend
-
-- [x] Vue/Inertia dashboard with real data (DashboardController + Dashboard.vue)
-- [x] Stat cards: total leads, with email, suppressed, active brands
-- [x] Progress bars for segment and status distribution
-- [x] Bar chart for leads by brand (with brand colors)
-- [x] Top 10 cities bar chart
-- [x] Recent activity feed (last 20 events)
-- [x] Email sequence stats section (total emails, pending/approved/rejected/sent, by step, approval breakdown, send status badges)
-- [x] Sidebar navigation with Activity Feed and Email Sequences links
-- [x] Quick links to all admin sections including Email Sequences
-- [x] Fixed Inertia `<Link>` vs `<a>` tag issue for Filament admin routes
-
-### Email Sequences Redesign (Phase 1 — UI/UX Enhancement)
-
-- [x] **New Vue/Inertia page at `/email-sequences`** — purpose-built sequence review workspace replacing the flat Filament table as primary operator tool
-- [x] **Stats bar** — inline aggregate stats (total, pending, approved, rejected, sent, opened, clicked) with stat-click filtering
-- [x] **Filter bar** — brand, segment, approval, progress, and search filters with instant Inertia partial reload
-- [x] **LeadSequenceRow** — compact lead rows with 5-step horizontal timeline (SequenceTimeline), brand color accent, expand/collapse
-- [x] **SequenceTimeline** — the signature visual: 5 color-coded circles (sent+opened=green, sent=blue, pending=amber, rejected=red, draft=gray, empty=outline/dashed) connected by lines, with step labels and status icons
-- [x] **ExpandedSequence** — vertical timeline showing all emails per lead with subjects, timestamps, status badges, single approve/reject, and inline preview toggle
-- [x] **EmailPreview** — sandboxed read-only HTML email body render (max-height scroll, gray background)
-- [x] **BulkActionBar** — sticky bottom bar for batch approve/reject across selected leads
-- [x] **Subject mismatch detection** — warns (⚠️) when subject doesn't contain the lead's company name words
-- [x] **Backend** — `EmailSequenceController` with index (paginated, filtered), bulkApprove, bulkReject, approve, reject endpoints
-- [x] **Sidebar + Dashboard links updated** — both now point to `/email-sequences`
-- [x] **Existing Filament EmailMessageResource untouched** — coexists as individual record editor
-
-### Activity Feed (Command Center)
-
-- [x] **Database** — `activity_events` table with brand_id, source, event_type, title, body, metadata (JSONB), severity, timestamps. Indexed on (brand_id, created_at), (event_type, created_at), and severity.
-- [x] **Enums** — `ActivityEventType` (mining_run, enrichment_batch, email_sent_batch, email_approved, email_rejected, reply_classified, suppression_added, daily_brief, system, deployment) and `ActivitySeverity` (info, success, warning, error)
-- [x] **ActivityLogger service** — `Activity::log()` facade, callable from any Laravel job/command without API round-trip
-- [x] **API endpoint** — `POST /api/v1/events` behind existing `ApiTokenAuth` middleware, accepts brand_slug, source, event_type (validated), title, body, metadata, severity, notify_telegram
-- [x] **Event + Listener stub** — `ActivityEventCreated` event fires on notify_telegram=true; `NotifyTelegram` listener is a no-op stub ready for future Telegram integration
-- [x] **Vue/Inertia page at `/activity`** — reverse-chronological, day-grouped Twitter-style timeline feed
-- [x] **Brand filter pills** — All / Hudutech / UjuziPlus / Phantomflix / Phantom Tutors with brand colors
-- [x] **Daily brief pinned/expanded** — `daily_brief` events render as distinct pre-expanded cards at top of their day group
-- [x] **Polling endpoint** — lightweight `GET /activity/poll?since={id}` returns new event count; 25s client-side poll shows "X new events" banner without scroll-jump
-- [x] **Load more** — `GET /activity/load-more?before={id}` cursor pagination with button, not infinite scroll
-- [x] **Severity visual cues** — info (neutral), success (green left-border), warning (amber), error (red); color-coded dots and badges
-- [x] **Expand/collapse** — click any event card to reveal body, metadata, and source details
-- [x] **Empty state** — "All quiet — no activity in the last 24h" instead of blank page
-- [x] **Sidebar navigation** — "Activity Feed" link added to AppSidebar.vue with Activity icon
-- [x] **No per-record logging** — batch operations produce exactly one activity_events row
-- [x] **No dedup logic** — telemetry table, not business state
-
-### Data Import
-
-- [x] Google Sheets → Postgres lead import command (`leads:import-ujuziplus`)
-- [x] 608 UjuziPlus leads imported (199 rabbits + 409 deer, 269 with emails)
-- [x] 265 suppressions imported from sheet data
-- [x] 608 lead events logged (import tracking)
-- [x] Deer sheet data quality issues handled (misaligned columns truncated/nulled)
-- [x] Google Sheets → Postgres email sequence import command (`emails:import-sequences`)
-- [x] 259 email drafts imported (subjects + bodies parsed from email_1..email_5 columns)
-- [x] Non-email entries filtered out (enrichment markers, skip notes)
-- [x] All 259 emails set to `approval_status=pending` for review workflow
-
-### Documentation
-
-- [x] Strategy brief written (`Omni-OS-Strategy-Brief.md`)
-- [x] This PROJECT.md written
-
-### Mining Targets Configuration (Phase 1.1)
-
-- [x] **`mining:seed-targets` artisan command** — seeds geo config for both UjuziPlus and Hudutech with --append and --brand options
-- [x] **4 geo priority tiers**: Kenya (daily cadence), East Africa (weekly), English-speaking Africa (weekly), Global (monthly)
-- [x] **UjuziPlus**: 1,998 targets — corporate training/LMS categories (training providers, SACCOs, universities, NGOs, government agencies, etc.) across 4 tiers
-- [x] **Hudutech**: 2,664 targets — ERP/automation categories (retail, manufacturing, schools, NGOs, logistics, real estate, etc.) across 4 tiers
-- [x] Country-level targets for all tiers; city-level targets for tiers 1-3
-- [x] Each target has: brand, country, city (nullable), category, search template, segment (rabbit/deer), cadence (daily/weekly/monthly), is_active
-- [x] `Activity::log()` called after seeding — event appears in the Activity Feed
-
----
-
-## 13. What's Remaining — Full Roadmap
-
-### Phase 0 — Foundation (REMAINING ITEMS)
-
-These are infrastructure items that are not blocking development but need to be done before production:
-
-- [x] **Manual Linux deployment script committed** — `scripts/deploy.sh` is the only supported trigger path for production deploys. Run it manually over SSH/Tailscale. No auto-deploy-on-push.
-- [x] **Queue worker config committed** — Supervisor config for `php artisan queue:work redis` is committed with auto-restart and logging.
-- [x] **Laravel scheduler hook wired** — App schedule is defined in `bootstrap/app.php`; install the provided Linux cron entry.
-- [x] **Backup strategy committed** — `scripts/backup-postgres.sh` plus daily cron example with retention.
-- [x] **Cloudflare Tunnel + Access setup applied on Linux** — `omni.hudutech.co.ke` routed through existing tunnel to port 80, DNS routed, tunnel restarted, APP_URL set, trusted proxies configured for Cloudflare SSL
-- [x] **Linux production `.env` populated privately** — App, DB, Redis, SMTP2GO, backup settings configured on Linux
-- [ ] **Per-brand Hermes profiles + context spine** — External to this codebase. Per brand: `icp/`, `competitors/`, `positioning/`, `messaging/`, `brand/` files. Hermes reads these to draft emails and mine leads with brand-specific voice.
-- [ ] **Model routing config in Hermes** — GLM 5.2 for bulk drafting/mining; Qwen for research-heavy tasks; DeepSeek for coding; frontier model only where ROI is obvious.
-- [x] **`.env.example` expanded** — Includes application, DB, Redis, SMTP2GO, Cloudflare, queue, cache, and backup keys with blank values only.
-- [ ] **Linux production `.env` populated privately** — Real SMTP2GO, Redis password, APP_ENV, APP_DEBUG, and tunnel secrets live only on Linux.
-- [ ] **Metabase setup** — Connect to Postgres for analytics dashboards (swappable with Vue dashboards later).
-
-### Phase 1 — UjuziPlus Full Loop (NEXT — THIS IS THE PRIORITY)
-
-This is the core work. The strategy brief says: "Marketing execution is the priority."
-
-#### 1.1 Mining Targets Configuration
-
-- [x] **Seed `mining_targets` table** with initial geo config:
-  - Kenya cities × categories (Nairobi, Mombasa, Kisumu, Nakuru, Eldoret, Thika, etc.)
-  - Segments: rabbit (private training providers) + deer (SACCOs, larger institutions)
-  - Search templates per category
-  - Cadence: daily for rabbits, weekly for deer
-  - This replaces hardcoded "Nairobi"/"Kenya" in mining scripts
-  - Expanding to new countries/cities = inserting config rows (no code changes)
-- 4,666 total targets seeded across UjuziPlus (1,998) and Hudutech (2,664)
-- 4 geo priority tiers: Kenya (daily), East Africa (weekly), English-speaking Africa (weekly), Global (monthly)
-- Country-level targets for all tiers; city-level targets for tiers 1-3
-
-#### 1.2 Enrichment Pipeline (339 leads need email enrichment)
-
-- [x] **Per-lead idempotent enrichment** with hard `no_email_found` exit after N attempts:
-  - Lead status transitions: `new → enriching → enriched | no_email_found`
-  - `enrichment_attempts` counter incremented each attempt
-  - After max attempts (configurable, e.g. 3), set status to `no_email_found` (terminal)
-  - One bad lead can't stall the batch (this is why Deer enrichment is stuck)
-  - Hermes calls Laravel API or artisan commands instead of writing to Sheets
-- [x] **Enrichment job** (queued via Redis):
-  - Hermes mines website, social profiles, directories for email
-  - Anti-hallucination: tag confidence (verified/inferred/estimated/unavailable)
-  - Write "not available" instead of inventing
-  - Update lead status + email_verified + score after enrichment
-  - Log enrichment event in lead_events
-- **Implementation details:**
-  - `EmailConfidence` enum: `verified` (score 100, deliverable), `inferred` (75, deliverable), `estimated` (40), `unavailable` (0)
-  - `email_confidence`, `enriched_at`, `enrichment_notes` columns added to leads table via migration
-  - Lead model: `enrichFound()`, `enrichNoEmail()`, `startEnrichment()` helper methods
-  - `PATCH /api/v1/leads/{lead}/enrich` updated: accepts `email_confidence`, uses model helpers for state transitions
-  - `leads:enrich-batch` artisan command: `--brand`, `--segment`, `--limit`, `--dry-run` options. Transitions `new` leads to `enriching` for processing
-  - ActivityLogger integrated — each batch run posts an `enrichment_batch` event to the Activity Feed
-  - `enrichment_notes` stored on the lead for debugging failed attempts
-
-#### 1.3 Email Outreach Pipeline
-
-- [x] **5-email relationship-based drip sequence** (imported from Google Sheets):
-  - Rabbits: 5-step sequence (email_1 through email_5), 87 emails imported
-  - Deer: 3-step sequence (email_1 through email_3), 172 emails imported
-  - 259 total email drafts with subjects + bodies parsed and stored in email_messages table
-  - Follows Dale Carnegie principles (genuine interest, observation before insight, curiosity before pitch)
-  - Every email must pass the "would a consultant send this?" test
-- [x] **Approval workflow built** (Filament admin):
-  - All 259 emails have `approval_status=pending` — visible in /admin/email-messages
-  - Approve/reject actions per email + bulk approve
-  - Email sequence visible inline on lead view page via relation manager
-  - Dashboard shows approval breakdown + send status
-- [x] **SMTP2GO integration**:
-  - Configure SMTP credentials in `.env`
-  - Send emails through SMTP2GO API
-  - Track opens/clicks via SMTP2GO webhooks → update email_messages
-  - Bounce tracking → create suppression record
-- [x] **Idempotency enforcement in send path**:
-  - `UNIQUE(lead_id, sequence_step)` prevents double-sends on retry (DB-level — DONE)
-  - Email status: `draft → queued → sent | failed` (model-level — DONE)
-  - Queue worker picks up `queued` emails and sends via SMTP2GO (NOT YET BUILT)
-- [x] **Safe-send discipline** (from existing pipeline):
-  - MX checks before sending (verify domain accepts email)
-  - Randomized delays between sends (avoid burst patterns)
-  - Bounce tracking → automatic suppression on hard bounce
-  - Domain warming (don't raise volume faster than reputation)
-  - Business-hours guard REMOVED — emails send every 15 min regardless of timezone (multi-country operation)
-- [x] **Telegram approval gate integration**:
-  - Before ANY email is sent, draft goes to Telegram for human approval
-  - Detailed per-company breakdown: email ID, subject, body summary
-  - Requires explicit "APPROVED" before queueing for send
-  - This is Sam's non-negotiable requirement — no exceptions
-  - Currently approval is done via Filament admin (approve/reject buttons) — Telegram integration is next
-- [ ] **Email message scheduling**:
-  - Drip sequence with delays between steps (e.g. day 1, day 3, day 7, day 14, day 30)
-  - Laravel scheduler dispatches due emails to queue
-  - Queue worker sends via SMTP2GO
-- [x] **Sequence Scheduling Engine**:
-  - `sequence_schedules` table: brand, segment, step, days_after_previous, purpose, is_active
-  - 40 schedule rows seeded (4 brands × 5 rabbit + 5 deer steps)
-  - `SequenceSchedule` model with active/forSegment scopes
-  - Seed command: `sequence:seed-schedules` (idempotent via updateOrCreate)
-  - Filament resource: `SequenceScheduleResource` at `/admin/sequence-schedules` — table with inline editing on days_after_previous, toggle columns, brand/segment filters
-  - Rabbits cadence: 0, 2, 4, 7, 8 days
-  - Deer cadence: 0, 3, 6, 9, 12 days
-- [x] **ProcessSequenceProgressions job**:
-  - Runs daily at 5 AM via scheduler
-  - Skips weekends (Saturday/Sunday)
-  - Per lead: finds last sent email, checks schedule, enforces day gap, suppression check, reply check, one-email-per-lead-per-day
-  - Creates draft with `approval_status = needs_content`
-  - Logs lead_events with sequence_step_queued
-  - Sends Telegram summary after run
-  - `withoutOverlapping(60)` prevents concurrent runs
-- [x] **needs_content approval status**:
-  - `EmailMessage::canBeApproved()` — checks subject + body + status
-  - `EmailMessage::markContentReady()` — auto-transitions needs_content → pending
-  - `EmailMessage::isNeedsContent()` helper + scopeNeedsContent scope
-  - Vue `SequenceTimeline`: purple circle + "✏️ needs draft" label
-  - Vue `ExpandedSequence`: purple border + "Needs Content" badge
-  - StatsBar: "Needs Content" stat in purple
-- [x] **API endpoints for Hermes**:
-  - `GET /api/v1/email-messages/needs-content` — returns needs_content messages with previous email context (subject, sent_at) and schedule purpose
-  - `PATCH /api/v1/email-messages/{id}/content` — Hermes fills subject + body → auto-transitions to pending approval
-  - Both behind existing ApiTokenAuth middleware
-
-#### 1.4 Reply Detection + Classification (Hermes)
-
-This is the highest-value missing piece — turns a blast into a pipeline:
-
-- [x] **Reply ingestion**:
-  - SMTP2GO forwards replies (or IMAP polling)
-  - Hermes classifies each reply
-- [x] **Classification categories**:
-  - `interested` — wants more info, pricing, demo
-  - `not_interested` — explicit decline
-  - `out_of_office` — auto-reply, retry later
-  - `unsubscribe` — opt-out request
-  - `bounce` — delivery failure
-- [x] **Outcome routing**:
-  - `interested` → flag to Telegram for human follow-up (the sales moment)
-  - `unsubscribe` → write suppression immediately (compliance)
-  - `not_interested` → close lead, log event
-  - `out_of_office` → schedule retry after N days
-  - `bounce` → create suppression, update lead status
-- [x] **Log all replies** in lead_events with classification + payload
-
-#### 1.5 Lead Scoring
-
-- [x] **LeadScoringService** — calculates 0-100 score from:
-  - Segment (max 25): elephant=25, deer=20, rabbit=15, mouse=5
-  - Data completeness (max 40): email=20, phone=10, website=7, contact_name=3
-  - Email confidence (max 15): verified=15, inferred=10, estimated=5, unavailable=0
-  - Engagement (max 15): opened=5, clicked=5, replied=5
-  - Status bonus (max 5): interested=5, replied=4, enriched=3, emailed=2, enriching=1
-  - Legacy imports with null email_confidence treated as "inferred" if email exists
-- [x] **Score tiers**: hot (80+), warm (60-79), moderate (40-59), cold (20-39), frigid (<20)
-- [x] **`leads:score` artisan command** — batch recalculate with --brand, --segment, --limit, --dry-run
-- [x] **Lead model scopes**: `byScoreRange()`, `hot()`, `highScore()` + `scoreTier()` helper
-- [x] **Vue Leads page at `/leads`** — modern lead management UI:
-  - Stats bar: total, avg score, tier counts (click-to-filter), with-email, enriched
-  - Filter bar: brand, segment, status, score tier, city, has-email, search
-  - Sortable columns: score, company name, status (click to toggle asc/desc)
-  - Lead rows with color-coded score badge, brand accent bar, expand/collapse detail
-  - Expanded detail: contact info, classification, engagement stats, score breakdown bar
-  - Pagination (25 per page)
-  - "View in admin" link per lead
-- [x] **Dashboard score section**: score distribution chart (5 tiers), top 10 scored leads list
-- [x] **Sidebar updated**: Leads now points to `/leads` (Vue) instead of `/admin/leads` (Filament)
-- [x] **Filament LeadResource**: score column now shows as colored badge
-- [x] **API endpoint**: `PATCH /api/v1/leads/{lead}/score` — recalculate single lead, returns breakdown
-- [x] **Scheduler**: `leads:score` runs daily at 3 AM
-- [x] **ActivityLogger**: scoring batch logs to Activity Feed
-- [x] **608 leads scored**: avg=41.5, 247 warm, 22 moderate, 321 cold, 18 frigid
-
-#### 1.6 Win-Loss Loop (Learning)
-
-- [x] **WinLossService** — aggregates reply outcomes and pipeline metrics:
-  - Funnel: leads → with_email → enriched → emailed → replied → interested
-  - Rates: sent, opened, clicked, replied (open/click/reply rates)
-  - By dimension: category, city, segment (leads, enriched, emailed, replied, interested + rates)
-  - By sequence step: total, sent, opened, clicked per step
-  - Reply outcomes: interested / not_interested / unsubscribe / out_of_office / bounce
-- [x] **`winloss:generate` artisan command** — prints summary, posts to Activity Feed, --json for raw output
-- [x] **API: `GET /api/v1/stats/winloss`** — Hermes reads to bias future mining + drafting
-- [x] **Scheduler**: `winloss:generate` weekly on Mondays at 6 AM
-- [x] **Daily brief enhanced** with funnel summary + email engagement rates
-
-#### 1.7 Analytics Dashboard Expansion
-
-- [x] **Vue Analytics page at `/analytics`** — full analytics dashboard:
-  - Conversion funnel (5 stages: leads → email → emailed → replied → interested) with rates and visual bars
-  - Email engagement cards (sent, opened, clicked, replied) with rate percentages
-  - Reply outcomes distribution (interested/not_interested/unsubscribe/OOO/bounce) with colored bars
-  - Performance by dimension table — tabbed (category/city/segment) with leads, enriched, emailed, replied, interested + rates
-  - Email performance by sequence step (total, sent, opened, clicked, open rate)
-  - Score distribution chart (5 tiers)
-  - Per-brand summary table (leads, enriched, sent, opened, interested, suppressed)
-- [x] **AnalyticsController** — serves Inertia page with WinLossService report + brand summary
-- [x] **Sidebar**: Analytics link added under Analytics group
-- [x] **Daily Lead Report** from Postgres (replaces fragile Sheets report) — via daily brief + analytics page
-- [x] **Email open rates, click rates, reply rates** — in analytics page
-- [x] **Conversion funnel** — leads → enriched → emailed → replied → interested
-- [x] **Per-category, per-city performance** — in dimension breakdown table
-- [x] **Win-rate by segment, city, category** — in dimension breakdown table
-
-#### 1.8 Content / Omnipresence Loop (after pipeline is reliable)
-
-- [ ] **Source**: Identify real audience questions (from replies, search data, community)
-- [ ] **Pillar**: One substantial blog post per question, GEO-optimized (citation-ready)
-- [ ] **Atomize**: Break pillar into LinkedIn post, Reddit comment, email, WhatsApp message
-- [ ] **Distribute**: Push to brand's 2-3 channels
-- [ ] **Learn**: Feed performance back into context spine → next batch is sharper
-- [ ] **GEO requirements**: First 200 words answer the query directly, FAQ section, schema markup (FAQPage, Article, Service, LocalBusiness), server-side rendering, crawlable pages
-
-### Phase 2 — Hudutech (AFTER UjuziPlus loop is reliable)
-
-Most similar B2B motion — reuse the UjuziPlus pipeline:
-
-- [ ] Seed mining_targets for Hudutech (Kenya B2B: "Odoo ERP Kenya", "POS system M-Pesa", "software company Nairobi")
-- [ ] Mine Hudutech leads (SMEs, schools, NGOs, manufacturers, distributors, professional-service firms)
-- [ ] Email outreach pipeline (reuse from Phase 1)
-- [ ] LinkedIn integration (LinkedIn Helper for outreach + thought leadership)
-- [ ] Google Business Profile setup (cheap, high local intent)
-- [ ] SEO/GEO content for Hudutech site (case studies, ROI breakdowns, how-tos)
-- [ ] Selective value-first Reddit participation
-- [ ] Per-brand Hermes profile + context spine for Hudutech
-
-### Phase 3 — B2C Brands (LATER — after B2B loop is reliable)
-
-More platform-sensitive, different compliance, different channels:
-
-#### Phantomflix (B2C entertainment, Kenya + diaspora)
-
-- [ ] Community/referral/organic playbook (NOT paid ads — streaming reseller gets flagged/banned)
-- [ ] Opt-in WhatsApp/Telegram channels for warm audiences
-- [ ] Referral loop (existing subscribers invite friends) — cheapest highest-ROI growth
-- [ ] Emphasize licensed/legal/affordable/local-payment angle (compliance shield + trust)
-- [ ] Keep proof-of-licensing available for platform appeals
-- [ ] Different compliance: Kenya DPA 2019
-- [ ] Retention is the war (mouse segment — worst retention, churn is the whole game)
-
-#### Phantom Tutors (B2C, US & UK students)
-
-- [ ] Short-form video (TikTok/IG study tips, exam hacks) as top-of-funnel
-- [ ] Value-first Reddit subject-help subs
-- [ ] Discord student servers
-- [ ] Campus ambassadors
-- [ ] Opt-in WhatsApp study groups
-- [ ] Different compliance: US CAN-SPAM, UK PECR
-- [ ] Positioning guardrail: legitimate tutoring / exam prep / learning support ONLY — NEVER assignment-completion / essay-mill (illegal in UK since 2022, bannable on platforms)
-
-### Phase 4 — Cross-Brand Intelligence (FUTURE)
-
-- [ ] **pgvector** for contact/CRM memory graph (embeddings in Postgres)
-- [ ] Shared learnings across brands (what works for UjuziPlus might inform Hudutech)
-- [ ] Contacts graph: relationships between leads, companies, institutions
-- [ ] Begin **elephant motion** once deer is repeatable:
-  - Named-account ABM
-  - Government tenders/RFPs
-  - Large NGO training budgets
-  - SACCO umbrella bodies
-  - Requires sales DNA + runway
-
----
-
-## 14. Known Issues & Pitfalls
-
-### Development Environment
-
-- **White/blank page at localhost:8000**: You MUST run `npm run dev` alongside `php artisan serve`. Vite serves CSS/JS from port 5173. Without it, the page loads HTML but no styles/scripts render. For production, use `npm run build` instead.
-- **Redis client**: `.env` uses `REDIS_CLIENT=predis` (pure PHP). The `phpredis` PHP extension is NOT installed on the Mac. `predis/predis` v3.5 is installed via Composer.
-
-### Filament v4 Migration Notes
-
-- **`form()` signature changed**: Takes `Schema $schema` not `Form $form`. Import `Filament\Schemas\Schema`.
-- **Section moved**: Use `Filament\Schemas\Components\Section` not `Filament\Forms\Components\Section`.
-- **Actions moved**: All table actions are in `Filament\Actions\*` not `Filament\Tables\Actions\*`. Must import `use Filament\Actions;`.
-- **`$navigationIcon` type**: Must be `string | BackedEnum | null` with `use BackedEnum;` imported.
-- **ChartWidget `$heading`**: Non-static in v4 (`protected ?string $heading`), not `protected static ?string $heading`.
-
-### Inertia + Filament Coexistence
-
-- Links from Vue/Inertia pages to `/admin/*` MUST use `<a>` tags, not Inertia `<Link>`. Inertia intercepts `<Link>` clicks expecting JSON; Filament returns full HTML.
-- Both use the same `web` auth guard — single login works for both.
-- The `NavMain.vue` component has an `isExternal()` function that handles this automatically.
-
-### Select Filter Null Values
-
-- `SelectFilter::make('city')->options(...)` must filter out null values from the database. Use `->whereNotNull('city')->filter()->toArray()` to avoid `Argument #2 ($label) must be of type string, null given` errors.
-
-### Google Sheets Integration
-
-- Token file and Sheet ID are stored in environment config on the operator's machine, NOT in this document.
-- Python `google-api-python-client` + `google-auth-oauthlib` libraries are installed on the Mac.
-- **Action item:** Verify the Google Sheet's sharing permissions are restricted to the operator's Google account only (not "anyone with link").
-
-### Deer Sheet Data Quality
-
-- The Deer Google Sheet has misaligned columns (e.g., `first_name` column contains business insight text). The import command handles this by:
-  - Truncating `contact_name` to null if > 100 chars
-  - Truncating `company_name` to 255 chars max
-  - Nulling `email` if > 255 chars (misaligned data)
-  - Truncating `phone` to 50 chars max
-
-### Hybrid Mac + Linux Workflow (Sam's setup)
-
-- Mac is for research, planning, brainstorming (this dev environment)
-- Linux laptop is source of truth for all operational commands — cron, lead mining, email ops, sheet ops
-- Hermes gateway runs on Linux as systemd user service
-- Telegram is second channel for mobile
-- DO NOT SYNC to laptop: cron jobs.json, ujuziplus_agents dir, google token, env file
-- MUST exclude `.venv/` from any sync (Mac binaries kill Linux venv)
-- SSL_CERT_FILE environment variable is critical for uv Python on Linux
-- All 12 Mac cron jobs were paused on 2026-06-19 (everything runs on Linux now)
-- Internal network details (IP, username, passwords) are NOT documented here. Check the operator's private environment config.
-
-### Compliance Guardrails (Cross-Cutting)
-
-- **Email/SMS**: Keep existing safe-send discipline (MX checks, delays, business hours, bounce tracking). Every email needs working opt-out, honored via suppression. Keep SPF/DKIM/DMARC clean. Kenya DPA 2019 expects legitimate-interest basis + easy opt-out for B2B outreach.
-- **Reddit**: Follow 90/10 rule (>=90% genuine value, <=10% promotion). One genuine account per brand. Multi-account promotion = sockpuppeting = site-wide bans. A spam-flagged domain gets every link auto-removed across Reddit (near-irreversible).
-- **WhatsApp**: Opt-in only. Free Business app = 256-contact broadcast lists. API requires Business Verification + privacy-policy URL, approved templates, opt-out, business-hours sending. Does not allow general-purpose AI chatbots.
-- **Human-review gate** on ALL external publishing/sending. No exceptions.
-
----
-
-## 15. Architecture Diagrams
-
-### System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        HERMES AGENT                              │
-│  (AI brain — mines, enriches, drafts, classifies replies)        │
-│  Per-brand profiles + context spine (ICP, competitors, messaging) │
-│  Model routing: GLM 5.2 (bulk) / Qwen (research) / DeepSeek (code)│
-└──────────┬──────────────────────────┬───────────────────────────┘
-           │ API calls / artisan        │ Telegram
-           ↓                            ↓
-┌──────────────────────────────────────────────────────────────────┐
-│                    LARAVEL PLATFORM                               │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐   │
-│  │ Vue/Inertia  │  │ Filament v4  │  │ Artisan Commands        │   │
-│  │ Dashboard    │  │ Admin Panel  │  │ (import, enrich, etc.) │   │
-│  │ /dashboard   │  │ /admin       │  │                        │   │
-│  └──────┬───────┘  └──────┬───────┘  └───────────┬────────────┘   │
-│         │                  │                       │               │
-│         └──────────┬───────┴───────────────────────┘               │
-│                    ↓                                              │
-│  ┌──────────────────────────────────────────────┐                │
-│  │           Eloquent Models + Scopes           │                │
-│  │  Brand, Lead, Suppression, EmailMessage,      │                │
-│  │  LeadEvent, MiningTarget                      │                │
-│  └──────────────────┬───────────────────────────┘                │
-│                     │                                             │
-│  ┌──────────────────┴───────────────────────────┐                │
-│  │        Queue (Redis) + Scheduler              │                │
-│  │  Enrichment jobs, email sending, mining       │                │
-│  └──────────────────┬───────────────────────────┘                │
-│                     │                                             │
-│  ┌──────────────────┴───────────────────────────┐                │
-│  │         POSTGRESQL 17 (system of record)      │                │
-│  │  brands, leads, suppressions, email_messages,  │                │
-│  │  lead_events, mining_targets                   │                │
-│  │  Invariants: UNIQUE(brand,email) dedup         │                │
-│  │           UNIQUE(brand,email) suppression      │                │
-│  │           UNIQUE(lead,step) idempotency        │                │
-│  └──────────────────────────────────────────────┘                │
-└──────────────────────────────────────────────────────────────────┘
-                     │
-         ┌───────────┴───────────────┐
-         ↓                           ↓
-┌─────────────────┐        ┌──────────────────┐
-│   SMTP2GO        │        │  Telegram        │
-│  (email send +   │        │  (human approval │
-│   open/click     │        │   gate before    │
-│   tracking)      │        │   any send)      │
-└─────────────────┘        └──────────────────┘
-```
-
-### Data Flow — UjuziPlus Lead Pipeline
-
-```
-Google Sheets (legacy)
-    ↓ (one-time import via leads:import-ujuziplus)
-Postgres leads table (608 leads: 199 rabbits, 409 deer)
-    ↓
-Hermes enrichment (runs only for leads still in `new`)
-    ↓ (per-lead, idempotent, max N attempts)
-Postgres leads table (status: enriched | no_email_found)
-    ↓
-Email draft generation (Hermes, 5-step relationship drip)
-    ↓
-Telegram approval gate (human reviews each email)
-    ↓ (APPROVED → queued)
-SMTP2GO sends email
-    ↓ (webhooks: opens, clicks, bounces)
-Postgres email_messages table (status: sent, opened, clicked)
-    ↓
-Reply detection + classification (Hermes)
-    ↓
-interested → Telegram alert (sales moment)
-unsubscribe → Suppression record (compliance)
-not_interested → Lead closed
-out_of_office → Retry scheduled
-bounce → Suppression record
-    ↓
-Win-loss data feeds back into context spine → next batch sharper
-```
-
-### Lead State Machine
-
-```
-new -> enriching -> enriched -> emailed -> replied -> interested -> closed
-                    \                          \-> not_interested
-                     \-> no_email_found
-
-suppressed is a terminal state allowed from any active outreach stage:
-new, enriching, enriched, emailed, replied, interested -> suppressed
-```
-
----
-
-## 16. Changelog
-
-### 2026-06-25 — Agent Registry (WO#1) + Rebrand
-
-**Agent Registry — Platform Scaffolding:**
-- [x] `agents` table: codename, display_name, role, description, function_area, avatar_path, status, is_active, token_hash (sha256), token_last_four, last_active_at, sort_order
-- [x] `agent_documents` table: agent_id (FK cascade), label, file_path, mime_type, size_bytes
-- [x] `agent_id` added to `activity_events` (FK SET NULL) with `(agent_id, created_at)` index
-- [x] `Agent` model: fillable, hidden (token_hash), relationships, scopes, `generateToken()`, `touchActivity()`, `actionsThisWeek()`
-- [x] `AgentDocument` model with `url` accessor
-- [x] `AgentTokenAuth` middleware: sha256 hash lookup, backward-compat fallback to legacy shared token
-- [x] `POST /api/v1/events` switched to per-agent auth (with `withoutMiddleware` to avoid double auth)
-- [x] `agent_codename` body override on events endpoint
-- [x] Nginx fix: added `fastcgi_param HTTP_AUTHORIZATION $http_authorization;` to pass bearer tokens to PHP-FPM
-- [x] `agents:seed-roster` command: 6 core agents (The Professor, Tokyo, Bogotá, Nairobi, Lisbon, Palermo)
-
-**Agent Management (Vue/Inertia, replacing Filament):**
-- [x] `/agents` — roster with expand/collapse, edit/delete actions, "New Agent" button
-- [x] `/agents/create` — full creation form (codename, display_name, role, function_area, description, status)
-- [x] `/agents/{id}/edit` — edit form with avatar upload (client-side canvas resize 256×256), token generation modal (one-time reveal), document upload/download/delete
-- [x] `AgentController`: full CRUD + `generateToken`, `uploadDocument`, `deleteDocument`
-- [x] Filament `AgentResource` hidden from admin navigation (retained as fallback)
-
-**Rebrand:**
-- [x] Landing page (`/`) redesigned: logo hero + "You sleep. It sells." tagline
-- [x] Sidebar logo (`AppLogo.vue`) now shows Omni OS logo image
-- [x] Auth card logo (`AppLogoIcon.vue`) now shows Omni OS logo image
-- [x] New favicon (`favicon-32x32.png`) from logo
-- [x] Logo assets: `public/images/omni-logo.png` (full), `public/images/omni-logo-sm.png` (sidebar/thumb)
-
-### 2026-06-21 — Mining Targets Configuration (Phase 1.1)
-
-- [x] Built `mining:seed-targets` artisan command — seeds geo config for UjuziPlus and Hudutech with --append and --brand options
-- [x] 4 geo priority tiers: Kenya (daily cadence, 25 cities), East Africa (weekly, 4 countries), English-speaking Africa (weekly, 5 countries), Global (monthly, 6 countries)
-- [x] UjuziPlus: 1,998 targets across 27 categories (training providers, SACCOs, universities, NGOs, etc.)
-- [x] Hudutech: 2,664 targets across 29 categories (retail, manufacturing, schools, logistics, etc.)
-- [x] Country-level targets for all tiers; city-level targets for tiers 1-3
-- [x] Activity::log() integrated — seeding appears in the Activity Feed
-- [x] PROJECT.md updated: What's Done (Phase 1.1), Current Data State, Changelog
-
-### 2026-06-22 — Pipeline Unblock + Webhook Persistence + Reply Inbox (Parts 1-3)
-
-**Part 1 — Send pipeline unblocked:**
-- [x] Business-hours guard fixed: now evaluates `now()->setTimezone('Africa/Nairobi')` instead of UTC
-- [x] Config-driven: `BUSINESS_TIMEZONE`, `SEND_START_HOUR`, `SEND_END_HOUR` in `config/services.php`
-- [x] `.env.example` updated with business hours config keys
-- [x] Email 90 (2NK Sacco, info@2nksacco.co.ke) sent successfully via SMTP2GO API during EAT business hours
-- [x] TODO comment: per-brand/per-lead timezone when Phantom Tutors (US/UK) goes live
-
-**Part 2 — Webhook persistence:**
-- [x] `webhook_events` table: source, event_type, recipient_email, smtp2go_id, email_message_id, lead_id, payload (JSONB), processed, processing_notes, received_at
-- [x] `WebhookEvent` model with relationships + scopes (unprocessed, byEventType)
-- [x] `WebhookController` rewritten: persists every event BEFORE processing, wraps processing in try/catch, always returns 200, failed processing recorded in processing_notes
-- [x] Filament `WebhookEventResource` at `/admin/webhook-events` — read-only list with filters (event_type, processed)
-- [x] Verified: simulated open event persisted (ID 1), matched to email 90 + lead 205, processed=true, opened_at set on email
-
-**Part 3 — Reply inbox + compose:**
-- [x] `replies` table: lead_id, brand_id, email_message_id, from_email, subject, body, body_html, classification, classification_confidence, classification_summary, direction (inbound/outbound), read, received_at
-- [x] `Reply` model with relationships (lead, brand, emailMessage) + scopes (unread, inbound, outbound, byClassification, byBrand, forLead)
-- [x] Webhook reply handler creates Reply records (visible in inbox, not buried in raw_data)
-- [x] `POST /api/v1/replies` creates/updates Reply records alongside ReplyService routing
-- [x] `InboxController`: index (paginated, filtered), conversation (JSON thread), reply (send)
-- [x] Vue Inbox page at `/inbox` — two-pane: left = reply list with filters + unread indicators, right = conversation thread (replies + sent emails interleaved) + compose box
-- [x] `SendLeadReply` job: sends via SMTP2GO API with X-Omni-OS-Reply-ID header for tracking, In-Reply-To threading
-- [x] Suppression check: blocks replies to suppressed leads
-- [x] Sidebar: "Inbox" link with unread badge (via shared Inertia prop `unreadReplyCount`)
-- [x] Verified: simulated reply event created Reply record (ID 1), unread=true, classification=unclassified, body readable
-- [x] Reply-source dependency documented below
-
-**Reply source dependency:** Replies arrive via SMTP2GO's inbound/reply webhook. This requires SMTP2GO to be configured to forward replies (reply-tracking or inbound parsing, depending on plan). If SMTP2GO does NOT forward replies on the current plan, a fallback IMAP poller on the samuel@ujuziplus.com mailbox will be needed (separate work order). Verify SMTP2GO reply forwarding before relying on the inbox.
-
-**Manual checks needed from Sam:**
-- Is the SMTP2GO webhook configured in the dashboard? (Settings > Webhooks > POST to https://omni.hudutech.co.ke/api/webhooks/smtp2go with api_key in the body)
-- Is open/click tracking enabled on the SMTP2GO SMTP user?
-- Does SMTP2GO forward replies to the webhook?
-
-### 2026-06-22 — Win-Loss Loop + Analytics Dashboard (Phase 1.6 + 1.7)
-
-- [x] `WinLossService` — funnel, email rates, by-category/city/segment/step, reply outcomes
-- [x] `winloss:generate` artisan command with --json, posts to Activity Feed
-- [x] API: `GET /api/v1/stats/winloss` — Hermes reads to adjust mining/drafting
-- [x] Vue Analytics page at `/analytics` — funnel, engagement cards, reply outcomes, dimension table (tabbed), sequence step performance, score distribution, per-brand summary
-- [x] `AnalyticsController` — serves Inertia page with WinLossService + brand data
-- [x] Sidebar: Analytics link added under Analytics group
-- [x] Daily brief enhanced with funnel + engagement metrics
-- [x] Scheduler: `winloss:generate` weekly on Mondays at 06:00
-- [x] Production: 756 leads, 417 with email, funnel live, report posted to Activity Feed
-- [x] PROJECT.md updated: Phase 1.6 + 1.7 marked done, changelog
-
-### 2026-06-22 — Lead Scoring (Phase 1.5)
-
-- [x] `LeadScoringService` — 0-100 score from segment (25) + data completeness (40) + email confidence (15) + engagement (15) + status bonus (5)
-- [x] Score tiers: hot (80+), warm (60-79), moderate (40-59), cold (20-39), frigid (<20) with color coding
-- [x] `leads:score` artisan command: --brand, --segment, --limit, --dry-run, ActivityLogger integration
-- [x] Lead model: `scopeByScoreRange()`, `scopeHot()`, `scopeHighScore()`, `scoreTier()` helper
-- [x] Vue Leads page at `/leads` — StatsBar (total, avg, tier pills, with-email, enriched), FilterBar (brand, segment, status, tier, city, has-email, search), sortable columns, LeadRow with score badge + expand/collapse detail + score breakdown bar, pagination
-- [x] Dashboard: score distribution chart (5 tiers with colors), top 10 scored leads list
-- [x] Sidebar: Leads link updated to `/leads` (Vue) from `/admin/leads` (Filament)
-- [x] Filament LeadResource: score column now shows as colored badge
-- [x] API: `PATCH /api/v1/leads/{lead}/score` — recalculate single lead with breakdown
-- [x] Scheduler: `leads:score` daily at 03:00
-- [x] 608 leads scored: avg=41.5, 247 warm, 22 moderate, 321 cold, 18 frigid
-- [x] PROJECT.md updated: Phase 1.5 marked done, changelog
-
-### 2026-06-22 — Sequence Scheduling Engine (Email Drip Timing)
-
-- [x] `sequence_schedules` table + model + seeder: 40 rows (4 brands × 5 rabbit + 5 deer)
-- [x] `ProcessSequenceProgressions` job: daily 5AM, weekend skip, suppression/reply checks, one-email-per-day, Telegram summary
-- [x] `needs_content` approval status: purple visual in UI, auto-transition to pending when content filled
-- [x] `GET /api/v1/email-messages/needs-content` — Hermes reads what needs drafting with previous email context
-- [x] `PATCH /api/v1/email-messages/{id}/content` — Hermes fills subject+body, auto-transitions to pending
-- [x] Filament `SequenceScheduleResource` at `/admin/sequence-schedules` — inline editable day gaps, toggle active
-- [x] Scheduler: `ProcessSequenceProgressions` job daily at 05:00
-- [x] PROJECT.md: Phase 1.3 scheduling engine marked done
-
-### 2026-06-22 — Telegram Polling + Sidebar Unification + Google Sheets Retired
-
-- [x] `telegram:poll-approvals` — polls Telegram API every minute for APPROVE/REJECT replies (bypasses Cloudflare Access)
-- [x] `activity:daily-brief` — generates system overview brief with lead stats, email counts, queue health, posts to Activity Feed at 7 AM
-- [x] Sidebar unified: Vue sidebar (`AppSidebar.vue`) restructured into 5 groups (Overview, CRM, Analytics, Configuration, Email) matching Filament sidebar layout
-- [x] Duplicate Dashboard removed: Filament Dashboard page hidden from sidebar, single Dashboard link to Vue dashboard
-- [x] 11 Google Sheets Hermes cron jobs paused (marked "Replaced by Omni OS pipeline")
-- [x] Mining + enrichment cron prompts updated to POST to Omni OS API instead of Sheets
-- [x] Scheduler: `telegram:poll-approvals` every minute, `activity:daily-brief` at 7 AM
-
-### 2026-06-21 — Enrichment Pipeline (Phase 1.2)
-
-- [x] `EmailConfidence` enum: verified (score 100, deliverable), inferred (75, deliverable), estimated (40), unavailable (0)
-- [x] Migration: added `email_confidence`, `enriched_at`, `enrichment_notes` columns to leads table
-- [x] Lead model: `enrichFound()`, `enrichNoEmail()`, `startEnrichment()` helper methods with state transitions
-- [x] `PATCH /api/v1/leads/{lead}/enrich` updated: accepts `email_confidence`, uses model helpers, returns status + confidence
-- [x] `leads:enrich-batch` artisan command: `--brand`, `--segment`, `--limit`, `--dry-run`. Transitions new → enriching for Hermes processing
-- [x] ActivityLogger integrated — each batch run posts enrichment_batch event to the Activity Feed
-- [x] PROJECT.md updated: Phase 1.2 marked done, changelog
-
-### 2026-06-21 — Email Outreach Pipeline (Phase 1.3 Send + Tracking)
-
-- [x] `emails:send-batch` rewritten: sends raw HTML (was double-escaping), randomized delays (500ms-3s), MX check per domain (cached 24h), business-hours guard (8AM-6PM), domain warming limit (5/domain/run), ActivityLogger integration
-- [x] SMTP2GO webhook: bounce/complaint/unsubscribe now auto-create suppression records via `firstOrCreate` (prevents re-sending to problematic addresses)
-- [x] Scheduler: `emails:send-batch --limit=20` runs every 15min, `withoutOverlapping(5)`, logs to `storage/logs/email-send.log`
-- [x] PROJECT.md updated: 1.3 SMTP2GO, Idempotency, Safe-send marked done
-
-### 2026-06-21 — Telegram Approval Gate (Phase 1.3)
-
-- [x] `config/services.php` — added `telegram` section with bot_token, chat_id, webhook_secret
-- [x] `.env.example` — added TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_WEBHOOK_SECRET
-- [x] `TelegramService` — sends messages + structured approval requests with inline keyboards
-- [x] `NotifyTelegram` listener — now sends activity events to Telegram when `notify_telegram=true`
-- [x] `emails:notify-telegram` command — batches pending emails by brand, sends formatted approval requests with inline Approve/Reject buttons
-- [x] `POST /webhooks/telegram` — receives telegram replies: `APPROVE 123`, `REJECT 123`, `APPROVE ALL`, `REJECT ALL`, and inline callback data
-- [x] ActivityLogger integrated — approval/rejection events appear in the Activity Feed
-- [x] Scheduler: `emails:notify-telegram --limit=15` runs every 30min
-
-### 2026-06-21 — Reply Detection + Classification (Phase 1.4)
-
-- [x] `ReplyService` — outcome routing: interested → Telegram alert, not_interested → close, OOO → retry, unsubscribe → suppress, bounce → suppress
-- [x] `POST /api/v1/replies` — Hermes sends classified replies; validates classification against 5 categories
-- [x] SMTP2GO webhook: `reply` event handler stores raw reply on lead's `raw_data` + logs to Activity Feed as unclassified
-- [x] `StoreClassifiedReplyRequest` — validates email_message_id, lead_id, classification, summary, reply_body, confidence
-- [x] Telegram notification for interested replies — full lead details sent to Sam for follow-up
-- [x] Lead status transitions wired: interested (+20 score), not_interested (closed), unsubscribe (suppressed)
-- [x] ActivityLogger integrated — each classified reply appears in Activity Feed
-- [x] PROJECT.md updated: Phase 1.4 marked done
-
-### 2026-06-21 — Activity Feed
-
-- [x] Created `activity_events` table with brand_id, source, event_type, title, body, metadata (JSONB), severity, timestamps. Indexed for fast filtering.
-- [x] Added `ActivityEventType` and `ActivitySeverity` backed enums with controlled vocabulary (10 event types, 4 severity levels)
-- [x] Built `ActivityLogger` service — callable from any job/command as `Activity::log()`, no API round-trip needed for internal callers
-- [x] Added `POST /api/v1/events` endpoint behind existing `ApiTokenAuth` middleware for Hermes to post events remotely
-- [x] Added `ActivityEventCreated` event + `NotifyTelegram` listener stub (ready for future Telegram integration)
-- [x] Built `ActivityController` with 3 endpoints: index (Inertia page), poll (lightweight new-event count), loadMore (cursor pagination)
-- [x] Built `Activity.vue` — day-grouped, brand-filterable, reverse-chronological Twitter-style timeline feed
-- [x] Brand filter pills with brand colors, daily brief pinned/expanded cards, severity visual cues, expand/collapse on event cards
-- [x] 25s polling — "X new events" banner loads new content without scroll-jump
-- [x] "Load more" button at bottom (no infinite-scroll observer)
-- [x] Empty state: "All quiet — no activity in the last 24h"
-- [x] Sidebar navigation updated with "Activity Feed" link
-- [x] Seeded 10 realistic test events across brands + cross-brand system events
-- [x] PROJECT.md updated: What's Done, File Structure, Routes, Changelog
-
-### 2026-06-21 — Production Deployment LIVE (Phase 0 Deployment Complete)
-
-**Nginx & Laravel:**
-- Configured Nginx on Linux with `/srv/omni_os/public` root and PHP 8.4 FPM
-- Enabled Omni OS site, removed default, nginx config test PASS
-- Verified app responds HTTP 200 on localhost port 80 with title "Omni OS"
-- Set `APP_URL=https://omni.hudutech.co.ke` to fix mixed-content SSL preload issue
-- Added `trustProxies(at: '*')` for Cloudflare SSL termination
-
-**Queue Workers:**
-- Installed Supervisor config for 2 queue workers (`php artisan queue:work redis`)
-- Both workers RUNNING, auto-restart enabled, running as `www-data`
-
-**Scheduler & Backups:**
-- Added Laravel scheduler cron (`* * * * *`)
-- Added Postgres backup cron (daily 3 AM) with 14-day retention
-- Tested backup: 103K `.dump` created successfully
-
-**Cloudflare Tunnel:**
-- Updated existing `huris-laptop` tunnel config: added `omni.hudutech.co.ke → localhost:80`
-- DNS routed via `cloudflared tunnel route dns`
-- Tunnel restarted, 4 active connections
-- Cloudflare Access policy configured for Sam's email
-- App reachable at https://omni.hudutech.co.ke (HTTP 200)
-
-**Security:**
-- Postgres listening on 127.0.0.1:5432 only (not exposed through tunnel)
-- No secrets in tracked git files
-- Temp files cleaned up (create-admin.php removed)
-- Queue workers run as `www-data` (not root)
-
-### 2026-06-20 — Deployment, Ops Foundation, And State Enforcement
-
-**Deployment & Build:**
-- Added committed Linux deploy script at `scripts/deploy.sh`
-- Kept build artifacts out of git: `vendor/`, `node_modules/`, and `public/build/` stay rebuild-only on Linux
-- Documented manual deploy trigger via SSH/Tailscale; no auto-deploy-on-push
-- Confirmed Redis stays on `predis` in config defaults and environment guidance
-
-**Environment & Config Hygiene:**
-- Replaced `.env.example` with a complete blank-value checklist for app, DB, Redis, queue, cache, SMTP2GO, Cloudflare, and backup settings
-- Added config entries for SMTP2GO, Cloudflare, backup, and GitHub backup settings in `config/services.php`
-- Scanned the PHP codebase for `env()` outside `config/`; no non-config usages were found, so no code moves were required for `config:cache`
-
-**Operational Foundation:**
-- Added Supervisor worker config at `deploy/supervisor/omni-os-queue-worker.conf`
-- Wired the Laravel scheduler in `bootstrap/app.php` and documented the Linux cron entry
-- Added Postgres backup script at `scripts/backup-postgres.sh` with retention and optional rsync off-host replication
-- Added cron example at `deploy/cron/omni-os.cron.example`
-- Added Cloudflare tunnel template at `deploy/cloudflare/cloudflared-config.example.yml` and documented the deny-by-default Access policy
-
-**Data Canonicalization:**
-- Documented Linux Postgres as canonical and the one-time Mac -> Linux `pg_dump`/restore procedure
-- Reset Mac local development to sample-only seeded data via `SampleLeadSeeder`
-- Recorded the Deer null-email sanity check: 191 Deer rows lack email, but 0 are recoverable from the current imported payload
-
-**Lead State Machine:**
-- Added `App\Enums\LeadStatus` as the canonical lead status definition
-- Enforced guarded status transitions in `App\Models\Lead`
-- Rejected invalid transitions and logged every valid transition as a `lead_events` record
-- Updated the importer to mark missing-email imports as `no_email_found` instead of leaving them in `new`
-- Added automated coverage for valid/invalid transition behavior
-
-### 2026-06-20 — Email Sequence Import + Approval Workflow
-
-**Database:**
-- Added migration: approval_status, approved_at, rejected_at, approval_notes, scheduled_for columns on email_messages table
-- Added indexes on (brand_id, approval_status) and (lead_id, approval_status)
-
-**Models:**
-- Updated EmailMessage model: added approval fields, scopes (pendingApproval, approved, rejected), helper methods (approve, reject, isPendingApproval, isApproved, isRejected, isSent, getDisplayStatusAttribute)
-
-**Artisan Commands:**
-- Created `emails:import-sequences` command to import email_1..email_5 from Google Sheets CSVs
-- Parses Subject: line from email content, extracts body
-- Filters out non-email entries (enrichment markers, skip notes)
-- Matches leads by company name (exact + fuzzy match)
-- Idempotent: skips existing (lead_id, sequence_step) pairs
-- Imported 259 email drafts (58 step 1, 37 step 2, 135 step 3, 29 step 4, 0 step 5)
-
-**Filament Admin:**
-- Created EmailMessageResource at /admin/email-messages with:
-  - Filters: brand, approval status, send status, sequence step
-  - Table columns: lead, brand, step, subject, approval badge, status badge, sent/opened/clicked timestamps
-  - Actions: view (modal with email body), edit, approve, reject, delete
-  - Bulk actions: approve selected, delete selected
-- Created EmailMessagesRelationManager on Lead view page:
-  - Shows email sequence inline on lead view
-  - Approve/reject actions per email
-  - Bulk approve from the relation manager
-  - Sortable by sequence step
-  - Filters by approval status and send status
-
-**Vue/Inertia Dashboard:**
-- Updated DashboardController with email sequence stats (total, pending, approved, rejected, sent, queued, draft, failed, opened, clicked, leads with sequences)
-- Added emailsByStep, emailApprovalBreakdown, emailStatusBreakdown props
-- Updated Dashboard.vue with Email Sequences section (3 cards):
-  - Email Sequences overview (counts + stats)
-  - Emails by Sequence Step (bar chart)
-  - Approval Breakdown (progress bars + send status badges)
-- Added "Email Sequences" to sidebar navigation
-- Added "Email Sequences" quick link button
-
-### 2026-06-20 — Phase 0 Foundation (COMPLETE)
-
-**Infrastructure & Stack:**
-- Created Laravel 13 + Vue 3/Inertia + Tailwind 4 + PostgreSQL 17 project
-- Configured Redis with predis (phpredis not available on Mac)
-- Set up TypeScript strict mode (vue-tsc --noEmit passes clean)
-- Rebranded app logo to "Omni OS"
-
-**Database & Models:**
-- Created Brand model + BrandSeeder with 4 brands (full metadata: name, slug, description, market, KPI, voice, color)
-- Created 5 core migrations: leads, suppressions, email_messages, lead_events, mining_targets
-- Enforced 3 DB invariants: dedup UNIQUE(brand,email), suppression UNIQUE(brand,email), idempotency UNIQUE(lead,sequence_step)
-- Created 6 Eloquent models (Brand, Lead, Suppression, EmailMessage, LeadEvent, MiningTarget) with relationships + scopes
-- Implemented lead state machine: new → enriching → enriched | no_email_found
-
-**Admin Panel (Filament v4):**
-- Installed and configured Filament v4 admin panel
-- Created 4 Filament resources: BrandResource, LeadResource, SuppressionResource, MiningTargetResource
-- Created 4 dashboard widgets: LeadStatsOverview, LeadsByBrandChart, LeadsBySegmentChart, LeadsByCityChart
-- Fixed Filament v4 compatibility: Schema import, Actions namespace, navigationIcon type, ChartWidget heading
-- Lead resource has view page, filters (brand, segment, status, country, city), badges, score column
-
-**Vue/Inertia Frontend:**
-- Built DashboardController + Dashboard.vue with real data
-- Stat cards: total leads, with email, suppressed, active brands
-- Progress bars for segment + status distribution
-- Bar chart for leads by brand, top 10 cities chart
-- Recent activity feed (last 20 events)
-- Built sidebar navigation (NavMain.vue) with isExternal() for Filament admin links
-- Fixed Inertia `<Link>` vs `<a>` tag issue for Filament admin routes
-
-**Data Import:**
-- Created `leads:import-ujuziplus` artisan command
-- Imported 608 UjuziPlus leads from Google Sheets CSV (199 rabbits, 409 deer)
-- 269 leads have emails (enriched), 339 need enrichment (new)
-- Imported 265 suppressions from sheet data
-- Logged 608 lead events (import tracking)
-- Handled Deer sheet data quality issues (misaligned columns truncated/nulled)
-
-**Documentation:**
-- Wrote Omni-OS-Strategy-Brief.md (v1) — strategy source of truth
-- Wrote this PROJECT.md — technical status + developer guide
-
----
-
-### How to Update This Document
-
-When a feature is completed:
-
-1. Update Section 12 (What's Done) — check the completed item
-2. Update Section 13 (What's Remaining) — move items or add new ones
-3. Update Section 8 (Current Data State) if database counts changed
-4. Update Section 9 (Artisan Commands) if new commands were added
-5. Update Section 11 (File Structure) if new files were created
-6. Update Section 15 (Architecture Diagrams) if data flow changed
-7. Add a changelog entry in Section 16 with today's date
-8. Update the "Last updated" date at the top
-
-### Security Rules (READ BEFORE EDITING)
-
-- **NEVER put credentials in this document** — no passwords, no API keys, no tokens, no internal IPs, no usernames, no Sheet IDs. This document is shared with AI models and may be committed to git.
-- Credentials live in `.env` (gitignored) or the operator's private environment config, not here.
-- If you need to reference where credentials are stored, say "check `.env`" or "check the operator's private config" — do not print the actual values.
-- The database seeder (`database/seeders/DatabaseSeeder.php`) sets up the initial user. If it contains a hardcoded password, that's fine for local dev seed data but **must not be committed to git** — add it to `.gitignore` or use a factory with a generated password instead.
-- The admin panel will eventually be internet-exposed via Cloudflare Tunnel and able to send email. Treat all credentials as production secrets from day one.
-
----
-
-*End of document. Living document — update after every completed feature.*
-*For strategy context, read `Omni-OS-Strategy-Brief.md` first.*
-*For technical context, read this file.*
-*Together they give the complete picture for any human or AI to continue development.*
+## 16. Documentation Maintenance
+
+When updating this file:
+
+1. Read the implementation, migrations, routes, command signatures, scheduler, package manifests, `.env.example`, tests, and recent Git history.
+2. Describe code-backed behavior as implemented; label external state and planned work explicitly.
+3. Do not preserve stale production counts as current facts.
+4. Update the date and changelog.
+5. Never add secrets, private host details, customer PII, plaintext agent tokens, or credentials.
+6. Keep `bootstrap/app.php` documented as scheduler truth and `config/schedule-jobs.php` as UI metadata until they are unified.
