@@ -136,9 +136,6 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         return 'brightermonday';
     }
 
-    /**
-     * Build the URL for a given page number.
-     */
     private function buildPageUrl(int $page): string
     {
         if ($page === 1) {
@@ -148,11 +145,6 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         return self::BASE_URL.'?page='.$page;
     }
 
-    /**
-     * Parse job listings from the HTML of a page.
-     *
-     * @return array<int, array<string, mixed>>
-     */
     private function parseListingsFromHtml(string $html): array
     {
         $listings = [];
@@ -161,19 +153,8 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         @$dom->loadHTML('<?xml encoding="UTF-8">'.$html, LIBXML_NOWARNING | LIBXML_NOERROR);
         $xpath = new DOMXPath($dom);
 
-        // BrighterMonday uses search-result cards; try multiple selectors
-        // Modern BM site uses article[class*="search-result"] or div[class*="px-3 py-2"]
-        $jobNodes = $xpath->query("//article[contains(@class, 'search-result')]");
-
-        if ($jobNodes === false || $jobNodes->length === 0) {
-            // Fallback: try div cards
-            $jobNodes = $xpath->query("//div[contains(@class, 'px-3') and contains(@class, 'py-2')]");
-        }
-
-        if ($jobNodes === false || $jobNodes->length === 0) {
-            // Fallback: general job card pattern
-            $jobNodes = $xpath->query("//a[contains(@href, '/jobs/')][.//h2 or .//h3 or .//span[contains(@class, 'title')]]/..");
-        }
+        // Current BM site: cards with data-cy="listing-cards-components"
+        $jobNodes = $xpath->query("//div[@data-cy='listing-cards-components']");
 
         if ($jobNodes === false || $jobNodes->length === 0) {
             return $listings;
@@ -186,7 +167,6 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
                     $listings[] = $listing;
                 }
             } catch (\Exception $e) {
-                // Skip malformed nodes
                 continue;
             }
         }
@@ -194,23 +174,17 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         return $listings;
     }
 
-    /**
-     * Extract job data from a single DOM node.
-     *
-     * @return array<string, mixed>|null
-     */
     private function extractJobFromNode(DOMXPath $xpath, \DOMNode $node): ?array
     {
-        // Try getting job title
-        $titleNode = $xpath->query(".//h2[contains(@class, 'job-title')] | .//h3[contains(@class, 'job-title')] | .//a[contains(@class, 'job-title')] | .//h2 | .//h3 | .//span[contains(@class, 'title')]", $node);
+        // Job title: find the listing-title-link anchor, then the p inside it
+        $titleNode = $xpath->query(".//a[@data-cy='listing-title-link']//p", $node);
         $jobTitle = '';
         $jobUrl = '';
 
         if ($titleNode !== false && $titleNode->length > 0) {
             $jobTitle = trim($titleNode->item(0)->textContent);
-
-            // Check if the title node itself is a link, or find a parent/child link
-            $linkNode = $xpath->query(".//a[contains(@href, '/jobs/')]", $node);
+            // Get URL from the parent anchor
+            $linkNode = $xpath->query(".//a[@data-cy='listing-title-link']", $node);
             if ($linkNode !== false && $linkNode->length > 0) {
                 $href = $linkNode->item(0)->getAttribute('href');
                 if (! str_starts_with($href, 'http')) {
@@ -224,52 +198,39 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
             return null;
         }
 
-        // Try getting company name
-        $companyNode = $xpath->query(".//a[contains(@class, 'company')] | .//span[contains(@class, 'company')] | .//div[contains(@class, 'company')] | .//p[contains(@class, 'company')]", $node);
+        // Company name: p.text-blue-700.text-loading-animate
+        $companyNode = $xpath->query(".//p[contains(@class, 'text-blue-700')]", $node);
         $companyName = '';
         if ($companyNode !== false && $companyNode->length > 0) {
             $companyName = trim($companyNode->item(0)->textContent);
         }
 
-        if (empty($companyName)) {
-            // Fallback: try to find any non-empty text element that looks like a company
-            $allLinks = $xpath->query('.//a', $node);
-            foreach ($allLinks as $link) {
-                $href = $link->getAttribute('href');
-                $text = trim($link->textContent);
-                if (! empty($text) && (! str_contains($href, '/jobs/') || ! str_contains($href, '/job/'))) {
-                    $companyName = $text;
-                    break;
-                }
-            }
+        // Location: first span with bg-brand-secondary-100 class
+        $location = '';
+        $locationNode = $xpath->query(".//span[contains(@class, 'bg-brand-secondary-100')]", $node);
+        if ($locationNode !== false && $locationNode->length > 0) {
+            $location = trim($locationNode->item(0)->textContent);
         }
 
-        // Try getting posting date
-        $dateNode = $xpath->query(".//span[contains(@class, 'date')] | .//time | .//span[contains(text(), 'ago')] | .//div[contains(text(), 'hour') or contains(text(), 'day') or contains(text(), 'week') or contains(text(), 'month')]", $node);
-        $postingDate = null;
-        if ($dateNode !== false && $dateNode->length > 0) {
-            $postingDate = trim($dateNode->item(0)->textContent);
+        // Category: second p.text-gray-500 or last one
+        $category = '';
+        $catNode = $xpath->query(".//p[contains(@class, 'text-gray-500')]", $node);
+        if ($catNode !== false && $catNode->length > 0) {
+            $category = trim($catNode->item($catNode->length - 1)->textContent);
         }
 
-        // Try getting company description/snippet
-        $descNode = $xpath->query(".//p[contains(@class, 'description')] | .//div[contains(@class, 'description')] | .//span[contains(@class, 'snippet')]", $node);
-        $companyDescription = '';
-        if ($descNode !== false && $descNode->length > 0) {
-            $companyDescription = trim($descNode->item(0)->textContent);
-        }
+        // No posting date visible on the listing cards — mark as today
+        $postingDate = date('Y-m-d');
 
         return [
             'company_name' => $companyName,
             'job_title' => $jobTitle,
             'posting_date' => $postingDate,
             'job_url' => $jobUrl,
-            'company_description' => $companyDescription,
+            'company_description' => $category.' '.$location,
         ];
     }
 
-    /**
-     * Accumulate leads by company, rolling up vacancy count and titles.
-     */
     private function addCompanyLead(array $parsed): void
     {
         $key = mb_strtolower(trim($parsed['company_name']));
@@ -292,9 +253,6 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         }
     }
 
-    /**
-     * Check if the job title matches a target role.
-     */
     private function isTargetTitle(string $titleLower): bool
     {
         foreach (self::TARGET_TITLES as $target) {
@@ -306,9 +264,6 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         return false;
     }
 
-    /**
-     * Check if the role is internship-only (not grad/management trainee).
-     */
     private function isInternshipOnly(string $titleLower, string $originalTitle): bool
     {
         $isInternship = str_contains($titleLower, 'intern');
@@ -317,9 +272,6 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         return $isInternship && ! $isTrainee;
     }
 
-    /**
-     * Check if the company matches exclusion patterns (agencies, govt, etc.).
-     */
     private function isExcludedSource(string $companyLower, string $descriptionLower): bool
     {
         $combined = $companyLower.' '.$descriptionLower;
@@ -333,19 +285,15 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
         return false;
     }
 
-    /**
-     * Check if the posting date is within the last 30 days.
-     */
     private function isWithinDateRange(string $dateString): bool
     {
         try {
-            // Try relative date strings like "2 days ago", "1 week ago"
             if (preg_match('/(\d+)\s*(hour|day|week|month)s?\s*ago/i', $dateString, $matches)) {
                 $value = (int) $matches[1];
                 $unit = strtolower($matches[2]);
 
                 return match ($unit) {
-                    'hour' => true, // Anything within hours is definitely < 30 days
+                    'hour' => true,
                     'day' => $value <= 30,
                     'week' => $value <= 4,
                     'month' => $value <= 1,
@@ -353,13 +301,11 @@ class BrighterMondayScraper implements JobSourceScraper, ShouldQueue
                 };
             }
 
-            // Try absolute date formats
             $date = new \DateTime($dateString);
             $diff = $date->diff(new \DateTime);
 
             return $diff->days <= 30;
         } catch (\Exception $e) {
-            // If we can't parse the date, include it (lenient)
             return true;
         }
     }
