@@ -2,14 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Contracts\JobSourceScraper;
 use App\Jobs\Scrapers\BrighterMondayScraper;
-use App\Jobs\Scrapers\CompanyCareersScraper;
-use App\Jobs\Scrapers\CorporateStaffingScraper;
-use App\Jobs\Scrapers\FuzuScraper;
-use App\Jobs\Scrapers\GlassdoorScraper;
-use App\Jobs\Scrapers\GoogleJobsScraper;
+use App\Jobs\Scrapers\GenericJobBoardScraper;
 use App\Jobs\Scrapers\LinkedInJobsScraper;
-use App\Jobs\Scrapers\MyJobMagScraper;
 use App\Models\Brand;
 use App\Models\Lead;
 use App\Models\MiningTarget;
@@ -30,12 +26,12 @@ class MineHiringSignals extends Command
 
     private const SOURCE_MAP = [
         'brightermonday' => BrighterMondayScraper::class,
-        'fuzu' => FuzuScraper::class,
-        'myjobmag' => MyJobMagScraper::class,
-        'corporatestaffing' => CorporateStaffingScraper::class,
-        'glassdoor' => GlassdoorScraper::class,
-        'company_careers' => CompanyCareersScraper::class,
-        'google_jobs' => GoogleJobsScraper::class,
+        'fuzu' => GenericJobBoardScraper::class,
+        'myjobmag' => GenericJobBoardScraper::class,
+        'corporatestaffing' => GenericJobBoardScraper::class,
+        'glassdoor' => GenericJobBoardScraper::class,
+        'company_careers' => GenericJobBoardScraper::class,
+        'google_jobs' => GenericJobBoardScraper::class,
         'linkedin' => LinkedInJobsScraper::class,
     ];
 
@@ -93,7 +89,7 @@ class MineHiringSignals extends Command
             $this->info("Mining: {$sourceSlug}");
 
             try {
-                $scraper = new $scraperClass;
+                $scraper = $this->createScraper($sourceSlug, $scraperClass);
                 $listings = $scraper->fetchListings();
 
                 $this->line('  Fetched: '.count($listings).' raw listings');
@@ -286,5 +282,60 @@ class MineHiringSignals extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Factory: create the right scraper instance with per-source config.
+     */
+    private function createScraper(string $sourceSlug, string $scraperClass): JobSourceScraper
+    {
+        // GenericJobBoardScraper needs source config
+        if ($scraperClass === GenericJobBoardScraper::class) {
+            $sourceConfigs = [
+                'fuzu' => [
+                    'url' => 'https://www.fuzu.com/jobs',
+                    'targets' => self::TARGET_TITLES,
+                    'exclude' => [],
+                ],
+                'myjobmag' => [
+                    'url' => 'https://www.myjobmag.co.ke/jobs',
+                    'targets' => self::TARGET_TITLES,
+                    'exclude' => ['recruitment', 'staffing'],
+                ],
+                'corporatestaffing' => [
+                    'url' => 'https://www.corporatestaffing.co.ke/jobs',
+                    'targets' => self::TARGET_TITLES,
+                    'exclude' => [],
+                ],
+                'glassdoor' => [
+                    'url' => 'https://www.glassdoor.com/Job/kenya-jobs-SRCH_IL.0,5_IN179.htm',
+                    'targets' => self::TARGET_TITLES,
+                    'exclude' => [],
+                ],
+                'company_careers' => [
+                    'url' => 'https://www.google.com/search?q=kenya+company+careers+page+hiring&tbm=nws',
+                    'targets' => self::TARGET_TITLES,
+                    'exclude' => ['recruitment'],
+                ],
+                'google_jobs' => [
+                    'url' => 'https://www.google.com/search?q=jobs+in+kenya&ibp=htl;jobs',
+                    'targets' => self::TARGET_TITLES,
+                    'exclude' => [],
+                ],
+            ];
+
+            $cfg = $sourceConfigs[$sourceSlug] ?? $sourceConfigs['fuzu'];
+
+            return new GenericJobBoardScraper(
+                $sourceSlug,
+                $cfg['url'],
+                $cfg['targets'],
+                $cfg['exclude'],
+                3
+            );
+        }
+
+        // Other scrapers (BrighterMonday, LinkedIn) need no constructor args
+        return new $scraperClass;
     }
 }
