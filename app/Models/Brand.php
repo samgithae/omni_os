@@ -35,6 +35,11 @@ class Brand extends Model
         'sender_emails',
         'sender_name',
         'settings',
+        // MCP Credentials
+        'codex_api_key',
+        'elementor_mcp_endpoint',
+        'elementor_mcp_auth',
+        'elementor_mcp_enabled',
     ];
 
     protected function casts(): array
@@ -43,6 +48,8 @@ class Brand extends Model
             'is_active' => 'boolean',
             'sender_emails' => 'array',
             'settings' => 'array',
+            // Cast MCP fields
+            'elementor_mcp_enabled' => 'boolean',
         ];
     }
 

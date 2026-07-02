@@ -47,23 +47,46 @@ class BrandSettingsController extends Controller
             'sender_emails' => ['nullable', 'array'],
             'sender_emails.*' => ['email:rfc,dns'],
             'settings' => ['nullable', 'array'],
+            // MCP Configuration
+            'codex_api_key' => ['nullable', 'string'],
+            'elementor_mcp_endpoint' => ['nullable', 'string', 'url'],
+            'elementor_mcp_auth' => ['nullable', 'string'],
+            'elementor_mcp_enabled' => ['boolean'],
         ]);
 
+        // Update standard fields
         if (isset($validated['sender_name'])) {
             $brand->sender_name = $validated['sender_name'];
         }
 
         if (isset($validated['sender_emails'])) {
-            $brand->sender_emails = array_values(array_unique($validated['sender_emails']));
+            $brand->sender_emails = array_values(array_unique($validated['sender_emails'] ?? []));
         }
 
         if (isset($validated['settings'])) {
-            // Merge with existing settings rather than replacing entirely
             $existing = $brand->settings ?? [];
             $brand->settings = array_merge($existing, $validated['settings']);
         }
 
-        $brand->save();
+        // Update MCP fields
+        if (isset($validated['codex_api_key']) || isset($validated['elementor_mcp_endpoint']) || isset($validated['elementor_mcp_auth']) || isset($validated['elementor_mcp_enabled'])) {
+            if (isset($validated['codex_api_key'])) {
+                $brand->codex_api_key = $validated['codex_api_key'];
+            }
+            if (isset($validated['elementor_mcp_endpoint'])) {
+                $brand->elementor_mcp_endpoint = $validated['elementor_mcp_endpoint'];
+            }
+            if (isset($validated['elementor_mcp_auth'])) {
+                $brand->elementor_mcp_auth = $validated['elementor_mcp_auth'];
+            }
+            if (isset($validated['elementor_mcp_enabled'])) {
+                $brand->elementor_mcp_enabled = $validated['elementor_mcp_enabled'];
+            }
+            
+            $brand->save();
+        } else {
+            $brand->save();
+        }
 
         return back()->with('success', 'Brand settings saved.');
     }
